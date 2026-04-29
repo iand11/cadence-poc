@@ -20,7 +20,6 @@ src/data/artists.generated.json
 
 # Large data files
 responses.json
-public/data/artists/
 
 # Editor directories and files
 .vscode/*
