@@ -1,17 +1,25 @@
 import { Link, useLocation, useNavigate } from 'react-router';
-import { Search, Bell, FileText, LayoutDashboard, Music, Star, Sparkles, ListMusic } from 'lucide-react';
+import { Search, Bell, FileText, LayoutDashboard, Music, Star, Sparkles, ListMusic, Users, ChevronDown } from 'lucide-react';
 import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { searchArtists } from '../../data/artists';
 import { formatNumber } from '../../utils/formatters';
 import { useFavorites } from '../../hooks/useFavorites';
 
+const LIST_ITEMS = [
+  { path: '/tracks', label: 'Tracks', icon: Music, match: '/track' },
+  { path: '/playlists', label: 'Playlists', icon: ListMusic, match: '/playlist' },
+  { path: '/artists', label: 'Artists', icon: Users, match: '/artist' },
+];
+
 export default function AppBar() {
   const location = useLocation();
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [focused, setFocused] = useState(false);
+  const [listsOpen, setListsOpen] = useState(false);
   const inputRef = useRef(null);
+  const listsRef = useRef(null);
 
   const { toggleFavorite, isFavorite } = useFavorites();
   const results = query.length >= 2 ? searchArtists(query).slice(0, 6) : [];
@@ -22,6 +30,8 @@ export default function AppBar() {
     setFocused(false);
     inputRef.current?.blur();
   };
+
+  const isListsActive = LIST_ITEMS.some(item => location.pathname.startsWith(item.match));
 
   return (
     <header className="sticky top-0 z-50 bg-[#0D0C0B]/80 backdrop-blur-xl border-b border-[#2C2B28]">
@@ -126,28 +136,52 @@ export default function AppBar() {
               <LayoutDashboard size={14} />
               <span className="hidden md:inline">Dashboard</span>
             </Link>
-            <Link
-              to="/tracks"
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs transition-colors ${
-                location.pathname.startsWith('/track')
-                  ? 'text-[#F5F0E8] bg-[#171614]'
-                  : 'text-[#9B9590] hover:text-[#F5F0E8]'
-              }`}
-            >
-              <Music size={14} />
-              <span className="hidden md:inline">Tracks</span>
-            </Link>
-            <Link
-              to="/playlists"
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs transition-colors ${
-                location.pathname.startsWith('/playlist')
-                  ? 'text-[#F5F0E8] bg-[#171614]'
-                  : 'text-[#9B9590] hover:text-[#F5F0E8]'
-              }`}
-            >
-              <ListMusic size={14} />
-              <span className="hidden md:inline">Playlists</span>
-            </Link>
+
+            {/* Lists Dropdown */}
+            <div className="relative" ref={listsRef}>
+              <button
+                onClick={() => setListsOpen(!listsOpen)}
+                onBlur={() => setTimeout(() => setListsOpen(false), 200)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs transition-colors cursor-pointer ${
+                  isListsActive
+                    ? 'text-[#F5F0E8] bg-[#171614]'
+                    : 'text-[#9B9590] hover:text-[#F5F0E8]'
+                }`}
+              >
+                <ListMusic size={14} />
+                <span className="hidden md:inline">Lists</span>
+                <ChevronDown size={10} className={`transition-transform ${listsOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              <AnimatePresence>
+                {listsOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute top-full right-0 mt-1.5 bg-[#171614] border border-[#2C2B28] rounded shadow-2xl z-50 overflow-hidden min-w-[140px]"
+                  >
+                    {LIST_ITEMS.map(({ path, label, icon: Icon, match }) => (
+                      <Link
+                        key={path}
+                        to={path}
+                        onMouseDown={() => setListsOpen(false)}
+                        className={`flex items-center gap-2 px-3.5 py-2.5 text-xs transition-colors ${
+                          location.pathname.startsWith(match)
+                            ? 'text-[#DA7756] bg-[#1C1B18]'
+                            : 'text-[#9B9590] hover:text-[#F5F0E8] hover:bg-[#1C1B18]'
+                        }`}
+                      >
+                        <Icon size={13} />
+                        {label}
+                      </Link>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
             <Link
               to="/reports"
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs transition-colors ${
