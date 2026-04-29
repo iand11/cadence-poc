@@ -31,9 +31,9 @@ function CountryLayer({ countryListeners, maxListeners }) {
     const count = countryListeners[feat.id] || 0;
     if (count === 0) {
       return {
-        fillColor: '#1E1E1E',
+        fillColor: '#2C2B28',
         fillOpacity: 0.3,
-        color: '#2A2A2A',
+        color: '#3D3B37',
         weight: 0.5,
       };
     }
@@ -41,9 +41,9 @@ function CountryLayer({ countryListeners, maxListeners }) {
     // Interpolate from dim amber to bright amber
     const opacity = 0.15 + ratio * 0.7;
     return {
-      fillColor: '#00D4FF',
+      fillColor: '#DA7756',
       fillOpacity: opacity,
-      color: '#00D4FF',
+      color: '#DA7756',
       weight: ratio > 0.5 ? 1.5 : 0.8,
       opacity: 0.4 + ratio * 0.4,
     };
@@ -110,21 +110,21 @@ export default function GeographyHeatMap({ data }) {
 
   if (data.length === 0) {
     return (
-      <div className="flex items-center justify-center h-[340px] text-sm text-[#444444]">
+      <div className="flex items-center justify-center h-[340px] text-sm text-[#6B6560]">
         No geographic data available
       </div>
     );
   }
 
   return (
-    <div className="rounded overflow-hidden border border-[#1E1E1E]" style={{ height: 340 }}>
+    <div className="rounded overflow-hidden border border-[#2C2B28]" style={{ height: 340 }}>
       <MapContainer
         center={[20, 0]}
         zoom={2}
         minZoom={2}
         maxZoom={6}
         scrollWheelZoom={true}
-        style={{ height: '100%', width: '100%', background: '#080808' }}
+        style={{ height: '100%', width: '100%', background: '#0D0C0B' }}
         attributionControl={false}
       >
         <TileLayer url={TILE_URL} />
@@ -138,7 +138,7 @@ export default function GeographyHeatMap({ data }) {
               radius={4 + ratio * 10}
               pathOptions={{
                 color: '#fff',
-                fillColor: '#00D4FF',
+                fillColor: '#DA7756',
                 fillOpacity: 0.7 + ratio * 0.3,
                 weight: 1,
                 opacity: 0.6,

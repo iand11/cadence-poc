@@ -81,7 +81,7 @@ const leaderboardCols = [
   {
     key: 'name', label: 'Artist', align: 'left',
     format: (v, row) => (
-      <Link to={`/artist/${row.slug}`} className="text-[#F4F0EA] hover:text-[#00D4FF] transition-colors">{v}</Link>
+      <Link to={`/artist/${row.slug}`} className="text-[#F5F0E8] hover:text-[#DA7756] transition-colors">{v}</Link>
     ),
   },
   { key: 'stat', label: 'Listeners', format: (v) => formatNumber(v) },
@@ -92,7 +92,7 @@ const socialCols = [
   {
     key: 'name', label: 'Artist', align: 'left',
     format: (v, row) => (
-      <Link to={`/artist/${row.slug}`} className="text-[#F4F0EA] hover:text-[#00D4FF] transition-colors">{v}</Link>
+      <Link to={`/artist/${row.slug}`} className="text-[#F5F0E8] hover:text-[#DA7756] transition-colors">{v}</Link>
     ),
   },
   { key: 'stat', label: 'Social Following', format: (v) => formatNumber(v) },
@@ -100,23 +100,23 @@ const socialCols = [
 
 // --- Shared small components ---
 
-const insightDot = { success: 'bg-[#7ab87a]', warning: 'bg-[#00D4FF]', danger: 'bg-[#e85d5d]', info: 'bg-[#5b9bd5]' };
+const insightDot = { success: 'bg-[#7BAF73]', warning: 'bg-[#DA7756]', danger: 'bg-[#C75F4F]', info: 'bg-[#D4A574]' };
 
 function WidgetInsight({ insight }) {
   if (!insight) return null;
   return (
-    <div className="mt-3 pt-3 border-t border-[#1E1E1E] flex items-start gap-2">
+    <div className="mt-3 pt-3 border-t border-[#2C2B28] flex items-start gap-2">
       <div className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${insightDot[insight.type] || insightDot.info}`} />
-      <p className="text-[10px] text-[#888888] leading-relaxed line-clamp-2">{insight.text}</p>
+      <p className="text-[10px] text-[#9B9590] leading-relaxed line-clamp-2">{insight.text}</p>
     </div>
   );
 }
 
 function StaticInsight({ type, text }) {
   return (
-    <div className="mt-3 pt-3 border-t border-[#1E1E1E] flex items-start gap-2">
+    <div className="mt-3 pt-3 border-t border-[#2C2B28] flex items-start gap-2">
       <div className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${insightDot[type] || insightDot.info}`} />
-      <p className="text-[10px] text-[#888888] leading-relaxed line-clamp-2">{text}</p>
+      <p className="text-[10px] text-[#9B9590] leading-relaxed line-clamp-2">{text}</p>
     </div>
   );
 }
@@ -150,35 +150,35 @@ function ArtistMultiSelect({ value, onChange }) {
     <div className="relative" ref={ref}>
       <button
         onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
-        className="text-[10px] bg-[#080808] text-[#888888] border border-[#1E1E1E] rounded px-2 py-0.5 cursor-pointer hover:border-[#2A2A2A] transition-colors max-w-[130px] truncate flex items-center gap-1"
+        className="text-[10px] bg-[#0D0C0B] text-[#9B9590] border border-[#2C2B28] rounded px-2 py-0.5 cursor-pointer hover:border-[#3D3B37] transition-colors max-w-[130px] truncate flex items-center gap-1"
       >
         <span className="truncate">{label}</span>
         <svg width="8" height="8" viewBox="0 0 8 8" className="shrink-0 opacity-40"><path d="M2 3l2 2 2-2" stroke="currentColor" strokeWidth="1.2" fill="none"/></svg>
       </button>
       {open && (
-        <div className="absolute right-0 top-full mt-1 z-50 w-52 bg-[#0F0F0F] border border-[#1E1E1E] rounded shadow-xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="absolute right-0 top-full mt-1 z-50 w-52 bg-[#171614] border border-[#2C2B28] rounded shadow-xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
           <div className="max-h-56 overflow-y-auto py-1">
             <button
               onClick={() => toggle('__all__')}
-              className={`w-full flex items-center gap-2 px-3 py-1.5 text-left text-[10px] hover:bg-[#1E1E1E]/50 transition-colors cursor-pointer ${isAll ? 'text-[#00D4FF]' : 'text-[#888888]'}`}
+              className={`w-full flex items-center gap-2 px-3 py-1.5 text-left text-[10px] hover:bg-[#2C2B28]/50 transition-colors cursor-pointer ${isAll ? 'text-[#DA7756]' : 'text-[#9B9590]'}`}
             >
-              <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 ${isAll ? 'bg-[#00D4FF] border-[#00D4FF]' : 'border-[#2A2A2A]'}`}>
-                {isAll && <Check size={8} className="text-[#080808]" />}
+              <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 ${isAll ? 'bg-[#DA7756] border-[#DA7756]' : 'border-[#3D3B37]'}`}>
+                {isAll && <Check size={8} className="text-[#0D0C0B]" />}
               </div>
               <span className="font-medium">Entire Roster</span>
-              <span className="ml-auto text-[#444444]">{allArtists.length}</span>
+              <span className="ml-auto text-[#6B6560]">{allArtists.length}</span>
             </button>
-            <div className="border-t border-[#1E1E1E] my-1" />
+            <div className="border-t border-[#2C2B28] my-1" />
             {artistOptions.map(a => {
               const checked = !isAll && value.includes(a.slug);
               return (
                 <button
                   key={a.slug}
                   onClick={() => toggle(a.slug)}
-                  className={`w-full flex items-center gap-2 px-3 py-1.5 text-left text-[10px] hover:bg-[#1E1E1E]/50 transition-colors cursor-pointer ${checked ? 'text-[#F4F0EA]' : 'text-[#888888]'}`}
+                  className={`w-full flex items-center gap-2 px-3 py-1.5 text-left text-[10px] hover:bg-[#2C2B28]/50 transition-colors cursor-pointer ${checked ? 'text-[#F5F0E8]' : 'text-[#9B9590]'}`}
                 >
-                  <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 ${checked ? 'bg-[#00D4FF] border-[#00D4FF]' : 'border-[#2A2A2A]'}`}>
-                    {checked && <Check size={8} className="text-[#080808]" />}
+                  <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 ${checked ? 'bg-[#DA7756] border-[#DA7756]' : 'border-[#3D3B37]'}`}>
+                    {checked && <Check size={8} className="text-[#0D0C0B]" />}
                   </div>
                   <span className="truncate">{a.name}</span>
                 </button>
@@ -198,20 +198,20 @@ function WidgetCard({ id, title, subtitle, headerRight, children, onDragStart, o
       onDragStart={(e) => { e.dataTransfer.setData('text/plain', id); onDragStart?.(id); }}
       onDragOver={(e) => { e.preventDefault(); onDragOver?.(id); }}
       onDrop={(e) => { e.preventDefault(); onDrop?.(id); }}
-      className="bg-[#0F0F0F] border border-[#1E1E1E] rounded overflow-hidden hover:border-[#1E1E1E]/80 transition-colors"
+      className="bg-[#171614] border border-[#2C2B28] rounded overflow-hidden hover:border-[#2C2B28]/80 transition-colors"
     >
       <div className="flex items-center gap-2 px-4 pt-3 pb-1">
-        <div className="cursor-grab active:cursor-grabbing text-[#2A2A2A] hover:text-[#444444] transition-colors">
+        <div className="cursor-grab active:cursor-grabbing text-[#3D3B37] hover:text-[#6B6560] transition-colors">
           <GripVertical size={14} />
         </div>
         <div className="flex-1 min-w-0">
-          <h3 className="text-xs font-medium text-[#F4F0EA] truncate">{title}</h3>
-          {subtitle && <p className="text-[10px] text-[#444444] truncate">{subtitle}</p>}
+          <h3 className="text-xs font-medium text-[#F5F0E8] truncate">{title}</h3>
+          {subtitle && <p className="text-[10px] text-[#6B6560] truncate">{subtitle}</p>}
         </div>
         {headerRight}
         <button
           onClick={() => onRemove?.(id)}
-          className="p-1 text-[#2A2A2A] hover:text-[#888888] transition-colors cursor-pointer shrink-0"
+          className="p-1 text-[#3D3B37] hover:text-[#9B9590] transition-colors cursor-pointer shrink-0"
           title="Remove widget"
         >
           <X size={12} />
@@ -421,27 +421,27 @@ function PlaylistWidget({ dragProps }) {
   return (
     <WidgetCard id="playlist-overview" title="Playlist Intelligence" subtitle={`${plStats.totalPlacements} placements · ${plStats.editorialRate}% editorial`} {...dragProps}>
       <div className="grid grid-cols-2 gap-2 mb-3">
-        <div className="bg-[#080808] rounded p-2 text-center">
-          <p className="text-xs font-mono text-[#F4F0EA]">{formatNumber(plStats.totalPlacements)}</p>
-          <p className="text-[9px] text-[#444444]">Placements</p>
+        <div className="bg-[#0D0C0B] rounded p-2 text-center">
+          <p className="text-xs font-mono text-[#F5F0E8]">{formatNumber(plStats.totalPlacements)}</p>
+          <p className="text-[9px] text-[#6B6560]">Placements</p>
         </div>
-        <div className="bg-[#080808] rounded p-2 text-center">
-          <p className="text-xs font-mono text-[#F4F0EA]">{formatNumber(plStats.totalReach)}</p>
-          <p className="text-[9px] text-[#444444]">Total Reach</p>
+        <div className="bg-[#0D0C0B] rounded p-2 text-center">
+          <p className="text-xs font-mono text-[#F5F0E8]">{formatNumber(plStats.totalReach)}</p>
+          <p className="text-[9px] text-[#6B6560]">Total Reach</p>
         </div>
       </div>
       <div className="space-y-0.5">
         {plStats.topPlaylists.slice(0, 5).map((pl) => (
           <Link key={pl.id} to={`/playlist/${pl.id}`} className="block">
-            <div className="group flex items-center gap-2.5 px-2 py-1.5 rounded hover:bg-[#080808] transition-all">
-              <div className="w-7 h-7 rounded bg-[#1E1E1E] flex items-center justify-center shrink-0">
-                <ListMusic size={11} className="text-[#444444]" />
+            <div className="group flex items-center gap-2.5 px-2 py-1.5 rounded hover:bg-[#0D0C0B] transition-all">
+              <div className="w-7 h-7 rounded bg-[#2C2B28] flex items-center justify-center shrink-0">
+                <ListMusic size={11} className="text-[#6B6560]" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs text-[#F4F0EA] truncate group-hover:text-[#00D4FF] transition-colors">{pl.name}</p>
-                <p className="text-[9px] text-[#444444] truncate">{pl.rosterTracks} artist{pl.rosterTracks === 1 ? '' : 's'}</p>
+                <p className="text-xs text-[#F5F0E8] truncate group-hover:text-[#DA7756] transition-colors">{pl.name}</p>
+                <p className="text-[9px] text-[#6B6560] truncate">{pl.rosterTracks} artist{pl.rosterTracks === 1 ? '' : 's'}</p>
               </div>
-              <span className="text-[10px] font-mono text-[#888888] shrink-0">{formatNumber(pl.totalStreamAttribution)}</span>
+              <span className="text-[10px] font-mono text-[#9B9590] shrink-0">{formatNumber(pl.totalStreamAttribution)}</span>
             </div>
           </Link>
         ))}
@@ -458,32 +458,32 @@ function TrackIntelligenceWidget({ dragProps }) {
   return (
     <WidgetCard id="track-intelligence" title="Track Intelligence" subtitle={`${formatNumber(tStats.totalStreams)} total streams · ${tStats.avgPopularity}/100 avg popularity`} {...dragProps}>
       <div className="grid grid-cols-2 gap-2 mb-3">
-        <div className="bg-[#080808] rounded p-2 text-center">
-          <p className="text-xs font-mono text-[#F4F0EA]">{formatNumber(tStats.totalStreams)}</p>
-          <p className="text-[9px] text-[#444444]">Total Streams</p>
+        <div className="bg-[#0D0C0B] rounded p-2 text-center">
+          <p className="text-xs font-mono text-[#F5F0E8]">{formatNumber(tStats.totalStreams)}</p>
+          <p className="text-[9px] text-[#6B6560]">Total Streams</p>
         </div>
-        <div className="bg-[#080808] rounded p-2 text-center">
-          <p className="text-xs font-mono text-[#F4F0EA]">{tStats.editorialRate}%</p>
-          <p className="text-[9px] text-[#444444]">Editorial Rate</p>
+        <div className="bg-[#0D0C0B] rounded p-2 text-center">
+          <p className="text-xs font-mono text-[#F5F0E8]">{tStats.editorialRate}%</p>
+          <p className="text-[9px] text-[#6B6560]">Editorial Rate</p>
         </div>
       </div>
       <div className="space-y-0.5">
         {tStats.topMovers.slice(0, 5).map((t, i) => (
           <Link key={t.id} to={`/track/${t.id}`} className="block">
-            <div className="group flex items-center gap-2.5 px-2 py-1.5 rounded hover:bg-[#080808] transition-all">
-              <span className="text-[10px] font-mono text-[#444444] w-4 text-right shrink-0">{i + 1}</span>
+            <div className="group flex items-center gap-2.5 px-2 py-1.5 rounded hover:bg-[#0D0C0B] transition-all">
+              <span className="text-[10px] font-mono text-[#6B6560] w-4 text-right shrink-0">{i + 1}</span>
               {t.imageUrl ? (
                 <img src={t.imageUrl} alt="" className="w-8 h-8 rounded object-cover shrink-0" />
               ) : (
-                <div className="w-8 h-8 rounded bg-[#1E1E1E] flex items-center justify-center shrink-0">
-                  <Music size={11} className="text-[#444444]" />
+                <div className="w-8 h-8 rounded bg-[#2C2B28] flex items-center justify-center shrink-0">
+                  <Music size={11} className="text-[#6B6560]" />
                 </div>
               )}
               <div className="flex-1 min-w-0">
-                <p className="text-xs text-[#F4F0EA] truncate group-hover:text-[#00D4FF] transition-colors">{t.name}</p>
-                <p className="text-[9px] text-[#444444] truncate">{getArtist(t.artistSlug)?.name || ''}</p>
+                <p className="text-xs text-[#F5F0E8] truncate group-hover:text-[#DA7756] transition-colors">{t.name}</p>
+                <p className="text-[9px] text-[#6B6560] truncate">{getArtist(t.artistSlug)?.name || ''}</p>
               </div>
-              <span className={`text-[10px] font-mono shrink-0 ${t.perf.growthDelta >= 0 ? 'text-[#7ab87a]' : 'text-[#e85d5d]'}`}>
+              <span className={`text-[10px] font-mono shrink-0 ${t.perf.growthDelta >= 0 ? 'text-[#7BAF73]' : 'text-[#C75F4F]'}`}>
                 {t.perf.growthDelta >= 0 ? '+' : ''}{t.perf.growthDelta}%
               </span>
             </div>
@@ -647,24 +647,24 @@ export default function Dashboard() {
         <div className="space-y-0.5">
           {top6.map((artist) => (
             <Link key={artist.slug} to={`/artist/${artist.slug}`} className="block">
-              <div className="group flex items-center gap-2.5 px-2 py-1.5 rounded hover:bg-[#080808] transition-all">
+              <div className="group flex items-center gap-2.5 px-2 py-1.5 rounded hover:bg-[#0D0C0B] transition-all">
                 {artist.imageUrl ? (
                   <img src={artist.imageUrl} alt="" className="w-7 h-7 rounded object-cover shrink-0" />
                 ) : (
-                  <div className="w-7 h-7 rounded bg-[#1E1E1E] flex items-center justify-center shrink-0">
-                    <Music size={11} className="text-[#444444]" />
+                  <div className="w-7 h-7 rounded bg-[#2C2B28] flex items-center justify-center shrink-0">
+                    <Music size={11} className="text-[#6B6560]" />
                   </div>
                 )}
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs text-[#F4F0EA] truncate group-hover:text-[#00D4FF] transition-colors">{artist.name}</p>
-                  <p className="text-[9px] text-[#444444]">{artist.genres?.primary?.name || 'Artist'} · {formatNumber(artist.spotify.monthlyListeners)}</p>
+                  <p className="text-xs text-[#F5F0E8] truncate group-hover:text-[#DA7756] transition-colors">{artist.name}</p>
+                  <p className="text-[9px] text-[#6B6560]">{artist.genres?.primary?.name || 'Artist'} · {formatNumber(artist.spotify.monthlyListeners)}</p>
                 </div>
-                <span className="text-[9px] font-mono text-[#444444]">#{artist.rank}</span>
+                <span className="text-[9px] font-mono text-[#6B6560]">#{artist.rank}</span>
                 <button
                   onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleFavorite(artist.slug); }}
                   className="p-0.5 cursor-pointer shrink-0"
                 >
-                  <Star size={11} className={isFavorite(artist.slug) ? 'text-[#00D4FF] fill-[#00D4FF]' : 'text-[#2A2A2A] hover:text-[#444444]'} />
+                  <Star size={11} className={isFavorite(artist.slug) ? 'text-[#DA7756] fill-[#DA7756]' : 'text-[#3D3B37] hover:text-[#6B6560]'} />
                 </button>
               </div>
             </Link>
@@ -679,20 +679,20 @@ export default function Dashboard() {
         <div className="space-y-0.5">
           {getTopTracksAcrossRoster(8).map((t, i) => (
             <Link key={t.id} to={`/track/${t.id}`} className="block">
-              <div className="group flex items-center gap-2.5 px-2 py-1.5 rounded hover:bg-[#080808] transition-all">
-                <span className="text-[10px] font-mono text-[#444444] w-4 text-right shrink-0">{i + 1}</span>
+              <div className="group flex items-center gap-2.5 px-2 py-1.5 rounded hover:bg-[#0D0C0B] transition-all">
+                <span className="text-[10px] font-mono text-[#6B6560] w-4 text-right shrink-0">{i + 1}</span>
                 {t.imageUrl ? (
                   <img src={t.imageUrl} alt="" className="w-8 h-8 rounded object-cover shrink-0" />
                 ) : (
-                  <div className="w-8 h-8 rounded bg-[#1E1E1E] flex items-center justify-center shrink-0">
-                    <Music size={11} className="text-[#444444]" />
+                  <div className="w-8 h-8 rounded bg-[#2C2B28] flex items-center justify-center shrink-0">
+                    <Music size={11} className="text-[#6B6560]" />
                   </div>
                 )}
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs text-[#F4F0EA] truncate group-hover:text-[#00D4FF] transition-colors">{t.name}</p>
-                  <p className="text-[9px] text-[#444444] truncate">{getArtist(t.artistSlug)?.name || ''}</p>
+                  <p className="text-xs text-[#F5F0E8] truncate group-hover:text-[#DA7756] transition-colors">{t.name}</p>
+                  <p className="text-[9px] text-[#6B6560] truncate">{getArtist(t.artistSlug)?.name || ''}</p>
                 </div>
-                <span className="text-[10px] font-mono text-[#888888] shrink-0">{formatNumber(t.streams)}</span>
+                <span className="text-[10px] font-mono text-[#9B9590] shrink-0">{formatNumber(t.streams)}</span>
               </div>
             </Link>
           ))}
@@ -704,17 +704,17 @@ export default function Dashboard() {
         <div className="grid grid-cols-3 gap-2">
           {getRecentReleases(6).map((a) => (
             <Link key={a.id} to={`/album/${a.id}`} className="group block">
-              <div className="aspect-square rounded overflow-hidden bg-[#1E1E1E] border border-[#1E1E1E] group-hover:border-[#00D4FF]/30 transition-colors mb-1.5">
+              <div className="aspect-square rounded overflow-hidden bg-[#2C2B28] border border-[#2C2B28] group-hover:border-[#DA7756]/30 transition-colors mb-1.5">
                 {a.imageUrl ? (
                   <img src={a.imageUrl} alt={a.name} className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
-                    <Music size={20} className="text-[#444444]" />
+                    <Music size={20} className="text-[#6B6560]" />
                   </div>
                 )}
               </div>
-              <p className="text-[11px] text-[#F4F0EA] truncate group-hover:text-[#00D4FF] transition-colors">{a.name}</p>
-              <p className="text-[9px] text-[#444444] truncate">
+              <p className="text-[11px] text-[#F5F0E8] truncate group-hover:text-[#DA7756] transition-colors">{a.name}</p>
+              <p className="text-[9px] text-[#6B6560] truncate">
                 {getArtist(a.artistSlug)?.name || ''}
                 {a.releaseDate ? ` · ${new Date(a.releaseDate).getFullYear()}` : ''}
               </p>
@@ -749,13 +749,13 @@ export default function Dashboard() {
         <div className="space-y-0.5">
           {trendingArtists.map((a) => (
             <Link key={a.slug} to={`/artist/${a.slug}`} className="block">
-              <div className="group flex items-center gap-2.5 px-2 py-1.5 rounded hover:bg-[#080808] transition-all">
-                <span className="text-[10px] font-mono text-[#444444] w-4 text-right shrink-0">{a.pos}</span>
+              <div className="group flex items-center gap-2.5 px-2 py-1.5 rounded hover:bg-[#0D0C0B] transition-all">
+                <span className="text-[10px] font-mono text-[#6B6560] w-4 text-right shrink-0">{a.pos}</span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs text-[#F4F0EA] truncate group-hover:text-[#00D4FF] transition-colors">{a.name}</p>
-                  <p className="text-[9px] text-[#444444]">{formatNumber(a.listeners)} listeners</p>
+                  <p className="text-xs text-[#F5F0E8] truncate group-hover:text-[#DA7756] transition-colors">{a.name}</p>
+                  <p className="text-[9px] text-[#6B6560]">{formatNumber(a.listeners)} listeners</p>
                 </div>
-                <TrendingUp size={12} className="text-[#7ab87a] shrink-0" />
+                <TrendingUp size={12} className="text-[#7BAF73] shrink-0" />
               </div>
             </Link>
           ))}
@@ -769,14 +769,14 @@ export default function Dashboard() {
         <div className="space-y-1.5 pt-1">
           {genreDistribution.map((g) => (
             <div key={g.name} className="flex items-center gap-2.5">
-              <span className="text-[10px] text-[#F4F0EA] w-24 truncate text-right shrink-0">{g.name}</span>
-              <div className="flex-1 h-4 bg-[#1E1E1E] rounded overflow-hidden">
+              <span className="text-[10px] text-[#F5F0E8] w-24 truncate text-right shrink-0">{g.name}</span>
+              <div className="flex-1 h-4 bg-[#2C2B28] rounded overflow-hidden">
                 <div
-                  className="h-full bg-[#00D4FF] rounded"
+                  className="h-full bg-[#DA7756] rounded"
                   style={{ width: `${(g.count / maxGenreCount) * 100}%`, opacity: 0.4 + (g.count / maxGenreCount) * 0.6 }}
                 />
               </div>
-              <span className="text-[10px] font-mono text-[#888888] w-6 text-right shrink-0">{g.count}</span>
+              <span className="text-[10px] font-mono text-[#9B9590] w-6 text-right shrink-0">{g.count}</span>
             </div>
           ))}
         </div>
@@ -795,20 +795,20 @@ export default function Dashboard() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-light text-[#F4F0EA]">Dashboard</h1>
-            <p className="text-xs text-[#888888] mt-1">{stats.total} artists tracked — {activeWidgets.length} of {WIDGET_CATALOG.length} widgets active</p>
+            <h1 className="text-2xl font-light text-[#F5F0E8]">Dashboard</h1>
+            <p className="text-xs text-[#9B9590] mt-1">{stats.total} artists tracked — {activeWidgets.length} of {WIDGET_CATALOG.length} widgets active</p>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setPickerOpen(!pickerOpen)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] text-[#00D4FF] border border-[#00D4FF]/20 hover:border-[#00D4FF]/40 rounded transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] text-[#DA7756] border border-[#DA7756]/20 hover:border-[#DA7756]/40 rounded transition-colors cursor-pointer"
             >
               <LayoutGrid size={10} />
               Manage widgets
             </button>
             <button
               onClick={resetWidgets}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] text-[#444444] hover:text-[#888888] transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] text-[#6B6560] hover:text-[#9B9590] transition-colors cursor-pointer"
             >
               <RotateCcw size={10} />
               Reset
@@ -826,10 +826,10 @@ export default function Dashboard() {
               transition={{ duration: 0.2 }}
               className="overflow-hidden"
             >
-              <div className="bg-[#0F0F0F] border border-[#1E1E1E] rounded p-4">
+              <div className="bg-[#171614] border border-[#2C2B28] rounded p-4">
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-medium text-[#888888]">Available Widgets</span>
-                  <button onClick={() => setPickerOpen(false)} className="p-1 text-[#444444] hover:text-[#888888] cursor-pointer">
+                  <span className="text-xs font-medium text-[#9B9590]">Available Widgets</span>
+                  <button onClick={() => setPickerOpen(false)} className="p-1 text-[#6B6560] hover:text-[#9B9590] cursor-pointer">
                     <X size={12} />
                   </button>
                 </div>
@@ -842,18 +842,18 @@ export default function Dashboard() {
                         onClick={() => isActive ? removeWidget(w.id) : addWidget(w.id)}
                         className={`flex items-center gap-2.5 px-3 py-2.5 rounded border text-left transition-all cursor-pointer ${
                           isActive
-                            ? 'border-[#00D4FF]/30 bg-[#00D4FF]/5'
-                            : 'border-[#1E1E1E] hover:border-[#2A2A2A] bg-transparent'
+                            ? 'border-[#DA7756]/30 bg-[#DA7756]/5'
+                            : 'border-[#2C2B28] hover:border-[#3D3B37] bg-transparent'
                         }`}
                       >
                         <div className={`w-5 h-5 rounded flex items-center justify-center shrink-0 ${
-                          isActive ? 'bg-[#00D4FF] text-[#080808]' : 'bg-[#1E1E1E] text-[#444444]'
+                          isActive ? 'bg-[#DA7756] text-[#0D0C0B]' : 'bg-[#2C2B28] text-[#6B6560]'
                         }`}>
                           {isActive ? <Check size={10} /> : <Plus size={10} />}
                         </div>
                         <div className="min-w-0">
-                          <p className={`text-[11px] font-medium truncate ${isActive ? 'text-[#F4F0EA]' : 'text-[#888888]'}`}>{w.title}</p>
-                          <p className="text-[9px] text-[#444444] truncate">{w.subtitle}</p>
+                          <p className={`text-[11px] font-medium truncate ${isActive ? 'text-[#F5F0E8]' : 'text-[#9B9590]'}`}>{w.title}</p>
+                          <p className="text-[9px] text-[#6B6560] truncate">{w.subtitle}</p>
                         </div>
                       </button>
                     );
@@ -885,12 +885,12 @@ export default function Dashboard() {
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-16 text-center">
-            <LayoutGrid size={32} className="text-[#1E1E1E] mb-3" />
-            <p className="text-sm text-[#888888] mb-1">No widgets selected</p>
-            <p className="text-[11px] text-[#444444] mb-4">Add widgets to build your dashboard</p>
+            <LayoutGrid size={32} className="text-[#2C2B28] mb-3" />
+            <p className="text-sm text-[#9B9590] mb-1">No widgets selected</p>
+            <p className="text-[11px] text-[#6B6560] mb-4">Add widgets to build your dashboard</p>
             <button
               onClick={() => setPickerOpen(true)}
-              className="flex items-center gap-1.5 px-4 py-2 text-xs text-[#00D4FF] border border-[#00D4FF]/20 hover:border-[#00D4FF]/40 rounded transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 px-4 py-2 text-xs text-[#DA7756] border border-[#DA7756]/20 hover:border-[#DA7756]/40 rounded transition-colors cursor-pointer"
             >
               <Plus size={12} />
               Add widgets
@@ -902,19 +902,19 @@ export default function Dashboard() {
       {/* Favorites Sidebar */}
       <div className="w-56 shrink-0 hidden lg:block">
         <div className="sticky top-20">
-          <div className="bg-[#0F0F0F] border border-[#1E1E1E] rounded p-4">
+          <div className="bg-[#171614] border border-[#2C2B28] rounded p-4">
             <div className="flex items-center gap-2 mb-3">
-              <Star size={13} className="text-[#00D4FF]" />
-              <span className="text-xs font-medium text-[#888888]">Favorites</span>
+              <Star size={13} className="text-[#DA7756]" />
+              <span className="text-xs font-medium text-[#9B9590]">Favorites</span>
               {favoriteArtists.length > 0 && (
-                <span className="text-[10px] text-[#444444] ml-auto">{favoriteArtists.length}</span>
+                <span className="text-[10px] text-[#6B6560] ml-auto">{favoriteArtists.length}</span>
               )}
             </div>
 
             {favoriteArtists.length === 0 ? (
               <div className="text-center py-4">
-                <Star size={16} className="mx-auto mb-1.5 text-[#1E1E1E]" />
-                <p className="text-[10px] text-[#444444] leading-relaxed">
+                <Star size={16} className="mx-auto mb-1.5 text-[#2C2B28]" />
+                <p className="text-[10px] text-[#6B6560] leading-relaxed">
                   Click ★ on artist cards<br />to add favorites
                 </p>
               </div>
@@ -924,24 +924,24 @@ export default function Dashboard() {
                   <Link
                     key={artist.slug}
                     to={`/artist/${artist.slug}`}
-                    className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[#141414] transition-colors group"
+                    className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[#1C1B18] transition-colors group"
                   >
                     {artist.imageUrl ? (
                       <img src={artist.imageUrl} alt="" className="w-7 h-7 rounded object-cover shrink-0" />
                     ) : (
-                      <div className="w-7 h-7 rounded bg-[#1E1E1E] flex items-center justify-center shrink-0">
-                        <Music size={11} className="text-[#444444]" />
+                      <div className="w-7 h-7 rounded bg-[#2C2B28] flex items-center justify-center shrink-0">
+                        <Music size={11} className="text-[#6B6560]" />
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className="text-[11px] text-[#F4F0EA] truncate group-hover:text-[#00D4FF] transition-colors">{artist.name}</p>
-                      <p className="text-[9px] text-[#444444]">{formatNumber(artist.spotify.monthlyListeners)}</p>
+                      <p className="text-[11px] text-[#F5F0E8] truncate group-hover:text-[#DA7756] transition-colors">{artist.name}</p>
+                      <p className="text-[9px] text-[#6B6560]">{formatNumber(artist.spotify.monthlyListeners)}</p>
                     </div>
                     <button
                       onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleFavorite(artist.slug); }}
                       className="p-0.5 cursor-pointer shrink-0"
                     >
-                      <Star size={9} className="text-[#00D4FF] fill-[#00D4FF]" />
+                      <Star size={9} className="text-[#DA7756] fill-[#DA7756]" />
                     </button>
                   </Link>
                 ))}
@@ -960,15 +960,15 @@ export default function Dashboard() {
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
               transition={{ duration: 0.25 }}
-              className="bg-[#0c0c0e] border-t border-[#1E1E1E] overflow-hidden"
+              className="bg-[#100F0E] border-t border-[#2C2B28] overflow-hidden"
             >
               <div className="max-w-3xl mx-auto px-6">
                 <div className="flex items-center justify-between py-2">
                   <div className="flex items-center gap-2">
-                    <Sparkles size={12} className="text-[#00D4FF]" />
-                    <span className="text-[10px] font-medium text-[#888888] uppercase tracking-wider">Cadence</span>
+                    <Sparkles size={12} className="text-[#DA7756]" />
+                    <span className="text-[10px] font-medium text-[#9B9590] uppercase tracking-wider">Cadence</span>
                   </div>
-                  <button onClick={() => setChatOpen(false)} className="p-1 text-[#444444] hover:text-[#888888] cursor-pointer">
+                  <button onClick={() => setChatOpen(false)} className="p-1 text-[#6B6560] hover:text-[#9B9590] cursor-pointer">
                     <X size={14} />
                   </button>
                 </div>
@@ -986,7 +986,7 @@ export default function Dashboard() {
                       <button
                         key={text}
                         onClick={() => handleSuggestion(text)}
-                        className="text-[10px] text-[#888888] border border-[#1E1E1E] rounded-full px-2.5 py-1 hover:border-[#00D4FF]/30 hover:text-[#F4F0EA] transition-colors cursor-pointer"
+                        className="text-[10px] text-[#9B9590] border border-[#2C2B28] rounded-full px-2.5 py-1 hover:border-[#DA7756]/30 hover:text-[#F5F0E8] transition-colors cursor-pointer"
                       >
                         {text}
                       </button>
@@ -998,7 +998,7 @@ export default function Dashboard() {
           )}
         </AnimatePresence>
 
-        <div className="bg-[#080808] border-t border-[#1E1E1E]">
+        <div className="bg-[#0D0C0B] border-t border-[#2C2B28]">
           <div className="max-w-3xl mx-auto px-6 py-2">
             <form onSubmit={handleChatSubmit} className="flex items-center gap-3">
               <button
@@ -1006,7 +1006,7 @@ export default function Dashboard() {
                 onClick={() => { setChatOpen(!chatOpen); setTimeout(() => chatInputRef.current?.focus(), 100); }}
                 className="p-1.5 cursor-pointer"
               >
-                <MessageSquare size={16} className={chatOpen ? 'text-[#00D4FF]' : 'text-[#444444]'} />
+                <MessageSquare size={16} className={chatOpen ? 'text-[#DA7756]' : 'text-[#6B6560]'} />
               </button>
               <input
                 ref={chatInputRef}
@@ -1015,15 +1015,15 @@ export default function Dashboard() {
                 onChange={(e) => setChatQuery(e.target.value)}
                 onFocus={() => setChatOpen(true)}
                 placeholder="Ask Cadence anything..."
-                className="flex-1 bg-transparent text-sm text-[#F4F0EA] placeholder-[#444444] outline-none"
+                className="flex-1 bg-transparent text-sm text-[#F5F0E8] placeholder-[#6B6560] outline-none"
                 disabled={chatState !== 'idle'}
               />
               <button
                 type="submit"
                 disabled={!chatQuery.trim() || chatState !== 'idle'}
-                className="w-7 h-7 rounded bg-[#00D4FF] disabled:bg-[#1E1E1E] flex items-center justify-center transition-colors cursor-pointer shrink-0"
+                className="w-7 h-7 rounded bg-[#DA7756] disabled:bg-[#2C2B28] flex items-center justify-center transition-colors cursor-pointer shrink-0"
               >
-                <ArrowUp size={14} className="text-[#080808]" />
+                <ArrowUp size={14} className="text-[#0D0C0B]" />
               </button>
             </form>
           </div>

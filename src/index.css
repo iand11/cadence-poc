@@ -6,17 +6,17 @@
   --font-body: 'Epilogue', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
 
-  --color-deep: #080808;
-  --color-surface: #0F0F0F;
-  --color-channel: #141414;
-  --color-hover: #1c1c1f;
-  --color-dim: #444444;
-  --color-steel: #888888;
-  --color-text: #F4F0EA;
-  --color-signal: #00D4FF;
-  --color-signal-dim: #006680;
-  --color-coral: #e85d5d;
-  --color-sage: #7ab87a;
+  --color-deep: #0D0C0B;
+  --color-surface: #171614;
+  --color-channel: #1C1B18;
+  --color-hover: #232220;
+  --color-dim: #6B6560;
+  --color-steel: #9B9590;
+  --color-text: #F5F0E8;
+  --color-signal: #DA7756;
+  --color-signal-dim: #8B4D37;
+  --color-coral: #C75F4F;
+  --color-sage: #7BAF73;
 
   --radius-sm: 2px;
   --radius: 4px;
@@ -28,8 +28,8 @@
 
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #2A2A2A; border-radius: 0; }
-::-webkit-scrollbar-thumb:hover { background: #444444; }
+::-webkit-scrollbar-thumb { background: #3D3B37; border-radius: 0; }
+::-webkit-scrollbar-thumb:hover { background: #6B6560; }
 
 html {
   scroll-behavior: smooth;
@@ -38,8 +38,8 @@ html {
 
 body {
   margin: 0;
-  background: #080808;
-  color: #F4F0EA;
+  background: #0D0C0B;
+  color: #F5F0E8;
   font-family: 'Epilogue', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -65,15 +65,15 @@ body {
 }
 
 .shimmer {
-  background: linear-gradient(90deg, transparent 0%, rgba(0,212,255,0.08) 50%, transparent 100%);
+  background: linear-gradient(90deg, transparent 0%, rgba(218,119,86,0.08) 50%, transparent 100%);
   background-size: 200% 100%;
   animation: shimmer 2s infinite;
 }
 
 /* Pulse ring for alerts/notifications */
 @keyframes pulse-ring {
-  0% { box-shadow: 0 0 0 0 rgba(0, 212, 255, 0.4); }
-  100% { box-shadow: 0 0 0 8px rgba(0, 212, 255, 0); }
+  0% { box-shadow: 0 0 0 0 rgba(218, 119, 86, 0.4); }
+  100% { box-shadow: 0 0 0 8px rgba(218, 119, 86, 0); }
 }
 
 .pulse-ring {
@@ -82,7 +82,7 @@ body {
 
 /* Gradient text utility */
 .text-gradient-signal {
-  background: linear-gradient(135deg, #00D4FF 0%, #F4F0EA 100%);
+  background: linear-gradient(135deg, #DA7756 0%, #F5F0E8 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -90,7 +90,7 @@ body {
 
 /* Glass panel for overlays */
 .glass-panel {
-  background: rgba(15, 15, 15, 0.85);
+  background: rgba(23, 22, 20, 0.85);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.06);
@@ -107,11 +107,11 @@ body {
   margin-bottom: 0;
 }
 .prose-chat strong {
-  color: #F4F0EA;
+  color: #F5F0E8;
   font-weight: 600;
 }
 .prose-chat em {
-  color: #a1a1aa;
+  color: #ADA8A2;
 }
 .prose-chat ul, .prose-chat ol {
   margin: 0.5em 0;
@@ -121,10 +121,10 @@ body {
   margin: 0.25em 0;
 }
 .prose-chat li::marker {
-  color: #00D4FF;
+  color: #DA7756;
 }
 .prose-chat h1, .prose-chat h2, .prose-chat h3 {
-  color: #F4F0EA;
+  color: #F5F0E8;
   font-weight: 600;
   margin: 1em 0 0.5em;
 }
@@ -132,33 +132,33 @@ body {
 .prose-chat h2 { font-size: 1.05em; }
 .prose-chat h3 { font-size: 1em; }
 .prose-chat code {
-  background: #1E1E1E;
+  background: #2C2B28;
   padding: 0.15em 0.4em;
   border-radius: 2px;
   font-size: 0.85em;
   font-family: 'JetBrains Mono', monospace;
 }
 .prose-chat hr {
-  border-color: #1E1E1E;
+  border-color: #2C2B28;
   margin: 1em 0;
 }
 .prose-chat a {
-  color: #00D4FF;
+  color: #DA7756;
   text-decoration: underline;
   text-underline-offset: 2px;
 }
 
 /* Leaflet dark tooltip */
 .leaflet-tooltip.leaflet-dark-tooltip {
-  background: #0F0F0F;
-  border: 1px solid #1E1E1E;
-  color: #F4F0EA;
+  background: #171614;
+  border: 1px solid #2C2B28;
+  color: #F5F0E8;
   border-radius: 2px;
   padding: 6px 10px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
 }
 .leaflet-tooltip.leaflet-dark-tooltip::before {
-  border-top-color: #1E1E1E;
+  border-top-color: #2C2B28;
 }
 
 /* react-grid-layout overrides */
@@ -173,8 +173,8 @@ body {
   opacity: 0.9;
 }
 .react-grid-placeholder {
-  background: rgba(0, 212, 255, 0.1) !important;
-  border: 1px dashed rgba(0, 212, 255, 0.3) !important;
+  background: rgba(218, 119, 86, 0.1) !important;
+  border: 1px dashed rgba(218, 119, 86, 0.3) !important;
   border-radius: 2px !important;
 }
 .react-resizable-handle {

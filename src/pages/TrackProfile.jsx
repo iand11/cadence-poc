@@ -98,8 +98,8 @@ export default function TrackProfile() {
   if (track === undefined) {
     return (
       <div className="text-center py-20">
-        <Music size={32} className="mx-auto text-[#1E1E1E] mb-3 animate-pulse" />
-        <p className="text-sm text-[#888888]">Loading track...</p>
+        <Music size={32} className="mx-auto text-[#2C2B28] mb-3 animate-pulse" />
+        <p className="text-sm text-[#9B9590]">Loading track...</p>
       </div>
     );
   }
@@ -107,10 +107,10 @@ export default function TrackProfile() {
   if (!track) {
     return (
       <div className="text-center py-20">
-        <Music size={32} className="mx-auto text-[#1E1E1E] mb-3" />
-        <p className="text-sm text-[#888888]">Track not found</p>
-        <p className="text-[11px] text-[#444444] mt-1">id: {id}</p>
-        <Link to="/dashboard" className="inline-block mt-4 text-xs text-[#00D4FF] hover:underline">
+        <Music size={32} className="mx-auto text-[#2C2B28] mb-3" />
+        <p className="text-sm text-[#9B9590]">Track not found</p>
+        <p className="text-[11px] text-[#6B6560] mt-1">id: {id}</p>
+        <Link to="/dashboard" className="inline-block mt-4 text-xs text-[#DA7756] hover:underline">
           Back to Dashboard
         </Link>
       </div>
@@ -138,7 +138,7 @@ export default function TrackProfile() {
     <ProfileLayout
       title={track.name}
       subtitle={
-        <Link to={`/artist/${artist.slug}`} className="hover:text-[#00D4FF] transition-colors">
+        <Link to={`/artist/${artist.slug}`} className="hover:text-[#DA7756] transition-colors">
           by {artist.name}{track.isFeature ? ' (feature)' : ''}
         </Link>
       }
@@ -155,47 +155,47 @@ export default function TrackProfile() {
               transition={{ duration: 0.4 }}
               src={track.imageUrl}
               alt={track.name}
-              className="w-48 h-48 rounded object-cover border border-[#1E1E1E] shrink-0"
+              className="w-48 h-48 rounded object-cover border border-[#2C2B28] shrink-0"
             />
           )}
 
           <div className="flex-1 space-y-4 text-sm">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {releaseDate && (
-                <div className="flex items-center gap-2 text-[#888888]">
-                  <Disc3 size={13} className="text-[#444444]" />
+                <div className="flex items-center gap-2 text-[#9B9590]">
+                  <Disc3 size={13} className="text-[#6B6560]" />
                   <span>Released:</span>
-                  <span className="text-[#F4F0EA]">{releaseDate}</span>
+                  <span className="text-[#F5F0E8]">{releaseDate}</span>
                 </div>
               )}
-              <div className="flex items-center gap-2 text-[#888888]">
-                <Music size={13} className="text-[#444444]" />
+              <div className="flex items-center gap-2 text-[#9B9590]">
+                <Music size={13} className="text-[#6B6560]" />
                 <span>Duration:</span>
-                <span className="text-[#F4F0EA] font-mono">{formatDuration(track.durationMs)}</span>
+                <span className="text-[#F5F0E8] font-mono">{formatDuration(track.durationMs)}</span>
               </div>
               {track.albumName && (
-                <div className="flex items-center gap-2 text-[#888888]">
-                  <ListMusic size={13} className="text-[#444444]" />
+                <div className="flex items-center gap-2 text-[#9B9590]">
+                  <ListMusic size={13} className="text-[#6B6560]" />
                   <span>Album:</span>
                   {track.albumId ? (
-                    <Link to={`/album/${track.albumId}`} className="text-[#F4F0EA] hover:text-[#00D4FF] truncate">{track.albumName}</Link>
+                    <Link to={`/album/${track.albumId}`} className="text-[#F5F0E8] hover:text-[#DA7756] truncate">{track.albumName}</Link>
                   ) : (
-                    <span className="text-[#F4F0EA] truncate">{track.albumName}</span>
+                    <span className="text-[#F5F0E8] truncate">{track.albumName}</span>
                   )}
                 </div>
               )}
               {track.albumLabel && (
-                <div className="flex items-center gap-2 text-[#888888]">
-                  <Tag size={13} className="text-[#444444]" />
+                <div className="flex items-center gap-2 text-[#9B9590]">
+                  <Tag size={13} className="text-[#6B6560]" />
                   <span>Label:</span>
-                  <span className="text-[#F4F0EA] truncate">{track.albumLabel}</span>
+                  <span className="text-[#F5F0E8] truncate">{track.albumLabel}</span>
                 </div>
               )}
               {track.isrc && (
-                <div className="flex items-center gap-2 text-[#888888]">
-                  <Tag size={13} className="text-[#444444]" />
+                <div className="flex items-center gap-2 text-[#9B9590]">
+                  <Tag size={13} className="text-[#6B6560]" />
                   <span>ISRC:</span>
-                  <span className="text-[#F4F0EA] font-mono text-xs">{track.isrc}</span>
+                  <span className="text-[#F5F0E8] font-mono text-xs">{track.isrc}</span>
                 </div>
               )}
               {track.spotifyTrackId && (
@@ -203,9 +203,9 @@ export default function TrackProfile() {
                   href={`https://open.spotify.com/track/${track.spotifyTrackId}`}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex items-center gap-2 text-[#888888] hover:text-[#00D4FF] transition-colors"
+                  className="flex items-center gap-2 text-[#9B9590] hover:text-[#DA7756] transition-colors"
                 >
-                  <ExternalLink size={13} className="text-[#444444]" />
+                  <ExternalLink size={13} className="text-[#6B6560]" />
                   <span>Open in Spotify</span>
                 </a>
               )}
@@ -215,12 +215,12 @@ export default function TrackProfile() {
             {(track.versionFlags.length > 0 || track.tags) && (
               <div className="flex flex-wrap gap-1.5">
                 {track.tags && (
-                  <span className="text-[10px] font-mono uppercase tracking-wider bg-[#1E1E1E] text-[#888888] rounded px-2 py-0.5 border border-[#2A2A2A]">
+                  <span className="text-[10px] font-mono uppercase tracking-wider bg-[#2C2B28] text-[#9B9590] rounded px-2 py-0.5 border border-[#3D3B37]">
                     {track.tags}
                   </span>
                 )}
                 {track.versionFlags.map(f => (
-                  <span key={f} className="text-[10px] font-mono bg-[#5b9bd5]/5 text-[#5b9bd5]/70 rounded px-2 py-0.5 border border-[#5b9bd5]/15">
+                  <span key={f} className="text-[10px] font-mono bg-[#D4A574]/5 text-[#D4A574]/70 rounded px-2 py-0.5 border border-[#D4A574]/15">
                     {formatVersionFlag(f)}
                   </span>
                 ))}
@@ -230,18 +230,18 @@ export default function TrackProfile() {
             {/* Collaborators */}
             {collabs.length > 1 && (
               <div>
-                <span className="text-[10px] uppercase tracking-wider text-[#888888] mb-1.5 block">Featured Artists</span>
+                <span className="text-[10px] uppercase tracking-wider text-[#9B9590] mb-1.5 block">Featured Artists</span>
                 <div className="flex flex-wrap gap-1.5">
                   {collabs.map(a => (
                     <Link
                       key={a.slug}
                       to={`/artist/${a.slug}`}
-                      className="flex items-center gap-1.5 text-xs bg-[#0F0F0F] border border-[#1E1E1E] hover:border-[#00D4FF]/30 rounded px-2 py-1 transition-colors"
+                      className="flex items-center gap-1.5 text-xs bg-[#171614] border border-[#2C2B28] hover:border-[#DA7756]/30 rounded px-2 py-1 transition-colors"
                     >
                       {a.imageUrl && (
                         <img src={a.imageUrl} alt="" className="w-4 h-4 rounded object-cover" />
                       )}
-                      <span className="text-[#F4F0EA]">{a.name}</span>
+                      <span className="text-[#F5F0E8]">{a.name}</span>
                     </Link>
                   ))}
                 </div>
@@ -300,23 +300,23 @@ export default function TrackProfile() {
               <div className="space-y-1">
                 {shown.map((p, i) => (
                   <Link key={`${p.playlistId}-${i}`} to={`/playlist/${p.playlistId}`} className="block">
-                    <div className="flex items-center gap-3 px-2 py-2 rounded hover:bg-[#141414] transition-colors group">
-                      <span className="text-[10px] font-mono text-[#444444] w-5 text-right shrink-0">{i + 1}</span>
+                    <div className="flex items-center gap-3 px-2 py-2 rounded hover:bg-[#1C1B18] transition-colors group">
+                      <span className="text-[10px] font-mono text-[#6B6560] w-5 text-right shrink-0">{i + 1}</span>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm text-[#F4F0EA] truncate group-hover:text-[#00D4FF] transition-colors">{p.playlistName}</p>
-                        <p className="text-[10px] text-[#444444] truncate">{p.curator}</p>
+                        <p className="text-sm text-[#F5F0E8] truncate group-hover:text-[#DA7756] transition-colors">{p.playlistName}</p>
+                        <p className="text-[10px] text-[#6B6560] truncate">{p.curator}</p>
                       </div>
                       <Badge variant={p.type === 'editorial' ? 'success' : p.type === 'algorithmic' ? 'info' : 'warning'}>{p.type}</Badge>
                       {p.position && (
-                        <span className="hidden sm:inline text-[10px] font-mono text-[#888888] w-8 text-right shrink-0">#{p.position}</span>
+                        <span className="hidden sm:inline text-[10px] font-mono text-[#9B9590] w-8 text-right shrink-0">#{p.position}</span>
                       )}
-                      <span className="text-xs font-mono text-[#F4F0EA] w-16 text-right shrink-0">{formatNumber(p.streamsFromPlaylist)}</span>
+                      <span className="text-xs font-mono text-[#F5F0E8] w-16 text-right shrink-0">{formatNumber(p.streamsFromPlaylist)}</span>
                     </div>
                   </Link>
                 ))}
               </div>
               {placements.length > 10 && (
-                <p className="text-[10px] text-[#444444] mt-3 text-center">
+                <p className="text-[10px] text-[#6B6560] mt-3 text-center">
                   Showing 10 of {placements.length} playlists
                 </p>
               )}
@@ -332,20 +332,20 @@ export default function TrackProfile() {
             <div className="space-y-1">
               {similar.map((t, i) => (
                 <Link key={t.id} to={`/track/${t.id}`} className="block">
-                  <div className="flex items-center gap-3 px-2 py-2 rounded hover:bg-[#141414] transition-colors group">
-                    <span className="text-[10px] font-mono text-[#444444] w-6 text-right shrink-0">{i + 1}</span>
+                  <div className="flex items-center gap-3 px-2 py-2 rounded hover:bg-[#1C1B18] transition-colors group">
+                    <span className="text-[10px] font-mono text-[#6B6560] w-6 text-right shrink-0">{i + 1}</span>
                     {t.imageUrl ? (
                       <img src={t.imageUrl} alt="" className="w-9 h-9 rounded object-cover shrink-0" />
                     ) : (
-                      <div className="w-9 h-9 rounded bg-[#1E1E1E] flex items-center justify-center shrink-0">
-                        <Music size={12} className="text-[#444444]" />
+                      <div className="w-9 h-9 rounded bg-[#2C2B28] flex items-center justify-center shrink-0">
+                        <Music size={12} className="text-[#6B6560]" />
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm text-[#F4F0EA] truncate group-hover:text-[#00D4FF] transition-colors">{t.name}</p>
-                      <p className="text-[10px] text-[#444444] truncate">{t.albumName || '—'}</p>
+                      <p className="text-sm text-[#F5F0E8] truncate group-hover:text-[#DA7756] transition-colors">{t.name}</p>
+                      <p className="text-[10px] text-[#6B6560] truncate">{t.albumName || '—'}</p>
                     </div>
-                    <span className="text-xs font-mono text-[#888888] shrink-0">{formatNumber(t.streams)}</span>
+                    <span className="text-xs font-mono text-[#9B9590] shrink-0">{formatNumber(t.streams)}</span>
                     {t.isFeature && <Badge variant="info">feat</Badge>}
                   </div>
                 </Link>
@@ -361,28 +361,28 @@ export default function TrackProfile() {
 function PlatformPlaylistRow({ label, total, editorial, reach, hideEditorial }) {
   if (!total && !reach && !editorial) {
     return (
-      <div className="bg-[#0c0c0e] border border-[#1E1E1E] rounded px-3 py-3 text-xs text-[#444444]">
-        <span className="font-medium text-[#888888]">{label}</span> — no data
+      <div className="bg-[#100F0E] border border-[#2C2B28] rounded px-3 py-3 text-xs text-[#6B6560]">
+        <span className="font-medium text-[#9B9590]">{label}</span> — no data
       </div>
     );
   }
   return (
-    <div className="bg-[#0c0c0e] border border-[#1E1E1E] rounded px-3 py-3">
+    <div className="bg-[#100F0E] border border-[#2C2B28] rounded px-3 py-3">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-medium text-[#F4F0EA]">{label}</span>
-        <span className="text-[10px] font-mono text-[#888888]">{formatNumber(total)}</span>
+        <span className="text-xs font-medium text-[#F5F0E8]">{label}</span>
+        <span className="text-[10px] font-mono text-[#9B9590]">{formatNumber(total)}</span>
       </div>
       <div className="grid grid-cols-2 gap-2 text-[10px]">
         {!hideEditorial && (
           <div>
-            <p className="text-[#444444] uppercase tracking-wider">Editorial</p>
-            <p className="font-mono text-[#F4F0EA]">{formatNumber(editorial || 0)}</p>
+            <p className="text-[#6B6560] uppercase tracking-wider">Editorial</p>
+            <p className="font-mono text-[#F5F0E8]">{formatNumber(editorial || 0)}</p>
           </div>
         )}
         {reach != null && (
           <div>
-            <p className="text-[#444444] uppercase tracking-wider">Reach</p>
-            <p className="font-mono text-[#F4F0EA]">{formatNumber(reach)}</p>
+            <p className="text-[#6B6560] uppercase tracking-wider">Reach</p>
+            <p className="font-mono text-[#F5F0E8]">{formatNumber(reach)}</p>
           </div>
         )}
       </div>

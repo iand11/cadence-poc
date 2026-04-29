@@ -14,8 +14,8 @@ const entryColumns = [
   { key: 'artist', label: 'Artist' },
   { key: 'change', label: 'Move', format: (v) => {
     if (v === 'NEW') return <Badge variant="success">NEW</Badge>;
-    if (v === '—') return <span className="text-[#888888]">—</span>;
-    return <span className={v.startsWith('+') ? 'text-[#7ab87a]' : 'text-[#e85d5d]'}>{v}</span>;
+    if (v === '—') return <span className="text-[#9B9590]">—</span>;
+    return <span className={v.startsWith('+') ? 'text-[#7BAF73]' : 'text-[#C75F4F]'}>{v}</span>;
   }},
   { key: 'peakPosition', label: 'Peak' },
   { key: 'weeksOn', label: 'Weeks' },

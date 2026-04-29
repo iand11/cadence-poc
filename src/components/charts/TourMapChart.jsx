@@ -33,11 +33,11 @@ export default function TourMapChart({ data }) {
             if (!active || !payload?.length) return null;
             const d = payload[0].payload;
             return (
-              <div className="bg-[#0F0F0F] border border-[#2A2A2A] rounded-sm p-3 text-sm font-mono">
-                <p className="font-semibold text-[#F4F0EA]">{d.city}</p>
-                <p className="text-[#888888]">{d.venue}</p>
-                <p className="text-[#888888]">{formatDate(d.date)} · {formatCurrency(d.revenue)}</p>
-                <p className="text-[#888888]">{d.ticketsSold.toLocaleString()}/{d.capacity.toLocaleString()} sold</p>
+              <div className="bg-[#171614] border border-[#3D3B37] rounded-sm p-3 text-sm font-mono">
+                <p className="font-semibold text-[#F5F0E8]">{d.city}</p>
+                <p className="text-[#9B9590]">{d.venue}</p>
+                <p className="text-[#9B9590]">{formatDate(d.date)} · {formatCurrency(d.revenue)}</p>
+                <p className="text-[#9B9590]">{d.ticketsSold.toLocaleString()}/{d.capacity.toLocaleString()} sold</p>
               </div>
             );
           }}
@@ -46,7 +46,7 @@ export default function TourMapChart({ data }) {
           {chartData.map((d, i) => (
             <Cell
               key={i}
-              fill={d.status === 'Sold Out' ? '#7ab87a' : d.status === 'On Sale' ? '#00D4FF' : '#888888'}
+              fill={d.status === 'Sold Out' ? '#7BAF73' : d.status === 'On Sale' ? '#DA7756' : '#9B9590'}
               r={d.size}
             />
           ))}

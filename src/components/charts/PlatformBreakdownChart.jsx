@@ -7,7 +7,7 @@ const PLATFORMS = [
   { key: 'apple', name: 'Apple Music', color: '#FC3C44' },
   { key: 'youtube', name: 'YouTube Music', color: '#FF0000' },
   { key: 'amazon', name: 'Amazon', color: '#FF9900' },
-  { key: 'tidal', name: 'Tidal', color: '#F4F0EA' },
+  { key: 'tidal', name: 'Tidal', color: '#F5F0E8' },
 ];
 
 export default function PlatformBreakdownChart({ data }) {
@@ -21,7 +21,7 @@ export default function PlatformBreakdownChart({ data }) {
           {...TOOLTIP_STYLE}
           formatter={(value) => [formatNumber(value), '']}
         />
-        <Legend wrapperStyle={{ fontSize: 12, color: '#888888' }} />
+        <Legend wrapperStyle={{ fontSize: 12, color: '#9B9590' }} />
         {PLATFORMS.map(p => (
           <Bar key={p.key} dataKey={p.key} name={p.name} fill={p.color} stackId="stack" radius={[0, 0, 0, 0]} />
         ))}

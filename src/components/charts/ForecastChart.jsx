@@ -10,16 +10,16 @@ export default function ForecastChart({ data, todayIndex = 60 }) {
       <AreaChart data={data} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
         <defs>
           <linearGradient id="gradientActual" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#00D4FF" stopOpacity={0.3} />
-            <stop offset="100%" stopColor="#00D4FF" stopOpacity={0} />
+            <stop offset="0%" stopColor="#DA7756" stopOpacity={0.3} />
+            <stop offset="100%" stopColor="#DA7756" stopOpacity={0} />
           </linearGradient>
           <linearGradient id="gradientForecast" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#5b9bd5" stopOpacity={0.2} />
-            <stop offset="100%" stopColor="#5b9bd5" stopOpacity={0} />
+            <stop offset="0%" stopColor="#D4A574" stopOpacity={0.2} />
+            <stop offset="100%" stopColor="#D4A574" stopOpacity={0} />
           </linearGradient>
           <linearGradient id="gradientBand" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#5b9bd5" stopOpacity={0.06} />
-            <stop offset="100%" stopColor="#5b9bd5" stopOpacity={0.01} />
+            <stop offset="0%" stopColor="#D4A574" stopOpacity={0.06} />
+            <stop offset="100%" stopColor="#D4A574" stopOpacity={0.01} />
           </linearGradient>
         </defs>
         <CartesianGrid {...GRID_STYLE} />
@@ -33,15 +33,15 @@ export default function ForecastChart({ data, todayIndex = 60 }) {
         {todayDate && (
           <ReferenceLine
             x={todayDate}
-            stroke="#888888"
+            stroke="#9B9590"
             strokeDasharray="5 5"
-            label={{ value: 'Now', position: 'top', fill: '#888888', fontSize: 12 }}
+            label={{ value: 'Now', position: 'top', fill: '#9B9590', fontSize: 12 }}
           />
         )}
         <Area type="monotone" dataKey="upper" stroke="none" fill="url(#gradientBand)" name="Upper Bound" />
         <Area type="monotone" dataKey="lower" stroke="none" fill="transparent" name="Lower Bound" />
-        <Area type="monotone" dataKey="actual" stroke="#00D4FF" fill="url(#gradientActual)" strokeWidth={2} name="Actual" dot={false} />
-        <Area type="monotone" dataKey="forecast" stroke="#5b9bd5" fill="url(#gradientForecast)" strokeWidth={2} strokeDasharray="8 4" name="Forecast" dot={false} />
+        <Area type="monotone" dataKey="actual" stroke="#DA7756" fill="url(#gradientActual)" strokeWidth={2} name="Actual" dot={false} />
+        <Area type="monotone" dataKey="forecast" stroke="#D4A574" fill="url(#gradientForecast)" strokeWidth={2} strokeDasharray="8 4" name="Forecast" dot={false} />
       </AreaChart>
     </ResponsiveContainer>
   );

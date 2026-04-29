@@ -41,16 +41,16 @@ export default function SearchOverlay({ onClose }) {
       >
         {/* Search Input */}
         <div className="flex items-center gap-3 px-5 py-4 border-b border-white/5">
-          <Search size={18} className="text-[#888888] shrink-0" />
+          <Search size={18} className="text-[#9B9590] shrink-0" />
           <input
             ref={inputRef}
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search for an artist..."
-            className="flex-1 bg-transparent text-sm text-[#F4F0EA] placeholder-[#444444] outline-none"
+            className="flex-1 bg-transparent text-sm text-[#F5F0E8] placeholder-[#6B6560] outline-none"
           />
-          <button type="button" onClick={onClose} className="text-[#444444] hover:text-[#888888] transition-colors cursor-pointer">
+          <button type="button" onClick={onClose} className="text-[#6B6560] hover:text-[#9B9590] transition-colors cursor-pointer">
             <X size={18} />
           </button>
         </div>
@@ -63,52 +63,52 @@ export default function SearchOverlay({ onClose }) {
                 <button
                   key={artist.slug}
                   onClick={() => handleSelect(artist)}
-                  className="flex items-center gap-3 w-full px-5 py-3 hover:bg-[#0F0F0F] transition-colors text-left cursor-pointer"
+                  className="flex items-center gap-3 w-full px-5 py-3 hover:bg-[#171614] transition-colors text-left cursor-pointer"
                 >
                   {artist.imageUrl ? (
                     <img src={artist.imageUrl} alt="" className="w-9 h-9 rounded object-cover" />
                   ) : (
-                    <div className="w-9 h-9 rounded bg-[#1E1E1E] flex items-center justify-center">
-                      <Music size={14} className="text-[#444444]" />
+                    <div className="w-9 h-9 rounded bg-[#2C2B28] flex items-center justify-center">
+                      <Music size={14} className="text-[#6B6560]" />
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-[#F4F0EA]">{artist.name}</p>
-                    <p className="text-[10px] text-[#888888]">
+                    <p className="text-sm text-[#F5F0E8]">{artist.name}</p>
+                    <p className="text-[10px] text-[#9B9590]">
                       {artist.genres?.primary?.name || 'Artist'} · {artist.label} · {formatNumber(artist.spotify.monthlyListeners)} listeners
                     </p>
                   </div>
-                  <span className="text-[10px] font-mono text-[#444444]">#{artist.rank}</span>
-                  <ChevronRight size={14} className="text-[#444444]" />
+                  <span className="text-[10px] font-mono text-[#6B6560]">#{artist.rank}</span>
+                  <ChevronRight size={14} className="text-[#6B6560]" />
                 </button>
               ))}
             </div>
           ) : query.length >= 2 ? (
             <div className="py-8 text-center">
-              <p className="text-sm text-[#888888]">No artists found for &quot;{query}&quot;</p>
+              <p className="text-sm text-[#9B9590]">No artists found for &quot;{query}&quot;</p>
             </div>
           ) : (
             /* Trending artists when empty */
             <div className="py-2">
-              <p className="px-5 py-2 text-[10px] text-[#444444] uppercase tracking-wider">Top Artists</p>
+              <p className="px-5 py-2 text-[10px] text-[#6B6560] uppercase tracking-wider">Top Artists</p>
               {trending.map((artist) => (
                 <button
                   key={artist.slug}
                   onClick={() => handleSelect(artist)}
-                  className="flex items-center gap-3 w-full px-5 py-2.5 hover:bg-[#0F0F0F] transition-colors text-left cursor-pointer"
+                  className="flex items-center gap-3 w-full px-5 py-2.5 hover:bg-[#171614] transition-colors text-left cursor-pointer"
                 >
                   {artist.imageUrl ? (
                     <img src={artist.imageUrl} alt="" className="w-8 h-8 rounded object-cover" />
                   ) : (
-                    <div className="w-8 h-8 rounded bg-[#1E1E1E] flex items-center justify-center">
-                      <Music size={12} className="text-[#444444]" />
+                    <div className="w-8 h-8 rounded bg-[#2C2B28] flex items-center justify-center">
+                      <Music size={12} className="text-[#6B6560]" />
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-[#F4F0EA]">{artist.name}</p>
-                    <p className="text-[10px] text-[#888888]">{artist.genres?.primary?.name || 'Artist'} · {formatNumber(artist.spotify.monthlyListeners)} listeners</p>
+                    <p className="text-sm text-[#F5F0E8]">{artist.name}</p>
+                    <p className="text-[10px] text-[#9B9590]">{artist.genres?.primary?.name || 'Artist'} · {formatNumber(artist.spotify.monthlyListeners)} listeners</p>
                   </div>
-                  <span className="text-[10px] font-mono text-[#444444]">#{artist.rank}</span>
+                  <span className="text-[10px] font-mono text-[#6B6560]">#{artist.rank}</span>
                 </button>
               ))}
             </div>

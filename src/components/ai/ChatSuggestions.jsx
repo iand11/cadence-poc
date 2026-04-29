@@ -10,7 +10,7 @@ export default function ChatSuggestions({ suggestions, onSelect }) {
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: i * 0.08 }}
           onClick={() => onSelect(text)}
-          className="font-mono text-[11px] text-[#888888] border border-[#2A2A2A] rounded px-3 py-1.5 hover:border-[#2A2A2A] hover:text-[#F4F0EA] transition-colors cursor-pointer"
+          className="font-mono text-[11px] text-[#9B9590] border border-[#3D3B37] rounded px-3 py-1.5 hover:border-[#3D3B37] hover:text-[#F5F0E8] transition-colors cursor-pointer"
         >
           {text}
         </motion.button>

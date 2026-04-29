@@ -22,10 +22,10 @@ const favorites = topArtists.map(a => ({
 
 export default function FavoritesSidebar() {
   return (
-    <div className="bg-[#0F0F0F] border border-[#1E1E1E] rounded p-5">
+    <div className="bg-[#171614] border border-[#2C2B28] rounded p-5">
       <div className="flex items-center gap-2 mb-4">
-        <Star size={14} className="text-[#00D4FF]" />
-        <span className="text-xs font-medium text-[#888888]">Favorites</span>
+        <Star size={14} className="text-[#DA7756]" />
+        <span className="text-xs font-medium text-[#9B9590]">Favorites</span>
       </div>
       <div className="space-y-1">
         {favorites.map((fav) => {
@@ -34,14 +34,14 @@ export default function FavoritesSidebar() {
             <Link
               key={fav.path}
               to={fav.path}
-              className="flex items-center gap-3 py-2.5 px-2 rounded hover:bg-[#141414] transition-colors group"
+              className="flex items-center gap-3 py-2.5 px-2 rounded hover:bg-[#1C1B18] transition-colors group"
             >
-              <div className="w-7 h-7 rounded bg-[#141414] group-hover:bg-[#1c1c1f] flex items-center justify-center shrink-0">
-                <Icon size={12} className="text-[#444444]" />
+              <div className="w-7 h-7 rounded bg-[#1C1B18] group-hover:bg-[#232220] flex items-center justify-center shrink-0">
+                <Icon size={12} className="text-[#6B6560]" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-sm text-[#F4F0EA] truncate">{fav.name}</p>
-                <p className="text-[10px] text-[#444444]">{fav.detail}</p>
+                <p className="text-sm text-[#F5F0E8] truncate">{fav.name}</p>
+                <p className="text-[10px] text-[#6B6560]">{fav.detail}</p>
               </div>
             </Link>
           );

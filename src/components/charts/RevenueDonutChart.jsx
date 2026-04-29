@@ -2,7 +2,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { TOOLTIP_STYLE } from '../../utils/chartTheme';
 import { formatCurrency } from '../../utils/formatters';
 
-const COLORS = ['#00D4FF', '#e85d5d', '#7ab87a', '#5b9bd5'];
+const COLORS = ['#DA7756', '#C75F4F', '#7BAF73', '#D4A574'];
 
 export default function RevenueDonutChart({ data, totalRevenue }) {
   return (
@@ -27,10 +27,10 @@ export default function RevenueDonutChart({ data, totalRevenue }) {
           {...TOOLTIP_STYLE}
           formatter={(value) => [formatCurrency(value), '']}
         />
-        <text x="50%" y="48%" textAnchor="middle" fill="#F4F0EA" fontSize={24} fontWeight={700} fontFamily="'JetBrains Mono', monospace">
+        <text x="50%" y="48%" textAnchor="middle" fill="#F5F0E8" fontSize={24} fontWeight={700} fontFamily="'JetBrains Mono', monospace">
           {formatCurrency(totalRevenue)}
         </text>
-        <text x="50%" y="58%" textAnchor="middle" fill="#888888" fontSize={12} fontFamily="'JetBrains Mono', monospace">
+        <text x="50%" y="58%" textAnchor="middle" fill="#9B9590" fontSize={12} fontFamily="'JetBrains Mono', monospace">
           Total Revenue
         </text>
       </PieChart>

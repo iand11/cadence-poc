@@ -223,11 +223,11 @@ export default function ArtistProfile() {
       headerRight={
         <button
           onClick={() => toggleFavorite(artist.slug)}
-          className="p-1.5 rounded hover:bg-[#1E1E1E] transition-colors cursor-pointer"
+          className="p-1.5 rounded hover:bg-[#2C2B28] transition-colors cursor-pointer"
         >
           <Star
             size={20}
-            className={isFavorite(artist.slug) ? 'fill-[#00D4FF] text-[#00D4FF]' : 'text-[#444444] hover:text-[#888888]'}
+            className={isFavorite(artist.slug) ? 'fill-[#DA7756] text-[#DA7756]' : 'text-[#6B6560] hover:text-[#9B9590]'}
           />
         </button>
       }
@@ -247,7 +247,7 @@ export default function ArtistProfile() {
                 <img
                   src={artist.imageUrl}
                   alt={artist.name}
-                  className="w-48 h-48 rounded object-cover border border-[#1E1E1E]"
+                  className="w-48 h-48 rounded object-cover border border-[#2C2B28]"
                 />
               </motion.div>
             )}
@@ -257,17 +257,17 @@ export default function ArtistProfile() {
               {/* Meta grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                 {artist.label && (
-                  <div className="flex items-center gap-2 text-[#888888]">
-                    <Tag size={13} className="text-[#444444]" />
+                  <div className="flex items-center gap-2 text-[#9B9590]">
+                    <Tag size={13} className="text-[#6B6560]" />
                     <span>Label:</span>
-                    <span className="text-[#F4F0EA]">{artist.label}</span>
+                    <span className="text-[#F5F0E8]">{artist.label}</span>
                   </div>
                 )}
                 {(artist.city || artist.country) && (
-                  <div className="flex items-center gap-2 text-[#888888]">
-                    <MapPin size={13} className="text-[#444444]" />
+                  <div className="flex items-center gap-2 text-[#9B9590]">
+                    <MapPin size={13} className="text-[#6B6560]" />
                     <span>Location:</span>
-                    <span className="text-[#F4F0EA]">
+                    <span className="text-[#F5F0E8]">
                       {[artist.city, getCountryName(artist.country)].filter(Boolean).join(', ')}
                     </span>
                   </div>
@@ -280,7 +280,7 @@ export default function ArtistProfile() {
                   {allGenres.slice(0, 3).map((g) => (
                     <span
                       key={g}
-                      className="text-[10px] font-mono uppercase tracking-wider bg-[#1E1E1E] text-[#888888] rounded px-2 py-0.5 border border-[#2A2A2A]"
+                      className="text-[10px] font-mono uppercase tracking-wider bg-[#2C2B28] text-[#9B9590] rounded px-2 py-0.5 border border-[#3D3B37]"
                     >
                       {g}
                     </span>
@@ -291,12 +291,12 @@ export default function ArtistProfile() {
               {/* Collaborators */}
               {artist.collaborators?.length > 0 && (
                 <div>
-                  <span className="text-[10px] uppercase tracking-wider text-[#888888] mb-1 block">Top Collaborators</span>
+                  <span className="text-[10px] uppercase tracking-wider text-[#9B9590] mb-1 block">Top Collaborators</span>
                   <div className="flex flex-wrap gap-1.5">
                     {artist.collaborators.slice(0, 8).map((c) => (
                       <span
                         key={c}
-                        className="text-[10px] font-mono bg-[#5b9bd5]/5 text-[#5b9bd5]/70 rounded px-2 py-0.5 border border-[#5b9bd5]/10"
+                        className="text-[10px] font-mono bg-[#D4A574]/5 text-[#D4A574]/70 rounded px-2 py-0.5 border border-[#D4A574]/10"
                       >
                         {c}
                       </span>
@@ -351,38 +351,38 @@ export default function ArtistProfile() {
             <div className="space-y-1">
               {tracks.slice(0, 12).map((t, i) => (
                 <Link key={t.id} to={`/track/${t.id}`} className="block">
-                  <div className="flex items-center gap-3 px-2 py-2 rounded hover:bg-[#141414] transition-colors group">
-                    <span className="text-[10px] font-mono text-[#444444] w-6 text-right shrink-0">{i + 1}</span>
+                  <div className="flex items-center gap-3 px-2 py-2 rounded hover:bg-[#1C1B18] transition-colors group">
+                    <span className="text-[10px] font-mono text-[#6B6560] w-6 text-right shrink-0">{i + 1}</span>
                     {t.imageUrl ? (
                       <img src={t.imageUrl} alt="" className="w-10 h-10 rounded object-cover shrink-0" />
                     ) : (
-                      <div className="w-10 h-10 rounded bg-[#1E1E1E] flex items-center justify-center shrink-0">
-                        <Music size={12} className="text-[#444444]" />
+                      <div className="w-10 h-10 rounded bg-[#2C2B28] flex items-center justify-center shrink-0">
+                        <Music size={12} className="text-[#6B6560]" />
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <p className="text-sm text-[#F4F0EA] truncate group-hover:text-[#00D4FF] transition-colors">{t.name}</p>
+                        <p className="text-sm text-[#F5F0E8] truncate group-hover:text-[#DA7756] transition-colors">{t.name}</p>
                         {t.isFeature && <Badge variant="info">feat</Badge>}
                       </div>
-                      <p className="text-[10px] text-[#444444] truncate">
+                      <p className="text-[10px] text-[#6B6560] truncate">
                         {t.albumName || '—'}{t.releaseDate ? ` · ${new Date(t.releaseDate).getFullYear()}` : ''}
                       </p>
                     </div>
                     <div className="hidden sm:flex flex-col items-end shrink-0 mr-2">
-                      <span className="text-[10px] uppercase tracking-wider text-[#444444]">Playlists</span>
-                      <span className="text-xs font-mono text-[#888888]">{formatNumber(t.spotifyPlaylists)}</span>
+                      <span className="text-[10px] uppercase tracking-wider text-[#6B6560]">Playlists</span>
+                      <span className="text-xs font-mono text-[#9B9590]">{formatNumber(t.spotifyPlaylists)}</span>
                     </div>
                     <div className="flex flex-col items-end shrink-0 w-20">
-                      <span className="text-[10px] uppercase tracking-wider text-[#444444]">Streams</span>
-                      <span className="text-xs font-mono text-[#F4F0EA]">{formatNumber(t.streams)}</span>
+                      <span className="text-[10px] uppercase tracking-wider text-[#6B6560]">Streams</span>
+                      <span className="text-xs font-mono text-[#F5F0E8]">{formatNumber(t.streams)}</span>
                     </div>
                   </div>
                 </Link>
               ))}
             </div>
             {tracks.length > 12 && (
-              <p className="text-[10px] text-[#444444] mt-3 text-center">
+              <p className="text-[10px] text-[#6B6560] mt-3 text-center">
                 Showing 12 of {tracks.length} tracks
               </p>
             )}
@@ -397,17 +397,17 @@ export default function ArtistProfile() {
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4 pt-2">
               {albums.slice(0, 24).map(a => (
                 <Link key={a.id} to={`/album/${a.id}`} className="group block">
-                  <div className="aspect-square rounded overflow-hidden bg-[#1E1E1E] border border-[#1E1E1E] group-hover:border-[#00D4FF]/30 transition-colors mb-2">
+                  <div className="aspect-square rounded overflow-hidden bg-[#2C2B28] border border-[#2C2B28] group-hover:border-[#DA7756]/30 transition-colors mb-2">
                     {a.imageUrl ? (
                       <img src={a.imageUrl} alt={a.name} className="w-full h-full object-cover" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
-                        <Disc3 size={24} className="text-[#444444]" />
+                        <Disc3 size={24} className="text-[#6B6560]" />
                       </div>
                     )}
                   </div>
-                  <p className="text-xs text-[#F4F0EA] truncate group-hover:text-[#00D4FF] transition-colors">{a.name}</p>
-                  <p className="text-[10px] text-[#444444] truncate">
+                  <p className="text-xs text-[#F5F0E8] truncate group-hover:text-[#DA7756] transition-colors">{a.name}</p>
+                  <p className="text-[10px] text-[#6B6560] truncate">
                     {a.releaseDate ? new Date(a.releaseDate).getFullYear() : '—'}
                     {a.type ? ` · ${a.type}` : ''}
                     {a.numTracks ? ` · ${a.numTracks} tracks` : ''}
@@ -416,7 +416,7 @@ export default function ArtistProfile() {
               ))}
             </div>
             {albums.length > 24 && (
-              <p className="text-[10px] text-[#444444] mt-4 text-center">
+              <p className="text-[10px] text-[#6B6560] mt-4 text-center">
                 Showing 24 of {albums.length} releases
               </p>
             )}
@@ -504,28 +504,28 @@ export default function ArtistProfile() {
                 <div className="space-y-1">
                   {shown.map((p, i) => (
                     <Link key={`${p.playlistId}-${i}`} to={`/playlist/${p.playlistId}`} className="block">
-                      <div className="flex items-center gap-3 px-2 py-2 rounded hover:bg-[#141414] transition-colors group">
-                        <span className="text-[10px] font-mono text-[#444444] w-5 text-right shrink-0">{i + 1}</span>
-                        <div className="w-7 h-7 rounded bg-[#1E1E1E] flex items-center justify-center shrink-0">
-                          <ListMusic size={11} className="text-[#444444]" />
+                      <div className="flex items-center gap-3 px-2 py-2 rounded hover:bg-[#1C1B18] transition-colors group">
+                        <span className="text-[10px] font-mono text-[#6B6560] w-5 text-right shrink-0">{i + 1}</span>
+                        <div className="w-7 h-7 rounded bg-[#2C2B28] flex items-center justify-center shrink-0">
+                          <ListMusic size={11} className="text-[#6B6560]" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm text-[#F4F0EA] truncate group-hover:text-[#00D4FF] transition-colors">{p.playlistName}</p>
-                          <p className="text-[10px] text-[#444444] truncate">{p.curator}</p>
+                          <p className="text-sm text-[#F5F0E8] truncate group-hover:text-[#DA7756] transition-colors">{p.playlistName}</p>
+                          <p className="text-[10px] text-[#6B6560] truncate">{p.curator}</p>
                         </div>
                         <Badge variant={p.type === 'editorial' ? 'success' : p.type === 'algorithmic' ? 'info' : 'warning'}>{p.type}</Badge>
                         {p.position && (
-                          <span className="hidden sm:inline text-[10px] font-mono text-[#888888] w-8 text-right shrink-0">#{p.position}</span>
+                          <span className="hidden sm:inline text-[10px] font-mono text-[#9B9590] w-8 text-right shrink-0">#{p.position}</span>
                         )}
                         <div className="flex flex-col items-end shrink-0 w-16">
-                          <span className="text-xs font-mono text-[#F4F0EA]">{formatNumber(p.streamsFromPlaylist)}</span>
+                          <span className="text-xs font-mono text-[#F5F0E8]">{formatNumber(p.streamsFromPlaylist)}</span>
                         </div>
                       </div>
                     </Link>
                   ))}
                 </div>
                 {activePlaylists.length > 15 && (
-                  <p className="text-[10px] text-[#444444] mt-3 text-center">
+                  <p className="text-[10px] text-[#6B6560] mt-3 text-center">
                     Showing 15 of {activePlaylists.length} playlists
                   </p>
                 )}
@@ -542,24 +542,24 @@ export default function ArtistProfile() {
             <ChartCard title="Geographic Distribution" subtitle="Listeners by city">
               <GeographyHeatMap data={geographyData} />
               {/* City list */}
-              <div className="mt-4 pt-4 border-t border-[#1E1E1E]">
+              <div className="mt-4 pt-4 border-t border-[#2C2B28]">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6">
                   {geographyData.map((c, i) => {
                     const pct = geographyData[0]?.listeners > 0
                       ? (c.listeners / geographyData[0].listeners) * 100 : 0;
                     return (
-                      <div key={`${c.city}-${c.country}`} className="flex items-center gap-3 py-2 border-b border-[#1E1E1E]/50 last:border-0">
-                        <span className="text-[10px] font-mono text-[#444444] w-5 text-right shrink-0">{i + 1}</span>
+                      <div key={`${c.city}-${c.country}`} className="flex items-center gap-3 py-2 border-b border-[#2C2B28]/50 last:border-0">
+                        <span className="text-[10px] font-mono text-[#6B6560] w-5 text-right shrink-0">{i + 1}</span>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-baseline gap-1.5">
-                            <span className="text-sm text-[#F4F0EA] truncate">{c.city}</span>
-                            <span className="text-[10px] text-[#444444]">{getCountryName(c.country)}</span>
+                            <span className="text-sm text-[#F5F0E8] truncate">{c.city}</span>
+                            <span className="text-[10px] text-[#6B6560]">{getCountryName(c.country)}</span>
                           </div>
-                          <div className="mt-1 h-1 bg-[#1E1E1E] rounded-full overflow-hidden">
-                            <div className="h-full bg-[#00D4FF] rounded-full" style={{ width: `${Math.max(pct, 2)}%`, opacity: 0.4 + (pct / 100) * 0.6 }} />
+                          <div className="mt-1 h-1 bg-[#2C2B28] rounded-full overflow-hidden">
+                            <div className="h-full bg-[#DA7756] rounded-full" style={{ width: `${Math.max(pct, 2)}%`, opacity: 0.4 + (pct / 100) * 0.6 }} />
                           </div>
                         </div>
-                        <span className="text-xs font-mono text-[#888888] shrink-0">{formatNumber(c.listeners)}</span>
+                        <span className="text-xs font-mono text-[#9B9590] shrink-0">{formatNumber(c.listeners)}</span>
                       </div>
                     );
                   })}

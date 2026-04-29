@@ -57,14 +57,14 @@ export default function Control() {
               className="flex flex-col items-center text-center pt-[12vh]"
             >
               <div className="flex items-center gap-2 mb-6">
-                <div className="w-10 h-10 rounded bg-[#00D4FF]/15 border border-[#00D4FF]/30 flex items-center justify-center">
-                  <Sparkles size={18} className="text-[#00D4FF]" />
+                <div className="w-10 h-10 rounded bg-[#DA7756]/15 border border-[#DA7756]/30 flex items-center justify-center">
+                  <Sparkles size={18} className="text-[#DA7756]" />
                 </div>
               </div>
-              <h1 className="font-['Epilogue'] text-3xl font-light text-[#F4F0EA] mb-3">
+              <h1 className="font-['Epilogue'] text-3xl font-light text-[#F5F0E8] mb-3">
                 What would you like to know?
               </h1>
-              <p className="text-sm text-[#888888] max-w-lg leading-relaxed">
+              <p className="text-sm text-[#9B9590] max-w-lg leading-relaxed">
                 {welcome.text}
               </p>
 
@@ -77,7 +77,7 @@ export default function Control() {
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.05 + i * 0.04 }}
                       onClick={() => handleSuggestion(text)}
-                      className="text-left text-xs text-[#888888] border border-[#1E1E1E] rounded px-4 py-3 hover:border-[#00D4FF]/30 hover:text-[#F4F0EA] hover:bg-[#0F0F0F] transition-colors cursor-pointer"
+                      className="text-left text-xs text-[#9B9590] border border-[#2C2B28] rounded px-4 py-3 hover:border-[#DA7756]/30 hover:text-[#F5F0E8] hover:bg-[#171614] transition-colors cursor-pointer"
                     >
                       {text}
                     </motion.button>
@@ -100,13 +100,13 @@ export default function Control() {
 
       {/* Suggestions during conversation */}
       {hasConversation && state === 'idle' && suggestions.length > 0 && (
-        <div className="border-t border-[#1E1E1E] bg-[#080808]/60">
+        <div className="border-t border-[#2C2B28] bg-[#0D0C0B]/60">
           <div className="max-w-3xl mx-auto px-6 lg:px-10 py-2 flex flex-wrap gap-1.5">
             {suggestions.slice(0, 3).map((text) => (
               <button
                 key={text}
                 onClick={() => handleSuggestion(text)}
-                className="text-[10px] text-[#888888] border border-[#1E1E1E] rounded-full px-2.5 py-1 hover:border-[#00D4FF]/30 hover:text-[#F4F0EA] transition-colors cursor-pointer"
+                className="text-[10px] text-[#9B9590] border border-[#2C2B28] rounded-full px-2.5 py-1 hover:border-[#DA7756]/30 hover:text-[#F5F0E8] transition-colors cursor-pointer"
               >
                 {text}
               </button>
@@ -116,11 +116,11 @@ export default function Control() {
       )}
 
       {/* Input */}
-      <div className="border-t border-[#1E1E1E] bg-[#080808]">
+      <div className="border-t border-[#2C2B28] bg-[#0D0C0B]">
         <div className="max-w-3xl mx-auto px-6 lg:px-10 py-4">
           <form
             onSubmit={handleSubmit}
-            className="flex items-center gap-3 bg-[#0F0F0F] border border-[#1E1E1E] focus-within:border-[#00D4FF]/40 rounded px-4 py-2.5 transition-colors"
+            className="flex items-center gap-3 bg-[#171614] border border-[#2C2B28] focus-within:border-[#DA7756]/40 rounded px-4 py-2.5 transition-colors"
           >
             <input
               ref={inputRef}
@@ -129,17 +129,17 @@ export default function Control() {
               onChange={(e) => setInput(e.target.value)}
               placeholder="Ask Cadence anything..."
               disabled={state !== 'idle'}
-              className="flex-1 bg-transparent text-sm text-[#F4F0EA] placeholder-[#444444] outline-none"
+              className="flex-1 bg-transparent text-sm text-[#F5F0E8] placeholder-[#6B6560] outline-none"
             />
             <button
               type="submit"
               disabled={!input.trim() || state !== 'idle'}
-              className="w-8 h-8 rounded bg-[#00D4FF] disabled:bg-[#1E1E1E] flex items-center justify-center transition-colors cursor-pointer shrink-0"
+              className="w-8 h-8 rounded bg-[#DA7756] disabled:bg-[#2C2B28] flex items-center justify-center transition-colors cursor-pointer shrink-0"
             >
-              <ArrowUp size={14} className="text-[#080808]" />
+              <ArrowUp size={14} className="text-[#0D0C0B]" />
             </button>
           </form>
-          <p className="text-[10px] text-[#444444] text-center mt-2">
+          <p className="text-[10px] text-[#6B6560] text-center mt-2">
             Cadence may produce inaccurate information. Verify critical details.
           </p>
         </div>

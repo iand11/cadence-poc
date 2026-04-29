@@ -7,7 +7,7 @@ const PLATFORMS = [
   { key: 'apple', name: 'Apple Music', color: '#FC3C44' },
   { key: 'youtube', name: 'YouTube Music', color: '#FF0000' },
   { key: 'amazon', name: 'Amazon', color: '#FF9900' },
-  { key: 'tidal', name: 'Tidal', color: '#F4F0EA' },
+  { key: 'tidal', name: 'Tidal', color: '#F5F0E8' },
 ];
 
 export default function StreamingTrendChart({ data, activePlatforms = null }) {
@@ -34,7 +34,7 @@ export default function StreamingTrendChart({ data, activePlatforms = null }) {
           formatter={(value) => [formatNumber(value), '']}
           labelFormatter={formatDate}
         />
-        <Legend wrapperStyle={{ fontSize: 12, color: '#888888' }} />
+        <Legend wrapperStyle={{ fontSize: 12, color: '#9B9590' }} />
         {platforms.map(p => (
           <Area
             key={p.key}

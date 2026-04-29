@@ -18,7 +18,7 @@ export default function WidgetPicker({ selected, onToggle }) {
     <div className="space-y-4">
       {categories.map(cat => (
         <div key={cat}>
-          <p className="text-[10px] text-[#444444] uppercase tracking-wider mb-2">{cat}</p>
+          <p className="text-[10px] text-[#6B6560] uppercase tracking-wider mb-2">{cat}</p>
           <div className="space-y-1">
             {availableWidgets.filter(w => w.category === cat).map(widget => {
               const isSelected = selected.includes(widget.id);
@@ -27,11 +27,11 @@ export default function WidgetPicker({ selected, onToggle }) {
                   key={widget.id}
                   onClick={() => onToggle(widget.id)}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 rounded text-left transition-colors cursor-pointer ${
-                    isSelected ? 'bg-[#00D4FF]/10 border border-[#00D4FF]/20' : 'hover:bg-[#0F0F0F] border border-transparent'
+                    isSelected ? 'bg-[#DA7756]/10 border border-[#DA7756]/20' : 'hover:bg-[#171614] border border-transparent'
                   }`}
                 >
-                  <widget.icon size={14} className={isSelected ? 'text-[#00D4FF]' : 'text-[#444444]'} />
-                  <span className={`text-sm ${isSelected ? 'text-[#F4F0EA]' : 'text-[#888888]'}`}>{widget.label}</span>
+                  <widget.icon size={14} className={isSelected ? 'text-[#DA7756]' : 'text-[#6B6560]'} />
+                  <span className={`text-sm ${isSelected ? 'text-[#F5F0E8]' : 'text-[#9B9590]'}`}>{widget.label}</span>
                 </button>
               );
             })}

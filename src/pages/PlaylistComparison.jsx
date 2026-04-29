@@ -7,7 +7,7 @@ import KpiCard from '../components/shared/KpiCard';
 import { getAllPlaylists, getPlaylistComparison } from '../data/playlistData';
 import { formatNumber } from '../utils/formatters';
 
-const COLORS = ['#00D4FF', '#7ab87a', '#e85d5d', '#c084fc'];
+const COLORS = ['#DA7756', '#7BAF73', '#C75F4F', '#D4A574'];
 
 function PlaylistSelector({ selected, onChange }) {
   const [open, setOpen] = useState(false);
@@ -38,27 +38,27 @@ function PlaylistSelector({ selected, onChange }) {
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 px-3 py-2 text-xs text-[#00D4FF] border border-[#00D4FF]/20 hover:border-[#00D4FF]/40 rounded transition-colors cursor-pointer"
+        className="flex items-center gap-2 px-3 py-2 text-xs text-[#DA7756] border border-[#DA7756]/20 hover:border-[#DA7756]/40 rounded transition-colors cursor-pointer"
       >
         <ListMusic size={12} />
         {selected.length === 0 ? 'Select playlists to compare' : `${selected.length} playlist${selected.length === 1 ? '' : 's'} selected`}
       </button>
       {open && (
-        <div className="absolute left-0 top-full mt-1 z-50 w-80 bg-[#0F0F0F] border border-[#1E1E1E] rounded shadow-xl overflow-hidden">
-          <div className="p-2 border-b border-[#1E1E1E]">
-            <div className="flex items-center gap-2 px-2 py-1.5 bg-[#080808] rounded">
-              <Search size={12} className="text-[#444444]" />
+        <div className="absolute left-0 top-full mt-1 z-50 w-80 bg-[#171614] border border-[#2C2B28] rounded shadow-xl overflow-hidden">
+          <div className="p-2 border-b border-[#2C2B28]">
+            <div className="flex items-center gap-2 px-2 py-1.5 bg-[#0D0C0B] rounded">
+              <Search size={12} className="text-[#6B6560]" />
               <input
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search playlists..."
-                className="flex-1 bg-transparent text-xs text-[#F4F0EA] placeholder-[#444444] outline-none"
+                className="flex-1 bg-transparent text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none"
                 autoFocus
               />
               {query && (
                 <button onClick={() => setQuery('')} className="cursor-pointer">
-                  <X size={10} className="text-[#444444]" />
+                  <X size={10} className="text-[#6B6560]" />
                 </button>
               )}
             </div>
@@ -73,24 +73,24 @@ function PlaylistSelector({ selected, onChange }) {
                   onClick={() => !disabled && toggle(pl.id)}
                   disabled={disabled}
                   className={`w-full flex items-center gap-2 px-3 py-2 text-left text-[11px] transition-colors cursor-pointer ${
-                    disabled ? 'opacity-30' : 'hover:bg-[#1E1E1E]/50'
-                  } ${checked ? 'text-[#F4F0EA]' : 'text-[#888888]'}`}
+                    disabled ? 'opacity-30' : 'hover:bg-[#2C2B28]/50'
+                  } ${checked ? 'text-[#F5F0E8]' : 'text-[#9B9590]'}`}
                 >
                   <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
-                    checked ? 'bg-[#00D4FF] border-[#00D4FF]' : 'border-[#2A2A2A]'
+                    checked ? 'bg-[#DA7756] border-[#DA7756]' : 'border-[#3D3B37]'
                   }`}>
-                    {checked && <Check size={8} className="text-[#080808]" />}
+                    {checked && <Check size={8} className="text-[#0D0C0B]" />}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="truncate">{pl.name}</p>
-                    <p className="text-[9px] text-[#444444] truncate">{pl.curator} · {pl.rosterTracks} artists</p>
+                    <p className="text-[9px] text-[#6B6560] truncate">{pl.curator} · {pl.rosterTracks} artists</p>
                   </div>
-                  <span className="text-[9px] font-mono text-[#444444] shrink-0">{formatNumber(pl.totalStreamAttribution)}</span>
+                  <span className="text-[9px] font-mono text-[#6B6560] shrink-0">{formatNumber(pl.totalStreamAttribution)}</span>
                 </button>
               );
             })}
             {filtered.length === 0 && (
-              <p className="text-center text-[10px] text-[#444444] py-4">No playlists match "{query}"</p>
+              <p className="text-center text-[10px] text-[#6B6560] py-4">No playlists match "{query}"</p>
             )}
           </div>
         </div>
@@ -129,17 +129,17 @@ export default function PlaylistComparison() {
     <div className="space-y-8">
       {/* Header */}
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }}>
-        <Link to="/dashboard" className="inline-flex items-center gap-1.5 text-xs text-[#888888] hover:text-[#F4F0EA] transition-colors mb-6">
+        <Link to="/dashboard" className="inline-flex items-center gap-1.5 text-xs text-[#9B9590] hover:text-[#F5F0E8] transition-colors mb-6">
           <ArrowLeft size={14} />
           Back to Dashboard
         </Link>
         <div className="flex items-center gap-3 mb-1">
-          <span className="text-[10px] uppercase tracking-wider border rounded px-2 py-0.5 bg-[#7ab87a]/10 text-[#7ab87a] border-[#7ab87a]/20">
+          <span className="text-[10px] uppercase tracking-wider border rounded px-2 py-0.5 bg-[#7BAF73]/10 text-[#7BAF73] border-[#7BAF73]/20">
             playlists
           </span>
         </div>
-        <h1 className="text-3xl font-light text-[#F4F0EA] mt-2">Playlist Comparison</h1>
-        <p className="text-sm text-[#888888] mt-1">Compare up to 4 playlists side by side</p>
+        <h1 className="text-3xl font-light text-[#F5F0E8] mt-2">Playlist Comparison</h1>
+        <p className="text-sm text-[#9B9590] mt-1">Compare up to 4 playlists side by side</p>
       </motion.div>
 
       {/* Selector */}
@@ -162,8 +162,8 @@ export default function PlaylistComparison() {
 
       {playlists.length === 0 ? (
         <div className="text-center py-16">
-          <ListMusic size={32} className="mx-auto text-[#1E1E1E] mb-3" />
-          <p className="text-sm text-[#888888]">Select playlists to compare</p>
+          <ListMusic size={32} className="mx-auto text-[#2C2B28] mb-3" />
+          <p className="text-sm text-[#9B9590]">Select playlists to compare</p>
         </div>
       ) : (
         <div className="space-y-6">
@@ -171,26 +171,26 @@ export default function PlaylistComparison() {
           <div className={`grid gap-3 ${playlists.length <= 2 ? 'grid-cols-2' : playlists.length === 3 ? 'grid-cols-3' : 'grid-cols-4'}`}>
             {playlists.map((pl, i) => (
               <Link key={pl.id} to={`/playlist/${pl.id}`} className="block group">
-                <div className="bg-[#0F0F0F] border border-[#1E1E1E] rounded p-4 hover:border-[#1E1E1E]/80 transition-colors"
+                <div className="bg-[#171614] border border-[#2C2B28] rounded p-4 hover:border-[#2C2B28]/80 transition-colors"
                   style={{ borderTopColor: COLORS[i], borderTopWidth: 2 }}>
-                  <p className="text-sm text-[#F4F0EA] truncate group-hover:text-[#00D4FF] transition-colors mb-1">{pl.name}</p>
-                  <p className="text-[10px] text-[#444444] truncate mb-3">{pl.curator}</p>
+                  <p className="text-sm text-[#F5F0E8] truncate group-hover:text-[#DA7756] transition-colors mb-1">{pl.name}</p>
+                  <p className="text-[10px] text-[#6B6560] truncate mb-3">{pl.curator}</p>
                   <div className="space-y-2">
                     <div className="flex justify-between">
-                      <span className="text-[10px] text-[#888888]">Followers</span>
-                      <span className="text-xs font-mono text-[#F4F0EA]">{pl.followers ? formatNumber(pl.followers) : '—'}</span>
+                      <span className="text-[10px] text-[#9B9590]">Followers</span>
+                      <span className="text-xs font-mono text-[#F5F0E8]">{pl.followers ? formatNumber(pl.followers) : '—'}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-[10px] text-[#888888]">Roster Artists</span>
-                      <span className="text-xs font-mono text-[#F4F0EA]">{pl.rosterTracks}</span>
+                      <span className="text-[10px] text-[#9B9590]">Roster Artists</span>
+                      <span className="text-xs font-mono text-[#F5F0E8]">{pl.rosterTracks}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-[10px] text-[#888888]">Stream Attribution</span>
-                      <span className="text-xs font-mono text-[#F4F0EA]">{formatNumber(pl.totalStreamAttribution)}</span>
+                      <span className="text-[10px] text-[#9B9590]">Stream Attribution</span>
+                      <span className="text-xs font-mono text-[#F5F0E8]">{formatNumber(pl.totalStreamAttribution)}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-[10px] text-[#888888]">Avg Position</span>
-                      <span className="text-xs font-mono text-[#F4F0EA]">{pl.avgPosition ? `#${pl.avgPosition}` : '—'}</span>
+                      <span className="text-[10px] text-[#9B9590]">Avg Position</span>
+                      <span className="text-xs font-mono text-[#F5F0E8]">{pl.avgPosition ? `#${pl.avgPosition}` : '—'}</span>
                     </div>
                   </div>
                 </div>
@@ -205,14 +205,14 @@ export default function PlaylistComparison() {
                 const pct = (pl.totalStreamAttribution / maxStreams) * 100;
                 return (
                   <div key={pl.id} className="flex items-center gap-3">
-                    <span className="w-32 text-right text-[10px] text-[#888888] truncate shrink-0">{pl.name}</span>
-                    <div className="flex-1 h-6 bg-[#1E1E1E] rounded overflow-hidden">
+                    <span className="w-32 text-right text-[10px] text-[#9B9590] truncate shrink-0">{pl.name}</span>
+                    <div className="flex-1 h-6 bg-[#2C2B28] rounded overflow-hidden">
                       <div
                         className="h-full rounded transition-all duration-500"
                         style={{ width: `${Math.max(pct, 1)}%`, backgroundColor: COLORS[i], opacity: 0.7 }}
                       />
                     </div>
-                    <span className="w-16 text-right text-xs font-mono text-[#F4F0EA] shrink-0">{formatNumber(pl.totalStreamAttribution)}</span>
+                    <span className="w-16 text-right text-xs font-mono text-[#F5F0E8] shrink-0">{formatNumber(pl.totalStreamAttribution)}</span>
                   </div>
                 );
               })}
@@ -225,9 +225,9 @@ export default function PlaylistComparison() {
               <div className="space-y-1">
                 {overlap.slice(0, 12).map((a) => (
                   <Link key={a.slug} to={`/artist/${a.slug}`} className="block">
-                    <div className="flex items-center gap-3 px-2 py-2 rounded hover:bg-[#141414] transition-colors group">
+                    <div className="flex items-center gap-3 px-2 py-2 rounded hover:bg-[#1C1B18] transition-colors group">
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm text-[#F4F0EA] truncate group-hover:text-[#00D4FF] transition-colors">{a.name}</p>
+                        <p className="text-sm text-[#F5F0E8] truncate group-hover:text-[#DA7756] transition-colors">{a.name}</p>
                       </div>
                       <div className="flex gap-1">
                         {playlists.map((pl, i) => (
@@ -235,14 +235,14 @@ export default function PlaylistComparison() {
                             key={pl.id}
                             className="w-3 h-3 rounded-full"
                             style={{
-                              backgroundColor: a.playlists.has(pl.id) ? COLORS[i] : '#1E1E1E',
+                              backgroundColor: a.playlists.has(pl.id) ? COLORS[i] : '#2C2B28',
                               opacity: a.playlists.has(pl.id) ? 0.8 : 0.3,
                             }}
                             title={pl.name}
                           />
                         ))}
                       </div>
-                      <span className="text-[10px] font-mono text-[#888888] shrink-0">
+                      <span className="text-[10px] font-mono text-[#9B9590] shrink-0">
                         {a.playlists.size}/{playlists.length}
                       </span>
                     </div>
@@ -259,10 +259,10 @@ export default function PlaylistComparison() {
                 <div className="space-y-0.5">
                   {(pl.tracks || []).slice(0, 5).map((t, j) => (
                     <Link key={`${t.artistSlug}-${j}`} to={`/artist/${t.artistSlug}`} className="block">
-                      <div className="group flex items-center gap-2 px-1 py-1 rounded hover:bg-[#080808] transition-all">
-                        <span className="text-[9px] font-mono text-[#444444] w-4 text-right shrink-0">{j + 1}</span>
-                        <p className="text-[11px] text-[#F4F0EA] truncate flex-1 group-hover:text-[#00D4FF] transition-colors">{t.artistName}</p>
-                        <span className="text-[9px] font-mono text-[#888888] shrink-0">{formatNumber(t.streamsFromPlaylist)}</span>
+                      <div className="group flex items-center gap-2 px-1 py-1 rounded hover:bg-[#0D0C0B] transition-all">
+                        <span className="text-[9px] font-mono text-[#6B6560] w-4 text-right shrink-0">{j + 1}</span>
+                        <p className="text-[11px] text-[#F5F0E8] truncate flex-1 group-hover:text-[#DA7756] transition-colors">{t.artistName}</p>
+                        <span className="text-[9px] font-mono text-[#9B9590] shrink-0">{formatNumber(t.streamsFromPlaylist)}</span>
                       </div>
                     </Link>
                   ))}

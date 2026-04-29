@@ -24,23 +24,23 @@ export default function AppBar() {
   };
 
   return (
-    <header className="sticky top-0 z-50 bg-[#080808]/80 backdrop-blur-xl border-b border-[#1E1E1E]">
+    <header className="sticky top-0 z-50 bg-[#0D0C0B]/80 backdrop-blur-xl border-b border-[#2C2B28]">
       <div className="max-w-[1400px] mx-auto px-6 lg:px-10">
         <div className="flex items-center h-14 gap-6">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2 shrink-0">
-            <div className="w-7 h-7 rounded bg-[#00D4FF]/15 flex items-center justify-center">
-              <span className="font-mono text-sm font-bold text-[#00D4FF]">M</span>
+            <div className="w-7 h-7 rounded bg-[#DA7756]/15 flex items-center justify-center">
+              <span className="font-mono text-sm font-bold text-[#DA7756]">M</span>
             </div>
-            <span className="font-['Epilogue'] text-sm font-medium text-[#F4F0EA] hidden sm:block">
+            <span className="font-['Epilogue'] text-sm font-medium text-[#F5F0E8] hidden sm:block">
               Cadence
             </span>
           </Link>
 
           {/* Search Bar */}
           <div className="relative flex-1 max-w-md">
-            <div className="flex items-center gap-2.5 h-9 px-3.5 rounded bg-[#0F0F0F] border border-[#1E1E1E] focus-within:border-[#2A2A2A] transition-colors">
-              <Search size={14} className="text-[#444444] shrink-0" />
+            <div className="flex items-center gap-2.5 h-9 px-3.5 rounded bg-[#171614] border border-[#2C2B28] focus-within:border-[#3D3B37] transition-colors">
+              <Search size={14} className="text-[#6B6560] shrink-0" />
               <input
                 ref={inputRef}
                 type="text"
@@ -49,9 +49,9 @@ export default function AppBar() {
                 onFocus={() => setFocused(true)}
                 onBlur={() => setTimeout(() => setFocused(false), 200)}
                 placeholder="Search artists..."
-                className="flex-1 bg-transparent text-xs text-[#F4F0EA] placeholder-[#444444] outline-none"
+                className="flex-1 bg-transparent text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none"
               />
-              <kbd className="hidden sm:inline-flex items-center text-[9px] font-mono text-[#444444] bg-[#080808] border border-[#1E1E1E] rounded px-1 py-0.5">
+              <kbd className="hidden sm:inline-flex items-center text-[9px] font-mono text-[#6B6560] bg-[#0D0C0B] border border-[#2C2B28] rounded px-1 py-0.5">
                 ⌘K
               </kbd>
             </div>
@@ -63,26 +63,26 @@ export default function AppBar() {
                   initial={{ opacity: 0, y: -2 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0 }}
-                  className="absolute top-full left-0 right-0 mt-1.5 bg-[#0F0F0F] border border-[#1E1E1E] rounded shadow-2xl z-50 overflow-hidden"
+                  className="absolute top-full left-0 right-0 mt-1.5 bg-[#171614] border border-[#2C2B28] rounded shadow-2xl z-50 overflow-hidden"
                 >
                   {results.map((artist) => (
                     <button
                       key={artist.slug}
                       onMouseDown={() => handleSelect(artist)}
-                      className="flex items-center gap-2.5 w-full px-3.5 py-2.5 hover:bg-[#141414] transition-colors text-left cursor-pointer"
+                      className="flex items-center gap-2.5 w-full px-3.5 py-2.5 hover:bg-[#1C1B18] transition-colors text-left cursor-pointer"
                     >
                       {artist.imageUrl ? (
                         <img src={artist.imageUrl} alt="" className="w-7 h-7 rounded object-cover" />
                       ) : (
-                        <div className="w-7 h-7 rounded bg-[#1E1E1E] flex items-center justify-center">
-                          <Music size={10} className="text-[#444444]" />
+                        <div className="w-7 h-7 rounded bg-[#2C2B28] flex items-center justify-center">
+                          <Music size={10} className="text-[#6B6560]" />
                         </div>
                       )}
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs text-[#F4F0EA] truncate">{artist.name}</p>
-                        <p className="text-[9px] text-[#444444]">{formatNumber(artist.spotify.monthlyListeners)} listeners</p>
+                        <p className="text-xs text-[#F5F0E8] truncate">{artist.name}</p>
+                        <p className="text-[9px] text-[#6B6560]">{formatNumber(artist.spotify.monthlyListeners)} listeners</p>
                       </div>
-                      <span className="text-[9px] font-mono text-[#444444]">#{artist.rank}</span>
+                      <span className="text-[9px] font-mono text-[#6B6560]">#{artist.rank}</span>
                       <button
                         onMouseDown={(e) => {
                           e.stopPropagation();
@@ -92,7 +92,7 @@ export default function AppBar() {
                       >
                         <Star
                           size={12}
-                          className={isFavorite(artist.slug) ? 'fill-[#00D4FF] text-[#00D4FF]' : 'text-[#444444] hover:text-[#888888]'}
+                          className={isFavorite(artist.slug) ? 'fill-[#DA7756] text-[#DA7756]' : 'text-[#6B6560] hover:text-[#9B9590]'}
                         />
                       </button>
                     </button>
@@ -108,8 +108,8 @@ export default function AppBar() {
               to="/"
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs transition-colors ${
                 location.pathname === '/'
-                  ? 'text-[#F4F0EA] bg-[#0F0F0F]'
-                  : 'text-[#888888] hover:text-[#F4F0EA]'
+                  ? 'text-[#F5F0E8] bg-[#171614]'
+                  : 'text-[#9B9590] hover:text-[#F5F0E8]'
               }`}
             >
               <Sparkles size={14} />
@@ -119,8 +119,8 @@ export default function AppBar() {
               to="/dashboard"
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs transition-colors ${
                 location.pathname.startsWith('/dashboard')
-                  ? 'text-[#F4F0EA] bg-[#0F0F0F]'
-                  : 'text-[#888888] hover:text-[#F4F0EA]'
+                  ? 'text-[#F5F0E8] bg-[#171614]'
+                  : 'text-[#9B9590] hover:text-[#F5F0E8]'
               }`}
             >
               <LayoutDashboard size={14} />
@@ -130,8 +130,8 @@ export default function AppBar() {
               to="/tracks"
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs transition-colors ${
                 location.pathname.startsWith('/track')
-                  ? 'text-[#F4F0EA] bg-[#0F0F0F]'
-                  : 'text-[#888888] hover:text-[#F4F0EA]'
+                  ? 'text-[#F5F0E8] bg-[#171614]'
+                  : 'text-[#9B9590] hover:text-[#F5F0E8]'
               }`}
             >
               <Music size={14} />
@@ -141,8 +141,8 @@ export default function AppBar() {
               to="/playlists"
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs transition-colors ${
                 location.pathname.startsWith('/playlist')
-                  ? 'text-[#F4F0EA] bg-[#0F0F0F]'
-                  : 'text-[#888888] hover:text-[#F4F0EA]'
+                  ? 'text-[#F5F0E8] bg-[#171614]'
+                  : 'text-[#9B9590] hover:text-[#F5F0E8]'
               }`}
             >
               <ListMusic size={14} />
@@ -152,8 +152,8 @@ export default function AppBar() {
               to="/reports"
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs transition-colors ${
                 location.pathname.startsWith('/reports')
-                  ? 'text-[#F4F0EA] bg-[#0F0F0F]'
-                  : 'text-[#888888] hover:text-[#F4F0EA]'
+                  ? 'text-[#F5F0E8] bg-[#171614]'
+                  : 'text-[#9B9590] hover:text-[#F5F0E8]'
               }`}
             >
               <FileText size={14} />
@@ -163,12 +163,12 @@ export default function AppBar() {
 
           {/* Right: Bell + Avatar */}
           <div className="flex items-center gap-3 shrink-0">
-            <button className="relative text-[#888888] hover:text-[#F4F0EA] transition-colors">
+            <button className="relative text-[#9B9590] hover:text-[#F5F0E8] transition-colors">
               <Bell size={16} />
-              <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-[#e85d5d] rounded-full text-[8px] font-bold text-white flex items-center justify-center">3</span>
+              <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-[#C75F4F] rounded-full text-[8px] font-bold text-white flex items-center justify-center">3</span>
             </button>
-            <div className="w-7 h-7 rounded-full bg-[#141414] border border-[#1E1E1E] flex items-center justify-center">
-              <span className="font-mono text-[10px] text-[#888888]">SJ</span>
+            <div className="w-7 h-7 rounded-full bg-[#1C1B18] border border-[#2C2B28] flex items-center justify-center">
+              <span className="font-mono text-[10px] text-[#9B9590]">SJ</span>
             </div>
           </div>
         </div>

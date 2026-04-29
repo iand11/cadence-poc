@@ -33,7 +33,7 @@ const comparisonCols = [
   {
     key: 'name', label: 'Artist', align: 'left',
     format: (v, row) => (
-      <Link to={`/artist/${row.slug}`} className="text-[#F4F0EA] hover:text-[#00D4FF] transition-colors">
+      <Link to={`/artist/${row.slug}`} className="text-[#F5F0E8] hover:text-[#DA7756] transition-colors">
         <span className="flex items-center gap-2">
           {row.imageUrl && <img src={row.imageUrl} alt="" className="w-6 h-6 rounded object-cover" />}
           {v}
@@ -54,7 +54,7 @@ const playlistCols = [
   {
     key: 'name', label: 'Artist', align: 'left',
     format: (v, row) => (
-      <Link to={`/artist/${row.slug}`} className="text-[#F4F0EA] hover:text-[#00D4FF] transition-colors">{v}</Link>
+      <Link to={`/artist/${row.slug}`} className="text-[#F5F0E8] hover:text-[#DA7756] transition-colors">{v}</Link>
     ),
   },
   { key: 'editorial', label: 'Editorial', align: 'right', format: (v) => formatNumber(v) },
@@ -183,7 +183,7 @@ export default function ReportCenter() {
 
       for (const section of sections) {
         const canvas = await html2canvas(section, {
-          backgroundColor: '#080808',
+          backgroundColor: '#0D0C0B',
           scale: 2,
           useCORS: true,
           logging: false,
@@ -401,12 +401,12 @@ export default function ReportCenter() {
   const reportWidgets = (
     <>
       {selectedArtists.length === 0 ? (
-        <div className="text-center py-20 text-[#444444]">
+        <div className="text-center py-20 text-[#6B6560]">
           <FileText size={40} className="mx-auto mb-3 opacity-50" />
           <p className="text-sm">Select artists above to generate report data</p>
         </div>
       ) : selected.length === 0 ? (
-        <div className="text-center py-20 text-[#444444]">
+        <div className="text-center py-20 text-[#6B6560]">
           <FileText size={40} className="mx-auto mb-3 opacity-50" />
           <p className="text-sm">Select components from the left panel to build your report</p>
         </div>
@@ -427,28 +427,28 @@ export default function ReportCenter() {
   if (viewMode && selectedArtists.length > 0) {
     const date = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
     return (
-      <div className="fixed inset-0 z-50 bg-[#080808] overflow-y-auto">
+      <div className="fixed inset-0 z-50 bg-[#0D0C0B] overflow-y-auto">
         {/* Toolbar */}
-        <div className="sticky top-0 z-10 bg-[#080808]/90 backdrop-blur-md border-b border-[#1E1E1E]">
+        <div className="sticky top-0 z-10 bg-[#0D0C0B]/90 backdrop-blur-md border-b border-[#2C2B28]">
           <div className="max-w-[1200px] mx-auto px-8 py-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <span className="text-xs font-mono text-[#00D4FF] bg-[#00D4FF]/10 px-2 py-0.5 rounded">Cadence</span>
-              <span className="text-sm text-[#888888]">Report</span>
+              <span className="text-xs font-mono text-[#DA7756] bg-[#DA7756]/10 px-2 py-0.5 rounded">Cadence</span>
+              <span className="text-sm text-[#9B9590]">Report</span>
             </div>
             <div className="flex items-center gap-2">
               <button
                 onClick={handleCopyLink}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded border transition-colors cursor-pointer
-                  border-[#1E1E1E] text-[#888888] hover:text-[#F4F0EA] hover:border-[#2A2A2A]"
+                  border-[#2C2B28] text-[#9B9590] hover:text-[#F5F0E8] hover:border-[#3D3B37]"
               >
-                {linkCopied ? <Check size={12} className="text-[#7ab87a]" /> : <Link2 size={12} />}
+                {linkCopied ? <Check size={12} className="text-[#7BAF73]" /> : <Link2 size={12} />}
                 {linkCopied ? 'Copied!' : 'Copy Link'}
               </button>
               <button
                 onClick={handleExportPDF}
                 disabled={exporting}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded border transition-colors cursor-pointer
-                  border-[#00D4FF]/20 bg-[#00D4FF]/10 text-[#00D4FF] hover:bg-[#00D4FF]/20 disabled:opacity-50"
+                  border-[#DA7756]/20 bg-[#DA7756]/10 text-[#DA7756] hover:bg-[#DA7756]/20 disabled:opacity-50"
               >
                 <Download size={12} />
                 {exporting ? 'Exporting...' : 'Export PDF'}
@@ -456,14 +456,14 @@ export default function ReportCenter() {
               <button
                 onClick={() => setViewMode(false)}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded border transition-colors cursor-pointer
-                  border-[#1E1E1E] text-[#888888] hover:text-[#F4F0EA] hover:border-[#2A2A2A]"
+                  border-[#2C2B28] text-[#9B9590] hover:text-[#F5F0E8] hover:border-[#3D3B37]"
               >
                 <Pencil size={12} />
                 Edit
               </button>
               <button
                 onClick={() => navigate('/reports')}
-                className="p-1.5 text-[#444444] hover:text-[#888888] transition-colors cursor-pointer"
+                className="p-1.5 text-[#6B6560] hover:text-[#9B9590] transition-colors cursor-pointer"
               >
                 <X size={16} />
               </button>
@@ -474,7 +474,7 @@ export default function ReportCenter() {
         {/* Report Content */}
         <div ref={reportRef} className="max-w-[1200px] mx-auto px-8 py-8 space-y-6">
           {/* Artist Header Banner */}
-          <div data-pdf-section className="bg-[#0F0F0F] border border-[#1E1E1E] rounded p-8">
+          <div data-pdf-section className="bg-[#171614] border border-[#2C2B28] rounded p-8">
             {/* Artist Images */}
             <div className="flex items-center justify-center gap-6 mb-6">
               {selectedArtists.map((a, i) => (
@@ -489,23 +489,23 @@ export default function ReportCenter() {
                     <img
                       src={a.imageUrl}
                       alt={a.name}
-                      className="w-24 h-24 rounded object-cover border-2 border-[#1E1E1E] mx-auto"
+                      className="w-24 h-24 rounded object-cover border-2 border-[#2C2B28] mx-auto"
                     />
                   ) : (
-                    <div className="w-24 h-24 rounded bg-[#1E1E1E] flex items-center justify-center mx-auto">
-                      <span className="text-2xl text-[#444444]">{a.name[0]}</span>
+                    <div className="w-24 h-24 rounded bg-[#2C2B28] flex items-center justify-center mx-auto">
+                      <span className="text-2xl text-[#6B6560]">{a.name[0]}</span>
                     </div>
                   )}
-                  <p className="text-sm text-[#F4F0EA] mt-2 font-medium">{a.name}</p>
-                  <p className="text-[10px] text-[#444444]">{a.genres?.primary?.name || 'Artist'}</p>
+                  <p className="text-sm text-[#F5F0E8] mt-2 font-medium">{a.name}</p>
+                  <p className="text-[10px] text-[#6B6560]">{a.genres?.primary?.name || 'Artist'}</p>
                 </motion.div>
               ))}
             </div>
 
             {/* Title */}
             <div className="text-center mb-6">
-              <h1 className="text-xl font-light text-[#F4F0EA]">{reportName}</h1>
-              <p className="text-xs text-[#444444] mt-1">{date} — Generated by Cadence</p>
+              <h1 className="text-xl font-light text-[#F5F0E8]">{reportName}</h1>
+              <p className="text-xs text-[#6B6560] mt-1">{date} — Generated by Cadence</p>
             </div>
 
             {/* KPI Stats Row */}
@@ -516,9 +516,9 @@ export default function ReportCenter() {
                 { label: 'Total Playlists', value: formatNumber(totalPlaylists) },
                 { label: 'Playlist Reach', value: formatNumber(totalReach) },
               ].map((stat) => (
-                <div key={stat.label} className="text-center py-3 bg-[#080808] rounded border border-[#1E1E1E]">
-                  <div className="text-lg font-mono text-[#F4F0EA]">{stat.value}</div>
-                  <div className="text-[10px] text-[#444444] uppercase tracking-wider mt-0.5">{stat.label}</div>
+                <div key={stat.label} className="text-center py-3 bg-[#0D0C0B] rounded border border-[#2C2B28]">
+                  <div className="text-lg font-mono text-[#F5F0E8]">{stat.value}</div>
+                  <div className="text-[10px] text-[#6B6560] uppercase tracking-wider mt-0.5">{stat.label}</div>
                 </div>
               ))}
             </div>
@@ -537,7 +537,7 @@ export default function ReportCenter() {
   return (
     <div className="space-y-6">
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-        <Link to="/reports" className="inline-flex items-center gap-1.5 text-xs text-[#888888] hover:text-[#F4F0EA] transition-colors mb-4">
+        <Link to="/reports" className="inline-flex items-center gap-1.5 text-xs text-[#9B9590] hover:text-[#F5F0E8] transition-colors mb-4">
           <ArrowLeft size={12} />
           All Reports
         </Link>
@@ -546,24 +546,24 @@ export default function ReportCenter() {
           <input
             value={reportName}
             onChange={(e) => setReportName(e.target.value)}
-            className="text-2xl font-light text-[#F4F0EA] bg-transparent outline-none border-b border-transparent hover:border-[#1E1E1E] focus:border-[#00D4FF]/30 transition-colors w-full"
+            className="text-2xl font-light text-[#F5F0E8] bg-transparent outline-none border-b border-transparent hover:border-[#2C2B28] focus:border-[#DA7756]/30 transition-colors w-full"
             placeholder="Untitled Report"
           />
-          <p className="text-xs text-[#888888] mt-1">Select artists and build custom reports</p>
+          <p className="text-xs text-[#9B9590] mt-1">Select artists and build custom reports</p>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={handleCopyLink}
             className="flex items-center gap-2 px-3 py-2 text-sm rounded border transition-colors cursor-pointer
-              border-[#1E1E1E] text-[#888888] hover:text-[#F4F0EA] hover:border-[#2A2A2A]"
+              border-[#2C2B28] text-[#9B9590] hover:text-[#F5F0E8] hover:border-[#3D3B37]"
           >
-            {linkCopied ? <Check size={14} className="text-[#7ab87a]" /> : <Link2 size={14} />}
+            {linkCopied ? <Check size={14} className="text-[#7BAF73]" /> : <Link2 size={14} />}
             {linkCopied ? 'Copied!' : 'Share'}
           </button>
           <button
             onClick={() => setViewMode(true)}
             disabled={selectedArtists.length === 0 || selected.length === 0}
-            className="flex items-center gap-2 px-4 py-2 bg-[#00D4FF]/10 text-[#00D4FF] rounded text-sm hover:bg-[#00D4FF]/20 transition-colors cursor-pointer border border-[#00D4FF]/20 disabled:opacity-30 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-4 py-2 bg-[#DA7756]/10 text-[#DA7756] rounded text-sm hover:bg-[#DA7756]/20 transition-colors cursor-pointer border border-[#DA7756]/20 disabled:opacity-30 disabled:cursor-not-allowed"
           >
             <Eye size={14} />
             Preview Report
@@ -574,7 +574,7 @@ export default function ReportCenter() {
 
       {/* Artist Selector */}
       <div>
-        <p className="text-xs text-[#888888] mb-2">Artists</p>
+        <p className="text-xs text-[#9B9590] mb-2">Artists</p>
         <ArtistSelector selected={selectedArtists} onChange={setSelectedArtists} />
       </div>
 
@@ -591,10 +591,10 @@ export default function ReportCenter() {
       <div className="flex gap-6">
         {/* Widget Picker */}
         <div className="w-56 shrink-0">
-          <div className="sticky top-20 bg-[#0F0F0F] border border-[#1E1E1E] rounded p-4">
+          <div className="sticky top-20 bg-[#171614] border border-[#2C2B28] rounded p-4">
             <div className="flex items-center gap-2 mb-4">
-              <FileText size={14} className="text-[#888888]" />
-              <span className="text-xs font-medium text-[#888888]">Components</span>
+              <FileText size={14} className="text-[#9B9590]" />
+              <span className="text-xs font-medium text-[#9B9590]">Components</span>
             </div>
             <WidgetPicker selected={selected} onToggle={toggleWidget} />
           </div>

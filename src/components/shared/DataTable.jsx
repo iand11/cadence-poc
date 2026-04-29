@@ -7,12 +7,12 @@ export default function DataTable({ columns, data, maxRows, onRowClick }) {
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-[#2A2A2A]">
+          <tr className="border-b border-[#3D3B37]">
             {columns.map((col) => (
               <th
                 key={col.key}
                 className={cn(
-                  'px-4 py-3 text-xs font-medium text-[#888888]',
+                  'px-4 py-3 text-xs font-medium text-[#9B9590]',
                   col.align === 'right' ? 'text-right' : 'text-left'
                 )}
               >
@@ -27,9 +27,9 @@ export default function DataTable({ columns, data, maxRows, onRowClick }) {
               key={rowIndex}
               onClick={() => onRowClick?.(row)}
               className={cn(
-                'border-b border-[#1E1E1E] transition-colors',
-                rowIndex % 2 === 0 && 'bg-[#0c0c0e]',
-                onRowClick ? 'hover:bg-[#141414] cursor-pointer' : 'hover:bg-[#141414]'
+                'border-b border-[#2C2B28] transition-colors',
+                rowIndex % 2 === 0 && 'bg-[#100F0E]',
+                onRowClick ? 'hover:bg-[#1C1B18] cursor-pointer' : 'hover:bg-[#1C1B18]'
               )}
             >
               {columns.map((col) => {
@@ -41,7 +41,7 @@ export default function DataTable({ columns, data, maxRows, onRowClick }) {
                     key={col.key}
                     className={cn(
                       'px-4 py-3 whitespace-nowrap',
-                      isNumber ? 'font-mono text-sm text-[#F4F0EA]' : 'text-sm text-[#F4F0EA]',
+                      isNumber ? 'font-mono text-sm text-[#F5F0E8]' : 'text-sm text-[#F5F0E8]',
                       col.align === 'right' || (isNumber && !col.align) ? 'text-right' : 'text-left'
                     )}
                   >

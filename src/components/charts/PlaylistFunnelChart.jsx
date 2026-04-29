@@ -2,7 +2,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 
 import { AXIS_STYLE, TOOLTIP_STYLE } from '../../utils/chartTheme';
 import { formatNumber } from '../../utils/formatters';
 
-const COLORS = ['#00D4FF', '#e85d5d', '#7ab87a', '#5b9bd5'];
+const COLORS = ['#DA7756', '#C75F4F', '#7BAF73', '#D4A574'];
 
 export default function PlaylistFunnelChart({ data }) {
   return (

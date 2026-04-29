@@ -1,10 +1,10 @@
 import { cn } from '../../utils/cn';
 
 const variantStyles = {
-  success: 'bg-[#7ab87a]/15 text-[#7ab87a] border border-[#7ab87a]/30',
-  warning: 'bg-[#00D4FF]/15 text-[#00D4FF] border border-[#00D4FF]/30',
-  danger: 'bg-[#e85d5d]/15 text-[#e85d5d] border border-[#e85d5d]/30',
-  info: 'bg-[#5b9bd5]/15 text-[#5b9bd5] border border-[#5b9bd5]/30',
+  success: 'bg-[#7BAF73]/15 text-[#7BAF73] border border-[#7BAF73]/30',
+  warning: 'bg-[#DA7756]/15 text-[#DA7756] border border-[#DA7756]/30',
+  danger: 'bg-[#C75F4F]/15 text-[#C75F4F] border border-[#C75F4F]/30',
+  info: 'bg-[#D4A574]/15 text-[#D4A574] border border-[#D4A574]/30',
 };
 
 export default function Badge({ variant = 'info', children }) {

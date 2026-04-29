@@ -10,7 +10,7 @@ function ChatMessage({ message }) {
         animate={{ opacity: 1, y: 0 }}
         className="flex justify-end px-4 py-2"
       >
-        <div className="max-w-[80%] bg-[#00D4FF]/8 border border-[#00D4FF]/20 rounded px-4 py-3 text-sm text-[#F4F0EA]">
+        <div className="max-w-[80%] bg-[#DA7756]/8 border border-[#DA7756]/20 rounded px-4 py-3 text-sm text-[#F5F0E8]">
           {message.text}
         </div>
       </motion.div>
@@ -23,14 +23,14 @@ function ChatMessage({ message }) {
       animate={{ opacity: 1, y: 0 }}
       className="flex gap-3 px-4 py-2"
     >
-      <div className="w-6 h-6 rounded bg-[#00D4FF]/20 flex items-center justify-center text-[#00D4FF] font-mono text-[10px] font-bold shrink-0 mt-1">
+      <div className="w-6 h-6 rounded bg-[#DA7756]/20 flex items-center justify-center text-[#DA7756] font-mono text-[10px] font-bold shrink-0 mt-1">
         M
       </div>
       <div className="max-w-[85%] min-w-0">
-        <div className={`border-l-2 border-[#00D4FF]/40 pl-4 py-2 text-sm leading-relaxed ${message.isError ? 'text-[#e85d5d]' : 'text-[#F4F0EA]'}`}>
+        <div className={`border-l-2 border-[#DA7756]/40 pl-4 py-2 text-sm leading-relaxed ${message.isError ? 'text-[#C75F4F]' : 'text-[#F5F0E8]'}`}>
           <div className="prose-chat">
             {message.isStreaming ? (
-              <span style={{ whiteSpace: 'pre-wrap' }}>{message.text}<span className="inline-block w-0.5 h-4 bg-[#00D4FF] ml-0.5 align-middle animate-pulse" /></span>
+              <span style={{ whiteSpace: 'pre-wrap' }}>{message.text}<span className="inline-block w-0.5 h-4 bg-[#DA7756] ml-0.5 align-middle animate-pulse" /></span>
             ) : (
               <Markdown>{message.text}</Markdown>
             )}

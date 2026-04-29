@@ -21,7 +21,7 @@ export default function SocialGrowthChart({ data }) {
           formatter={(value) => [formatNumber(value), '']}
           labelFormatter={formatDate}
         />
-        <Legend wrapperStyle={{ fontSize: 12, color: '#888888' }} />
+        <Legend wrapperStyle={{ fontSize: 12, color: '#9B9590' }} />
         {PLATFORMS.map(p => (
           <Line
             key={p.key}

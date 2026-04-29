@@ -18,7 +18,7 @@ const revenueData = [
   { source: 'Merch', amount: 384000 },
 ];
 
-const COLORS = ['#00D4FF', '#e85d5d', '#7ab87a', '#5b9bd5', '#c084fc'];
+const COLORS = ['#DA7756', '#C75F4F', '#7BAF73', '#D4A574', '#D4A574'];
 
 const alertsData = [
   { severity: 'high', title: 'TikTok sound trending', description: "'Midnight Frequency' used in 84K videos in 48hrs" },
@@ -33,15 +33,15 @@ const playlistData = [
 
 function TourInsight() {
   return (
-    <div className="bg-[#0F0F0F] rounded border border-[#2A2A2A] p-4">
-      <div className="flex items-center gap-2 mb-3 font-['Epilogue'] text-xs font-medium text-[#888888]">
-        <MapPin className="w-4 h-4 text-[#00D4FF]" />
+    <div className="bg-[#171614] rounded border border-[#3D3B37] p-4">
+      <div className="flex items-center gap-2 mb-3 font-['Epilogue'] text-xs font-medium text-[#9B9590]">
+        <MapPin className="w-4 h-4 text-[#DA7756]" />
         Top Recommended Tour Cities
       </div>
       <ResponsiveContainer width="100%" height={150}>
         <BarChart data={tourData} layout="vertical" margin={{ left: 70, right: 10 }}>
           <XAxis type="number" hide domain={[0, 100]} />
-          <YAxis dataKey="city" type="category" tick={{ fill: '#888888', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }} axisLine={false} tickLine={false} />
+          <YAxis dataKey="city" type="category" tick={{ fill: '#9B9590', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }} axisLine={false} tickLine={false} />
           <Bar dataKey="score" radius={[0, 2, 2, 0]} barSize={16}>
             {tourData.map((_, i) => (
               <Cell key={i} fill={COLORS[i % COLORS.length]} />
@@ -55,9 +55,9 @@ function TourInsight() {
 
 function RevenueInsight() {
   return (
-    <div className="bg-[#0F0F0F] rounded border border-[#2A2A2A] p-4">
-      <div className="flex items-center gap-2 mb-3 font-['Epilogue'] text-xs font-medium text-[#888888]">
-        <TrendingUp className="w-4 h-4 text-[#00D4FF]" />
+    <div className="bg-[#171614] rounded border border-[#3D3B37] p-4">
+      <div className="flex items-center gap-2 mb-3 font-['Epilogue'] text-xs font-medium text-[#9B9590]">
+        <TrendingUp className="w-4 h-4 text-[#DA7756]" />
         Projected Q2 Revenue Breakdown
       </div>
       <div className="flex items-center gap-4">
@@ -72,8 +72,8 @@ function RevenueInsight() {
           {revenueData.map((d, i) => (
             <div key={d.source} className="flex items-center gap-2 font-mono text-xs">
               <div className="w-2.5 h-2.5 rounded" style={{ backgroundColor: COLORS[i] }} />
-              <span className="text-[#888888]">{d.source}:</span>
-              <span className="text-[#F4F0EA] font-medium">{formatCurrency(d.amount)}</span>
+              <span className="text-[#9B9590]">{d.source}:</span>
+              <span className="text-[#F5F0E8] font-medium">{formatCurrency(d.amount)}</span>
             </div>
           ))}
         </div>
@@ -84,17 +84,17 @@ function RevenueInsight() {
 
 function AlertsInsight() {
   return (
-    <div className="bg-[#0F0F0F] rounded border border-[#2A2A2A] p-4 space-y-2">
-      <div className="flex items-center gap-2 mb-2 font-['Epilogue'] text-xs font-medium text-[#888888]">
-        <AlertTriangle className="w-4 h-4 text-[#00D4FF]" />
+    <div className="bg-[#171614] rounded border border-[#3D3B37] p-4 space-y-2">
+      <div className="flex items-center gap-2 mb-2 font-['Epilogue'] text-xs font-medium text-[#9B9590]">
+        <AlertTriangle className="w-4 h-4 text-[#DA7756]" />
         Breakout Signals Detected
       </div>
       {alertsData.map((a, i) => (
-        <div key={i} className="flex items-start gap-2 p-2 rounded bg-[#141414]">
+        <div key={i} className="flex items-start gap-2 p-2 rounded bg-[#1C1B18]">
           <Badge variant={a.severity === 'high' ? 'danger' : 'warning'}>{a.severity}</Badge>
           <div>
-            <p className="font-mono text-xs font-medium text-[#F4F0EA]">{a.title}</p>
-            <p className="font-mono text-xs text-[#888888]">{a.description}</p>
+            <p className="font-mono text-xs font-medium text-[#F5F0E8]">{a.title}</p>
+            <p className="font-mono text-xs text-[#9B9590]">{a.description}</p>
           </div>
         </div>
       ))}
@@ -104,19 +104,19 @@ function AlertsInsight() {
 
 function PlaylistInsight() {
   return (
-    <div className="bg-[#0F0F0F] rounded border border-[#2A2A2A] p-4">
-      <div className="flex items-center gap-2 mb-3 font-['Epilogue'] text-xs font-medium text-[#888888]">
-        <Music className="w-4 h-4 text-[#00D4FF]" />
+    <div className="bg-[#171614] rounded border border-[#3D3B37] p-4">
+      <div className="flex items-center gap-2 mb-3 font-['Epilogue'] text-xs font-medium text-[#9B9590]">
+        <Music className="w-4 h-4 text-[#DA7756]" />
         Priority Playlist Targets
       </div>
       <div className="space-y-2">
         {playlistData.map((p, i) => (
-          <div key={i} className="flex items-center justify-between p-2 rounded bg-[#141414] font-mono text-xs">
+          <div key={i} className="flex items-center justify-between p-2 rounded bg-[#1C1B18] font-mono text-xs">
             <div>
-              <span className="text-[#F4F0EA] font-medium">{p.name}</span>
-              <span className="text-[#444444] ml-2">{p.followers}</span>
+              <span className="text-[#F5F0E8] font-medium">{p.name}</span>
+              <span className="text-[#6B6560] ml-2">{p.followers}</span>
             </div>
-            <span className="text-[#00D4FF]">#{p.position}</span>
+            <span className="text-[#DA7756]">#{p.position}</span>
           </div>
         ))}
       </div>
