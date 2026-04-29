@@ -1,0 +1,35 @@
+import { useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { ChevronDown } from 'lucide-react';
+
+export default function CollapsibleSection({ title, icon: Icon, defaultOpen = false, children }) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  return (
+    <div className="border-b border-[#1E1E1E]">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center gap-3 py-4 text-left hover:bg-[#0F0F0F]/50 transition-colors cursor-pointer px-1"
+      >
+        {Icon && <Icon size={16} className="text-[#444444]" />}
+        <span className="text-sm font-medium text-[#F4F0EA] flex-1">{title}</span>
+        <motion.div animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.2 }}>
+          <ChevronDown size={16} className="text-[#444444]" />
+        </motion.div>
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className="overflow-hidden"
+          >
+            <div className="pb-6 px-1">{children}</div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}

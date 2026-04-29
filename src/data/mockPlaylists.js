@@ -1,0 +1,91 @@
+// --- Playlist Tiers ---
+export const playlistTiers = [
+  { tier: 'Algorithmic', count: 24, reach: 45000000 },
+  { tier: 'Major Editorial', count: 8, reach: 89000000 },
+  { tier: 'Genre Editorial', count: 31, reach: 22000000 },
+  { tier: 'User-Generated', count: 189, reach: 15000000 },
+];
+
+// --- Active Playlists ---
+export const activePlaylists = [
+  {
+    name: 'Today\'s Top Hits',
+    curator: 'Spotify Editorial',
+    followers: 34200000,
+    position: 38,
+    streamsFromPlaylist: 4820000,
+    dateAdded: '2025-03-12',
+  },
+  {
+    name: 'New Music Friday',
+    curator: 'Spotify Editorial',
+    followers: 16800000,
+    position: 12,
+    streamsFromPlaylist: 3140000,
+    dateAdded: '2025-03-28',
+  },
+  {
+    name: 'Alt Now',
+    curator: 'Apple Music Editorial',
+    followers: 4200000,
+    position: 3,
+    streamsFromPlaylist: 2860000,
+    dateAdded: '2025-02-08',
+  },
+  {
+    name: 'Discover Weekly',
+    curator: 'Spotify Algorithmic',
+    followers: null,
+    position: null,
+    streamsFromPlaylist: 6420000,
+    dateAdded: '2025-01-15',
+  },
+  {
+    name: 'Release Radar',
+    curator: 'Spotify Algorithmic',
+    followers: null,
+    position: null,
+    streamsFromPlaylist: 5180000,
+    dateAdded: '2025-01-15',
+  },
+  {
+    name: 'indie pop',
+    curator: 'Spotify Editorial',
+    followers: 8900000,
+    position: 6,
+    streamsFromPlaylist: 2340000,
+    dateAdded: '2025-01-22',
+  },
+  {
+    name: 'A-List Pop',
+    curator: 'Apple Music Editorial',
+    followers: 6100000,
+    position: 21,
+    streamsFromPlaylist: 1870000,
+    dateAdded: '2025-03-01',
+  },
+  {
+    name: 'Pop Rising',
+    curator: 'Spotify Editorial',
+    followers: 11400000,
+    position: 9,
+    streamsFromPlaylist: 3920000,
+    dateAdded: '2025-02-14',
+  },
+  {
+    name: 'Chilled Vibes',
+    curator: 'User — @musiccurator_',
+    followers: 1240000,
+    position: 1,
+    streamsFromPlaylist: 980000,
+    dateAdded: '2025-01-30',
+  },
+  {
+    name: 'Fresh Finds',
+    curator: 'Spotify Algorithmic',
+    followers: 3600000,
+    position: 4,
+    streamsFromPlaylist: 1560000,
+    dateAdded: '2025-03-18',
+  },
+];

@@ -1,0 +1,182 @@
+@import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
+
+@theme {
+  --font-display: 'Playfair Display', Georgia, serif;
+  --font-body: 'Epilogue', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  --color-deep: #080808;
+  --color-surface: #0F0F0F;
+  --color-channel: #141414;
+  --color-hover: #1c1c1f;
+  --color-dim: #444444;
+  --color-steel: #888888;
+  --color-text: #F4F0EA;
+  --color-signal: #00D4FF;
+  --color-signal-dim: #006680;
+  --color-coral: #e85d5d;
+  --color-sage: #7ab87a;
+
+  --radius-sm: 2px;
+  --radius: 4px;
+  --radius-md: 4px;
+  --radius-lg: 4px;
+  --radius-xl: 6px;
+  --radius-2xl: 6px;
+}
+
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #2A2A2A; border-radius: 0; }
+::-webkit-scrollbar-thumb:hover { background: #444444; }
+
+html {
+  scroll-behavior: smooth;
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  background: #080808;
+  color: #F4F0EA;
+  font-family: 'Epilogue', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  position: relative;
+}
+
+#root {
+  min-height: 100vh;
+  position: relative;
+  z-index: 1;
+}
+
+/* Monospace numbers everywhere they appear */
+.font-data {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Hardware-style shimmer for AI thinking */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.shimmer {
+  background: linear-gradient(90deg, transparent 0%, rgba(0,212,255,0.08) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+}
+
+/* Pulse ring for alerts/notifications */
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 rgba(0, 212, 255, 0.4); }
+  100% { box-shadow: 0 0 0 8px rgba(0, 212, 255, 0); }
+}
+
+.pulse-ring {
+  animation: pulse-ring 2s ease-out infinite;
+}
+
+/* Gradient text utility */
+.text-gradient-signal {
+  background: linear-gradient(135deg, #00D4FF 0%, #F4F0EA 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Glass panel for overlays */
+.glass-panel {
+  background: rgba(15, 15, 15, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* Chat markdown prose */
+.prose-chat {
+  line-height: 1.6;
+}
+.prose-chat p {
+  margin: 0 0 0.75em;
+}
+.prose-chat p:last-child {
+  margin-bottom: 0;
+}
+.prose-chat strong {
+  color: #F4F0EA;
+  font-weight: 600;
+}
+.prose-chat em {
+  color: #a1a1aa;
+}
+.prose-chat ul, .prose-chat ol {
+  margin: 0.5em 0;
+  padding-left: 1.25em;
+}
+.prose-chat li {
+  margin: 0.25em 0;
+}
+.prose-chat li::marker {
+  color: #00D4FF;
+}
+.prose-chat h1, .prose-chat h2, .prose-chat h3 {
+  color: #F4F0EA;
+  font-weight: 600;
+  margin: 1em 0 0.5em;
+}
+.prose-chat h1 { font-size: 1.1em; }
+.prose-chat h2 { font-size: 1.05em; }
+.prose-chat h3 { font-size: 1em; }
+.prose-chat code {
+  background: #1E1E1E;
+  padding: 0.15em 0.4em;
+  border-radius: 2px;
+  font-size: 0.85em;
+  font-family: 'JetBrains Mono', monospace;
+}
+.prose-chat hr {
+  border-color: #1E1E1E;
+  margin: 1em 0;
+}
+.prose-chat a {
+  color: #00D4FF;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Leaflet dark tooltip */
+.leaflet-tooltip.leaflet-dark-tooltip {
+  background: #0F0F0F;
+  border: 1px solid #1E1E1E;
+  color: #F4F0EA;
+  border-radius: 2px;
+  padding: 6px 10px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+.leaflet-tooltip.leaflet-dark-tooltip::before {
+  border-top-color: #1E1E1E;
+}
+
+/* react-grid-layout overrides */
+.react-grid-layout {
+  position: relative;
+}
+.react-grid-item {
+  transition: all 200ms ease;
+}
+.react-grid-item.react-draggable-dragging {
+  z-index: 100;
+  opacity: 0.9;
+}
+.react-grid-placeholder {
+  background: rgba(0, 212, 255, 0.1) !important;
+  border: 1px dashed rgba(0, 212, 255, 0.3) !important;
+  border-radius: 2px !important;
+}
+.react-resizable-handle {
+  display: none;
+}

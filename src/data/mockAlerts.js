@@ -1,0 +1,48 @@
+// --- Breakout Alerts ---
+export const breakoutAlerts = [
+  {
+    id: 'alert-001',
+    type: 'viral',
+    severity: 'high',
+    title: '"Glass Cathedral" is going viral on TikTok',
+    description: 'Sound uses jumped from 12K to 284K in the last 48 hours. A choreography trend started by @dancewithkai has been replicated by 6 creators with 1M+ followers. The track is now the #3 trending sound in the US and #7 globally. Streams are up 340% day-over-day on Spotify.',
+    timestamp: '2025-03-28T14:23:00Z',
+    actionable: 'Immediately pitch "Glass Cathedral" to Spotify\'s Today\'s Top Hits editorial team. Request a playlist cover story. Boost the TikTok creator campaign budget to capitalize on organic momentum before the trend peaks.',
+  },
+  {
+    id: 'alert-002',
+    type: 'growth',
+    severity: 'high',
+    title: 'Mexico City streams surging — 67% growth in 2 weeks',
+    description: 'Luna Vega\'s daily streams in Mexico City have jumped from 98K to 164K in 14 days without any paid marketing. Three of the top 10 TikTok sound uses for "Midnight Frequency" originated from Mexican creators. Radio pickup on Ibero 90.9 and Reactor 105.7 began organically last week.',
+    timestamp: '2025-03-26T09:15:00Z',
+    actionable: 'Fast-track the Mexico City tour date. Current Pepsi Center WTC hold (3,600 cap) may need an upgrade to Auditorio BlackBerry (9,000 cap). Contact Live Nation Mexico for availability. Consider a Spanish-language social media push.',
+  },
+  {
+    id: 'alert-003',
+    type: 'anomaly',
+    severity: 'medium',
+    title: 'Unusual skip rate spike on "Echo Chamber"',
+    description: 'Skip rate for "Echo Chamber" increased from 24% to 41% over the past 72 hours, primarily from Discover Weekly placements. The track is being served to audiences outside the core demographic (45+ age group showing 58% skip rate). This is dragging down overall algorithmic performance.',
+    timestamp: '2025-03-25T16:42:00Z',
+    actionable: 'Contact Spotify artist relations to flag the targeting issue. Request audience refinement for algorithmic placements. Consider pulling "Echo Chamber" from Discover Weekly pitching and replacing with "Starlight Drive" which has a stronger cross-demographic appeal.',
+  },
+  {
+    id: 'alert-004',
+    type: 'viral',
+    severity: 'medium',
+    title: 'Fan theory thread driving massive Twitter engagement',
+    description: 'Luna Vega\'s cryptic tweet "the album is lying to you" generated 14K quote tweets and 2.3K fan theory threads in 24 hours. Engagement rate hit 11.3% — 4x the account average. Multiple music publications (Pitchfork, NME, Consequence of Sound) are requesting comment.',
+    timestamp: '2025-03-18T22:08:00Z',
+    actionable: 'Do NOT clarify the tweet — let the mystery build for at least 72 more hours. Prepare a follow-up cryptic post to sustain momentum. Brief Pitchfork for an exclusive behind-the-meaning feature timed to the next single announcement.',
+  },
+  {
+    id: 'alert-005',
+    type: 'growth',
+    severity: 'low',
+    title: 'Save rate above benchmark across all new releases',
+    description: 'Luna Vega\'s average save rate is 4.2% vs the genre benchmark of 3.1%. "Starlight Drive" is leading at 5.8% save rate despite being only 4 weeks old. High save rates correlate strongly with long-term catalog performance and indicate deep fan engagement rather than passive listening.',
+    timestamp: '2025-03-24T11:30:00Z',
+    actionable: 'Leverage the high save rate data in upcoming DSP pitch meetings. Use this as evidence for editorial playlist upgrades. Consider a "fan appreciation" campaign targeting high-save-rate listeners with exclusive content or early access to the next release.',
+  },
+];
