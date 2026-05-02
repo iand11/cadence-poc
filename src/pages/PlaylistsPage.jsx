@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
 import { ListMusic, Search, ArrowUpDown, Check, X, Users, BarChart3 } from 'lucide-react';
 import ChartCard from '../components/shared/ChartCard';
+import Pagination from '../components/shared/Pagination';
 import { getAllPlaylists, getPlaylistComparison, getRosterPlaylistStats } from '../data/playlistData';
 import { formatNumber } from '../utils/formatters';
 
@@ -29,6 +30,8 @@ export default function PlaylistsPage() {
   const [sortAsc, setSortAsc] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
   const [showComparison, setShowComparison] = useState(false);
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(20);
 
   const filtered = useMemo(() => {
     let list = allPlaylists;
@@ -50,6 +53,13 @@ export default function PlaylistsPage() {
     });
     return sorted;
   }, [allPlaylists, query, sortKey, sortAsc]);
+
+  const paginated = useMemo(() => {
+    const start = (page - 1) * perPage;
+    return filtered.slice(start, start + perPage);
+  }, [filtered, page, perPage]);
+
+  useMemo(() => { setPage(1); }, [query, sortKey, sortAsc]);
 
   const toggleSelect = (id) => {
     if (selectedIds.includes(id)) {
@@ -166,7 +176,8 @@ export default function PlaylistsPage() {
         </div>
 
         {/* Table rows */}
-        {filtered.map((pl, i) => {
+        {paginated.map((pl, i) => {
+          const globalIdx = (page - 1) * perPage + i;
           const isSelected = selectedIds.includes(pl.id);
           const colorIdx = selectedIds.indexOf(pl.id);
           const badge = TYPE_BADGE[pl.type] || TYPE_BADGE.user;
@@ -191,7 +202,7 @@ export default function PlaylistsPage() {
                   {isSelected ? (
                     <Check size={10} className="text-[#0D0C0B]" />
                   ) : (
-                    <span className="text-[9px] font-mono text-[#6B6560]">{i + 1}</span>
+                    <span className="text-[9px] font-mono text-[#6B6560]">{globalIdx + 1}</span>
                   )}
                 </button>
               </div>
@@ -234,6 +245,16 @@ export default function PlaylistsPage() {
             <ListMusic size={24} className="mx-auto text-[#2C2B28] mb-2" />
             <p className="text-xs text-[#6B6560]">No playlists match "{query}"</p>
           </div>
+        )}
+
+        {filtered.length > 0 && (
+          <Pagination
+            page={page}
+            perPage={perPage}
+            total={filtered.length}
+            onPageChange={setPage}
+            onPerPageChange={(n) => { setPerPage(n); setPage(1); }}
+          />
         )}
       </div>
 

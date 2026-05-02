@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Music, Search, ArrowUpDown, Check, X, TrendingUp, BarChart3, ListMusic, Disc3 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import ChartCard from '../components/shared/ChartCard';
+import Pagination from '../components/shared/Pagination';
 import { getTopTracksAcrossRoster, getArtist } from '../data/artists';
 import { getTrackComparison, getRosterTrackStats } from '../data/trackData';
 import { formatNumber } from '../utils/formatters';
@@ -79,6 +80,8 @@ export default function TracksPage() {
   const [sortAsc, setSortAsc] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
   const [showComparison, setShowComparison] = useState(false);
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(20);
 
   const filtered = useMemo(() => {
     let list = allTracks;
@@ -102,6 +105,13 @@ export default function TracksPage() {
     });
     return sorted;
   }, [allTracks, query, sortKey, sortAsc]);
+
+  const paginated = useMemo(() => {
+    const start = (page - 1) * perPage;
+    return filtered.slice(start, start + perPage);
+  }, [filtered, page, perPage]);
+
+  useMemo(() => { setPage(1); }, [query, sortKey, sortAsc]);
 
   const toggleSelect = (id) => {
     if (selectedIds.includes(id)) {
@@ -207,7 +217,8 @@ export default function TracksPage() {
         </div>
 
         {/* Table rows */}
-        {filtered.map((track, i) => {
+        {paginated.map((track, i) => {
+          const globalIdx = (page - 1) * perPage + i;
           const artist = getArtist(track.artistSlug);
           const isSelected = selectedIds.includes(track.id);
           const colorIdx = selectedIds.indexOf(track.id);
@@ -232,7 +243,7 @@ export default function TracksPage() {
                   {isSelected ? (
                     <Check size={10} className="text-[#0D0C0B]" />
                   ) : (
-                    <span className="text-[9px] font-mono text-[#6B6560]">{i + 1}</span>
+                    <span className="text-[9px] font-mono text-[#6B6560]">{globalIdx + 1}</span>
                   )}
                 </button>
               </div>
@@ -282,6 +293,16 @@ export default function TracksPage() {
             <Music size={24} className="mx-auto text-[#2C2B28] mb-2" />
             <p className="text-xs text-[#6B6560]">No tracks match "{query}"</p>
           </div>
+        )}
+
+        {filtered.length > 0 && (
+          <Pagination
+            page={page}
+            perPage={perPage}
+            total={filtered.length}
+            onPageChange={setPage}
+            onPerPageChange={(n) => { setPerPage(n); setPage(1); }}
+          />
         )}
       </div>
 

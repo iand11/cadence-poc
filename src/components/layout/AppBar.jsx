@@ -1,8 +1,9 @@
 import { Link, useLocation, useNavigate } from 'react-router';
-import { Search, Bell, FileText, LayoutDashboard, Music, Star, Sparkles, ListMusic, Users, ChevronDown } from 'lucide-react';
+import { Search, Bell, FileText, LayoutDashboard, Music, Star, Sparkles, ListMusic, Users, ChevronDown, AlertTriangle, TrendingUp, Zap } from 'lucide-react';
 import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { searchArtists } from '../../data/artists';
+import { breakoutAlerts } from '../../data/mockAlerts';
 import { formatNumber } from '../../utils/formatters';
 import { useFavorites } from '../../hooks/useFavorites';
 
@@ -18,6 +19,7 @@ export default function AppBar() {
   const [query, setQuery] = useState('');
   const [focused, setFocused] = useState(false);
   const [listsOpen, setListsOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
   const inputRef = useRef(null);
   const listsRef = useRef(null);
 
@@ -197,10 +199,64 @@ export default function AppBar() {
 
           {/* Right: Bell + Avatar */}
           <div className="flex items-center gap-3 shrink-0">
-            <button className="relative text-[#9B9590] hover:text-[#F5F0E8] transition-colors">
-              <Bell size={16} />
-              <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-[#C75F4F] rounded-full text-[8px] font-bold text-white flex items-center justify-center">3</span>
-            </button>
+            <div className="relative">
+              <button
+                onClick={() => setNotifOpen(!notifOpen)}
+                onBlur={() => setTimeout(() => setNotifOpen(false), 200)}
+                className="relative text-[#9B9590] hover:text-[#F5F0E8] transition-colors cursor-pointer"
+              >
+                <Bell size={16} />
+                <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-[#C75F4F] rounded-full text-[8px] font-bold text-white flex items-center justify-center">
+                  {breakoutAlerts.filter(a => a.severity === 'high' || a.severity === 'medium').length}
+                </span>
+              </button>
+
+              <AnimatePresence>
+                {notifOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute top-full right-0 mt-1.5 w-80 bg-[#171614] border border-[#2C2B28] rounded shadow-2xl z-50 overflow-hidden"
+                  >
+                    <div className="px-3.5 py-2.5 border-b border-[#2C2B28] flex items-center justify-between">
+                      <span className="text-xs font-medium text-[#F5F0E8]">Notifications</span>
+                      <span className="text-[9px] text-[#6B6560]">{breakoutAlerts.length} alerts</span>
+                    </div>
+                    <div className="max-h-80 overflow-y-auto">
+                      {breakoutAlerts.map((alert) => {
+                        const IconComp = alert.type === 'viral' ? Zap : alert.type === 'growth' ? TrendingUp : AlertTriangle;
+                        const severityColor = alert.severity === 'high' ? '#C75F4F' : alert.severity === 'medium' ? '#DA7756' : '#9B9590';
+                        return (
+                          <div
+                            key={alert.id}
+                            onMouseDown={(e) => e.preventDefault()}
+                            className="px-3.5 py-3 border-b border-[#2C2B28]/50 hover:bg-[#1C1B18] transition-colors"
+                          >
+                            <div className="flex items-start gap-2.5">
+                              <div className="mt-0.5 shrink-0" style={{ color: severityColor }}>
+                                <IconComp size={13} />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-xs text-[#F5F0E8] leading-snug">{alert.title}</p>
+                                <p className="text-[10px] text-[#6B6560] mt-1 line-clamp-2">{alert.description}</p>
+                                <div className="flex items-center gap-2 mt-1.5">
+                                  <span className="text-[9px] px-1.5 py-0.5 rounded border" style={{ color: severityColor, borderColor: severityColor + '30', backgroundColor: severityColor + '10' }}>
+                                    {alert.severity}
+                                  </span>
+                                  <span className="text-[9px] text-[#6B6560]">{alert.type}</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
             <div className="w-7 h-7 rounded-full bg-[#1C1B18] border border-[#2C2B28] flex items-center justify-center">
               <span className="font-mono text-[10px] text-[#9B9590]">SJ</span>
             </div>

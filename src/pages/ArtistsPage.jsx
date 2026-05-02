@@ -1,8 +1,9 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { Link } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
 import { Users, Search, ArrowUpDown, Check, X } from 'lucide-react';
 import ChartCard from '../components/shared/ChartCard';
+import Pagination from '../components/shared/Pagination';
 import BenchmarkRadarChart from '../components/charts/BenchmarkRadarChart';
 import { allArtists, getAggregateStats, getBenchmarkComparison } from '../data/artists';
 import { formatNumber } from '../utils/formatters';
@@ -24,6 +25,9 @@ export default function ArtistsPage() {
   const [sortAsc, setSortAsc] = useState(false);
   const [selectedSlugs, setSelectedSlugs] = useState([]);
   const [showComparison, setShowComparison] = useState(false);
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(20);
+  const comparisonRef = useRef(null);
 
   const filtered = useMemo(() => {
     let list = allArtists;
@@ -49,6 +53,14 @@ export default function ArtistsPage() {
     });
     return sorted;
   }, [query, sortKey, sortAsc]);
+
+  const paginated = useMemo(() => {
+    const start = (page - 1) * perPage;
+    return filtered.slice(start, start + perPage);
+  }, [filtered, page, perPage]);
+
+  // Reset to page 1 when filters change
+  useMemo(() => { setPage(1); }, [query, sortKey, sortAsc]);
 
   const toggleSelect = (slug) => {
     if (selectedSlugs.includes(slug)) {
@@ -149,7 +161,8 @@ export default function ArtistsPage() {
         </div>
 
         {/* Table rows */}
-        {filtered.map((artist, i) => {
+        {paginated.map((artist, i) => {
+          const globalIdx = (page - 1) * perPage + i;
           const isSelected = selectedSlugs.includes(artist.slug);
           const colorIdx = selectedSlugs.indexOf(artist.slug);
           return (
@@ -173,7 +186,7 @@ export default function ArtistsPage() {
                   {isSelected ? (
                     <Check size={10} className="text-[#0D0C0B]" />
                   ) : (
-                    <span className="text-[9px] font-mono text-[#6B6560]">{i + 1}</span>
+                    <span className="text-[9px] font-mono text-[#6B6560]">{globalIdx + 1}</span>
                   )}
                 </button>
               </div>
@@ -217,6 +230,16 @@ export default function ArtistsPage() {
             <p className="text-xs text-[#6B6560]">No artists match "{query}"</p>
           </div>
         )}
+
+        {filtered.length > 0 && (
+          <Pagination
+            page={page}
+            perPage={perPage}
+            total={filtered.length}
+            onPageChange={setPage}
+            onPerPageChange={(n) => { setPerPage(n); setPage(1); }}
+          />
+        )}
       </div>
 
       {/* Floating compare bar */}
@@ -244,7 +267,10 @@ export default function ArtistsPage() {
                 })}
               </div>
               <button
-                onClick={() => setShowComparison(true)}
+                onClick={() => {
+                  setShowComparison(true);
+                  setTimeout(() => comparisonRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+                }}
                 className="px-4 py-1.5 bg-[#DA7756] text-[#0D0C0B] text-xs font-medium rounded-full hover:bg-[#DA7756]/90 transition-colors cursor-pointer"
               >
                 Compare {selectedSlugs.length}
@@ -258,6 +284,7 @@ export default function ArtistsPage() {
       <AnimatePresence>
         {showComparison && selectedArtists.length >= 2 && (
           <motion.div
+            ref={comparisonRef}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
