@@ -76,7 +76,7 @@ export default function ArtistProfile() {
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded border border-[#DA7756]/20 bg-[#DA7756]/10 text-[#DA7756] hover:bg-[#DA7756]/20 transition-colors"
           >
             <FileText size={14} />
-            Create an Artist Sheet
+            Create an Artist Page
           </Link>
           <button
             onClick={() => toggleFavorite(artist.slug)}

@@ -191,8 +191,29 @@ export default function ArtistSheet() {
   const handleExportPDF = useCallback(async () => {
     if (!sheetRef.current || exporting) return;
     setExporting(true);
+
+    // Pre-convert images to data URLs to avoid CORS failures
+    const container = sheetRef.current;
+    const imgs = container.querySelectorAll('img');
+    const imgSaved = [];
+    for (const imgEl of imgs) {
+      if (!imgEl.src || imgEl.src.startsWith('data:')) continue;
+      const origSrc = imgEl.src;
+      try {
+        const c = document.createElement('canvas');
+        c.width = imgEl.naturalWidth || 100;
+        c.height = imgEl.naturalHeight || 100;
+        c.getContext('2d').drawImage(imgEl, 0, 0);
+        imgEl.src = c.toDataURL('image/png');
+        imgSaved.push({ el: imgEl, origSrc });
+      } catch {
+        imgEl.dataset.pdfHidden = imgEl.style.visibility;
+        imgEl.style.visibility = 'hidden';
+        imgSaved.push({ el: imgEl, origSrc, hidden: true });
+      }
+    }
+
     try {
-      const container = sheetRef.current;
       const pdf = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
       const pageWidth = 841.89;
       const pageHeight = 595.28;
@@ -200,6 +221,7 @@ export default function ArtistSheet() {
       const footerHeight = 20;
       const contentWidth = pageWidth - margin * 2;
       const usableHeight = pageHeight - margin * 2 - footerHeight;
+      const sectionGap = 10;
 
       const bgR = parseInt(bg.slice(0, 2), 16);
       const bgG = parseInt(bg.slice(2, 4), 16);
@@ -208,43 +230,64 @@ export default function ArtistSheet() {
         pdf.setFillColor(bgR, bgG, bgB);
         pdf.rect(0, 0, pageWidth, pageHeight, 'F');
       };
+      fillBg();
 
-      // Use html-to-image (SVG foreignObject) — browser renders CSS natively, no parsing
-      const dataUrl = await toPng(container, {
+      const captureOpts = {
         backgroundColor: bgColor,
         pixelRatio: 2,
-        width: container.scrollWidth,
-        height: container.scrollHeight,
-      });
+        skipFonts: true,
+        imagePlaceholder: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
+      };
 
-      // Load into an Image to get dimensions
-      const img = await new Promise((resolve, reject) => {
-        const i = new Image();
-        i.onload = () => resolve(i);
-        i.onerror = reject;
-        i.src = dataUrl;
-      });
+      // Capture each section as a separate image, place on pages without splitting
+      const sectionEls = container.querySelectorAll('[data-pdf-section]');
+      let curY = margin;
 
-      // Scale to fit page width, then slice into pages
-      const scale = contentWidth / img.width;
-      const totalPdfHeight = img.height * scale;
-      const totalPages = Math.max(1, Math.ceil(totalPdfHeight / usableHeight));
+      for (const section of sectionEls) {
+        const dataUrl = await toPng(section, captureOpts);
+        const img = await new Promise((resolve, reject) => {
+          const i = new Image();
+          i.onload = () => resolve(i);
+          i.onerror = reject;
+          i.src = dataUrl;
+        });
 
-      for (let page = 0; page < totalPages; page++) {
-        if (page > 0) pdf.addPage();
-        fillBg();
+        const scaledH = (img.height * contentWidth) / img.width;
 
-        const srcY = Math.round((page * usableHeight) / scale);
-        const srcH = Math.min(Math.round(usableHeight / scale), img.height - srcY);
-        if (srcH <= 0) break;
-        const destH = srcH * scale;
+        // If section fits on current page, place it; otherwise start new page
+        if (curY + scaledH > margin + usableHeight && curY > margin + 1) {
+          pdf.addPage();
+          fillBg();
+          curY = margin;
+        }
 
-        const slice = document.createElement('canvas');
-        slice.width = img.width;
-        slice.height = srcH;
-        slice.getContext('2d').drawImage(img, 0, srcY, img.width, srcH, 0, 0, img.width, srcH);
+        // If section is taller than a full page, slice it across pages
+        if (scaledH > usableHeight) {
+          const scale = contentWidth / img.width;
+          let srcOffset = 0;
+          while (srcOffset < img.height) {
+            if (srcOffset > 0) {
+              pdf.addPage();
+              fillBg();
+              curY = margin;
+            }
+            const remaining = usableHeight - (curY - margin);
+            const srcH = Math.min(Math.round(remaining / scale), img.height - srcOffset);
+            const destH = srcH * scale;
 
-        pdf.addImage(slice.toDataURL('image/jpeg', 0.92), 'JPEG', margin, margin, contentWidth, destH);
+            const slice = document.createElement('canvas');
+            slice.width = img.width;
+            slice.height = srcH;
+            slice.getContext('2d').drawImage(img, 0, srcOffset, img.width, srcH, 0, 0, img.width, srcH);
+
+            pdf.addImage(slice.toDataURL('image/jpeg', 0.92), 'JPEG', margin, curY, contentWidth, destH);
+            srcOffset += srcH;
+            curY += destH + sectionGap;
+          }
+        } else {
+          pdf.addImage(dataUrl, 'PNG', margin, curY, contentWidth, scaledH);
+          curY += scaledH + sectionGap;
+        }
       }
 
       const numPages = pdf.getNumberOfPages();
@@ -257,10 +300,17 @@ export default function ArtistSheet() {
       }
 
       const date = new Date().toISOString().split('T')[0];
-      pdf.save(`Cadence-Sheet-${artist.name.replace(/\s+/g, '_')}-${date}.pdf`);
+      pdf.save(`Cadence-Page-${artist.name.replace(/\s+/g, '_')}-${date}.pdf`);
     } catch (err) {
       console.error('PDF export failed:', err);
     } finally {
+      for (const { el, origSrc, hidden } of imgSaved) {
+        if (hidden) {
+          el.style.visibility = el.dataset.pdfHidden || '';
+          delete el.dataset.pdfHidden;
+        }
+        el.src = origSrc;
+      }
       setExporting(false);
     }
   }, [artist, exporting, bg, bgColor]);
@@ -598,7 +648,7 @@ export default function ArtistSheet() {
                 style={{ color: accentColor, backgroundColor: `${accentColor}15` }}>
                 Cadence
               </span>
-              <span className="text-sm text-[#9B9590]">Artist Sheet</span>
+              <span className="text-sm text-[#9B9590]">Artist Page</span>
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -665,8 +715,8 @@ export default function ArtistSheet() {
         </Link>
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-light text-[#F5F0E8]">{artist.name} — Artist Sheet</h1>
-            <p className="text-xs text-[#9B9590] mt-1">Customize and share a one-page artist profile</p>
+            <h1 className="text-2xl font-light text-[#F5F0E8]">{artist.name} — Artist Page</h1>
+            <p className="text-xs text-[#9B9590] mt-1">Customize and share a sharable artist page</p>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -683,7 +733,7 @@ export default function ArtistSheet() {
               style={{ borderColor: `${accentColor}33`, backgroundColor: `${accentColor}15`, color: accentColor }}
             >
               <Eye size={14} />
-              Preview Sheet
+              Preview Page
             </button>
           </div>
         </div>
@@ -799,7 +849,7 @@ export default function ArtistSheet() {
                 <textarea
                   value={customNotes}
                   onChange={e => setCustomNotes(e.target.value)}
-                  placeholder="Add notes visible on the sheet..."
+                  placeholder="Add notes visible on the page..."
                   className="w-full bg-[#0D0C0B] border border-[#2C2B28] rounded px-3 py-2 text-xs text-[#F5F0E8] placeholder-[#6B6560] h-20 resize-none outline-none focus:border-[#3D3B37]"
                 />
               </div>
