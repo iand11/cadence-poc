@@ -6,7 +6,7 @@ import {
   Music, TrendingUp, Users, DollarSign, Radio, Globe, Disc3, ListMusic,
   MapPin, Tag, Palette,
 } from 'lucide-react';
-import html2canvas from 'html2canvas';
+import { toPng } from 'html-to-image';
 import { jsPDF } from 'jspdf';
 
 import ChartCard from '../components/shared/ChartCard';
@@ -191,35 +191,8 @@ export default function ArtistSheet() {
   const handleExportPDF = useCallback(async () => {
     if (!sheetRef.current || exporting) return;
     setExporting(true);
-
-    // html2canvas can't parse oklab() from Tailwind v4.
-    // 1) Bake computed rgb values inline (browser resolves oklab → rgb)
-    // 2) Then replace oklab in stylesheets with transparent (inline wins)
-    const container = sheetRef.current;
-    const allEls = [container, ...container.querySelectorAll('*')];
-    const colorProps = ['color', 'backgroundColor', 'borderColor', 'borderTopColor', 'borderRightColor', 'borderBottomColor', 'borderLeftColor'];
-    const inlineSaved = [];
-    for (const el of allEls) {
-      const cs = getComputedStyle(el);
-      const orig = {};
-      for (const prop of colorProps) {
-        orig[prop] = el.style[prop];
-        el.style[prop] = cs[prop];
-      }
-      inlineSaved.push({ el, orig });
-    }
-    const savedStyles = [];
-    for (const style of document.querySelectorAll('style')) {
-      const orig = style.textContent;
-      if (orig.includes('oklab')) {
-        savedStyles.push({ el: style, orig });
-        style.textContent = orig
-          .replace(/oklab\([^)]*\)/g, 'transparent')
-          .replace(/color-mix\([^)]*oklab[^)]*\)/g, 'transparent');
-      }
-    }
-
     try {
+      const container = sheetRef.current;
       const pdf = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
       const pageWidth = 841.89;
       const pageHeight = 595.28;
@@ -236,19 +209,25 @@ export default function ArtistSheet() {
         pdf.rect(0, 0, pageWidth, pageHeight, 'F');
       };
 
-      // Capture entire sheet as one canvas
-      const fullCanvas = await html2canvas(container, {
+      // Use html-to-image (SVG foreignObject) — browser renders CSS natively, no parsing
+      const dataUrl = await toPng(container, {
         backgroundColor: bgColor,
-        scale: 2,
-        useCORS: true,
-        logging: false,
+        pixelRatio: 2,
         width: container.scrollWidth,
         height: container.scrollHeight,
       });
 
+      // Load into an Image to get dimensions
+      const img = await new Promise((resolve, reject) => {
+        const i = new Image();
+        i.onload = () => resolve(i);
+        i.onerror = reject;
+        i.src = dataUrl;
+      });
+
       // Scale to fit page width, then slice into pages
-      const scale = contentWidth / fullCanvas.width;
-      const totalPdfHeight = fullCanvas.height * scale;
+      const scale = contentWidth / img.width;
+      const totalPdfHeight = img.height * scale;
       const totalPages = Math.max(1, Math.ceil(totalPdfHeight / usableHeight));
 
       for (let page = 0; page < totalPages; page++) {
@@ -256,19 +235,18 @@ export default function ArtistSheet() {
         fillBg();
 
         const srcY = Math.round((page * usableHeight) / scale);
-        const srcH = Math.min(Math.round(usableHeight / scale), fullCanvas.height - srcY);
+        const srcH = Math.min(Math.round(usableHeight / scale), img.height - srcY);
         if (srcH <= 0) break;
         const destH = srcH * scale;
 
         const slice = document.createElement('canvas');
-        slice.width = fullCanvas.width;
+        slice.width = img.width;
         slice.height = srcH;
-        slice.getContext('2d').drawImage(fullCanvas, 0, srcY, fullCanvas.width, srcH, 0, 0, fullCanvas.width, srcH);
+        slice.getContext('2d').drawImage(img, 0, srcY, img.width, srcH, 0, 0, img.width, srcH);
 
         pdf.addImage(slice.toDataURL('image/jpeg', 0.92), 'JPEG', margin, margin, contentWidth, destH);
       }
 
-      // Footer on each page
       const numPages = pdf.getNumberOfPages();
       for (let i = 1; i <= numPages; i++) {
         pdf.setPage(i);
@@ -283,17 +261,9 @@ export default function ArtistSheet() {
     } catch (err) {
       console.error('PDF export failed:', err);
     } finally {
-      for (const { el, orig } of inlineSaved) {
-        for (const prop of colorProps) {
-          el.style[prop] = orig[prop];
-        }
-      }
-      for (const { el, orig } of savedStyles) {
-        el.textContent = orig;
-      }
       setExporting(false);
     }
-  }, [artist, exporting]);
+  }, [artist, exporting, bg, bgColor]);
 
   // --- Section renderers ---
 
