@@ -15,6 +15,7 @@ import ArtistsPage from './pages/ArtistsPage';
 import ChartProfile from './pages/ChartProfile';
 import ReportsList from './pages/ReportsList';
 import ReportCenter from './pages/ReportCenter';
+import ArtistSheet from './pages/ArtistSheet';
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -24,6 +25,7 @@ createRoot(document.getElementById('root')).render(
           <Route index element={<Control />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="artist/:id" element={<ArtistProfile />} />
+          <Route path="artist/:id/sheet" element={<ArtistSheet />} />
           <Route path="track/:id" element={<TrackProfile />} />
           <Route path="album/:id" element={<AlbumProfile />} />
           <Route path="playlist/:id" element={<PlaylistProfile />} />
