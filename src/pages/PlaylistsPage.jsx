@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { ListMusic, Search, ArrowUpDown, Check, X, Users, BarChart3 } from 'lucide-react';
 import ChartCard from '../components/shared/ChartCard';
 import Pagination from '../components/shared/Pagination';
+import FilterBar from '../components/shared/FilterBar';
 import { getAllPlaylists, getPlaylistComparison, getRosterPlaylistStats } from '../data/playlistData';
 import { formatNumber } from '../utils/formatters';
 
@@ -28,10 +29,28 @@ export default function PlaylistsPage() {
   const [query, setQuery] = useState('');
   const [sortKey, setSortKey] = useState('streams');
   const [sortAsc, setSortAsc] = useState(false);
+  const [typeFilter, setTypeFilter] = useState('All');
+  const [platformFilter, setPlatformFilter] = useState('All');
+  const [curatorFilter, setCuratorFilter] = useState('All');
+  const [followersFilter, setFollowersFilter] = useState('All');
+  const [rosterFilter, setRosterFilter] = useState('All');
+  const [genreFilter, setGenreFilter] = useState('All');
   const [selectedIds, setSelectedIds] = useState([]);
   const [showComparison, setShowComparison] = useState(false);
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(20);
+
+  const curatorOptions = useMemo(() => {
+    const counts = {};
+    allPlaylists.forEach(p => { counts[p.curator] = (counts[p.curator] || 0) + 1; });
+    return ['All', ...Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([k]) => k)];
+  }, [allPlaylists]);
+
+  const genreOptions = useMemo(() => {
+    const genres = allPlaylists.map(p => p.genre).filter(Boolean);
+    const unique = [...new Set(genres)].sort();
+    return ['All', ...unique];
+  }, [allPlaylists]);
 
   const filtered = useMemo(() => {
     let list = allPlaylists;
@@ -40,6 +59,40 @@ export default function PlaylistsPage() {
       list = list.filter(p =>
         p.name.toLowerCase().includes(q) || p.curator.toLowerCase().includes(q)
       );
+    }
+    if (typeFilter !== 'All') {
+      list = list.filter(p => p.type === typeFilter.toLowerCase());
+    }
+    if (platformFilter !== 'All') {
+      list = list.filter(p => p.platform === platformFilter.toLowerCase());
+    }
+    if (curatorFilter !== 'All') {
+      list = list.filter(p => p.curator === curatorFilter);
+    }
+    if (genreFilter !== 'All') {
+      list = list.filter(p => p.genre === genreFilter);
+    }
+    if (followersFilter !== 'All') {
+      list = list.filter(p => {
+        const f = p.followers || 0;
+        switch (followersFilter) {
+          case '10M+': return f >= 10_000_000;
+          case '1M–10M': return f >= 1_000_000 && f < 10_000_000;
+          case '<1M': return f > 0 && f < 1_000_000;
+          case 'None': return !f;
+          default: return true;
+        }
+      });
+    }
+    if (rosterFilter !== 'All') {
+      list = list.filter(p => {
+        switch (rosterFilter) {
+          case '20+': return p.rosterTracks >= 20;
+          case '10–19': return p.rosterTracks >= 10 && p.rosterTracks < 20;
+          case '<10': return p.rosterTracks < 10;
+          default: return true;
+        }
+      });
     }
     const sorted = [...list].sort((a, b) => {
       let av, bv;
@@ -52,14 +105,14 @@ export default function PlaylistsPage() {
       return sortAsc ? av - bv : bv - av;
     });
     return sorted;
-  }, [allPlaylists, query, sortKey, sortAsc]);
+  }, [allPlaylists, query, sortKey, sortAsc, typeFilter, platformFilter, curatorFilter, followersFilter, rosterFilter, genreFilter]);
 
   const paginated = useMemo(() => {
     const start = (page - 1) * perPage;
     return filtered.slice(start, start + perPage);
   }, [filtered, page, perPage]);
 
-  useMemo(() => { setPage(1); }, [query, sortKey, sortAsc]);
+  useMemo(() => { setPage(1); }, [query, sortKey, sortAsc, typeFilter, platformFilter, curatorFilter, followersFilter, rosterFilter, genreFilter]);
 
   const toggleSelect = (id) => {
     if (selectedIds.includes(id)) {
@@ -161,6 +214,16 @@ export default function PlaylistsPage() {
         </div>
         <span className="text-[10px] text-[#6B6560]">{filtered.length} playlists</span>
       </div>
+
+      {/* Filters */}
+      <FilterBar filters={[
+        { label: 'Type', options: ['All', 'Editorial', 'Algorithmic', 'User'], value: typeFilter, onChange: setTypeFilter },
+        { label: 'Platform', options: ['All', 'Spotify', 'Apple', 'Deezer', 'Amazon', 'YouTube'], value: platformFilter, onChange: setPlatformFilter },
+        { label: 'Curator', options: curatorOptions, value: curatorFilter, onChange: setCuratorFilter },
+        { label: 'Genre', options: genreOptions, value: genreFilter, onChange: setGenreFilter },
+        { label: 'Followers', options: ['All', '10M+', '1M–10M', '<1M', 'None'], value: followersFilter, onChange: setFollowersFilter },
+        { label: 'Roster', options: ['All', '20+', '10–19', '<10'], value: rosterFilter, onChange: setRosterFilter },
+      ]} />
 
       {/* Table */}
       <div className="bg-[#171614] border border-[#2C2B28] rounded overflow-hidden">

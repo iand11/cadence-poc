@@ -68,8 +68,37 @@ export default function Control() {
                 {welcome.text}
               </p>
 
+              {/* Input inline */}
+              <div className="w-full max-w-2xl mt-8">
+                <form
+                  onSubmit={handleSubmit}
+                  className="flex items-end gap-3 bg-[#171614] border border-[#2C2B28] focus-within:border-[#DA7756]/40 rounded px-4 py-2.5 transition-colors"
+                >
+                  <textarea
+                    ref={inputRef}
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(e); } }}
+                    placeholder="Ask Cadence anything..."
+                    disabled={state !== 'idle'}
+                    rows={2}
+                    className="flex-1 bg-transparent text-sm text-[#F5F0E8] placeholder-[#6B6560] outline-none resize-none"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!input.trim() || state !== 'idle'}
+                    className="w-8 h-8 rounded bg-[#DA7756] disabled:bg-[#2C2B28] flex items-center justify-center transition-colors cursor-pointer shrink-0"
+                  >
+                    <ArrowUp size={14} className="text-[#0D0C0B]" />
+                  </button>
+                </form>
+                <p className="text-[10px] text-[#6B6560] text-center mt-2">
+                  Cadence may produce inaccurate information. Verify critical details.
+                </p>
+              </div>
+
               {suggestions.length > 0 && (
-                <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-2xl">
+                <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-2xl">
                   {suggestions.slice(0, 6).map((text, i) => (
                     <motion.button
                       key={text}
@@ -84,34 +113,6 @@ export default function Control() {
                   ))}
                 </div>
               )}
-
-              {/* Input inline */}
-              <div className="w-full max-w-2xl mt-8">
-                <form
-                  onSubmit={handleSubmit}
-                  className="flex items-center gap-3 bg-[#171614] border border-[#2C2B28] focus-within:border-[#DA7756]/40 rounded px-4 py-2.5 transition-colors"
-                >
-                  <input
-                    ref={inputRef}
-                    type="text"
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    placeholder="Ask Cadence anything..."
-                    disabled={state !== 'idle'}
-                    className="flex-1 bg-transparent text-sm text-[#F5F0E8] placeholder-[#6B6560] outline-none"
-                  />
-                  <button
-                    type="submit"
-                    disabled={!input.trim() || state !== 'idle'}
-                    className="w-8 h-8 rounded bg-[#DA7756] disabled:bg-[#2C2B28] flex items-center justify-center transition-colors cursor-pointer shrink-0"
-                  >
-                    <ArrowUp size={14} className="text-[#0D0C0B]" />
-                  </button>
-                </form>
-                <p className="text-[10px] text-[#6B6560] text-center mt-2">
-                  Cadence may produce inaccurate information. Verify critical details.
-                </p>
-              </div>
             </motion.div>
           </div>
         </div>
@@ -131,38 +132,22 @@ export default function Control() {
             </div>
           </div>
 
-          {/* Suggestions during conversation */}
-          {state === 'idle' && suggestions.length > 0 && (
-            <div className="border-t border-[#2C2B28] bg-[#0D0C0B]/60">
-              <div className="max-w-3xl mx-auto px-6 lg:px-10 py-2 flex flex-wrap gap-1.5">
-                {suggestions.slice(0, 3).map((text) => (
-                  <button
-                    key={text}
-                    onClick={() => handleSuggestion(text)}
-                    className="text-[10px] text-[#9B9590] border border-[#2C2B28] rounded-full px-2.5 py-1 hover:border-[#DA7756]/30 hover:text-[#F5F0E8] transition-colors cursor-pointer"
-                  >
-                    {text}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
           {/* Input */}
           <div className="border-t border-[#2C2B28] bg-[#0D0C0B]">
             <div className="max-w-3xl mx-auto px-6 lg:px-10 py-4">
               <form
                 onSubmit={handleSubmit}
-                className="flex items-center gap-3 bg-[#171614] border border-[#2C2B28] focus-within:border-[#DA7756]/40 rounded px-4 py-2.5 transition-colors"
+                className="flex items-end gap-3 bg-[#171614] border border-[#2C2B28] focus-within:border-[#DA7756]/40 rounded px-4 py-2.5 transition-colors"
               >
-                <input
+                <textarea
                   ref={inputRef}
-                  type="text"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(e); } }}
                   placeholder="Ask Cadence anything..."
                   disabled={state !== 'idle'}
-                  className="flex-1 bg-transparent text-sm text-[#F5F0E8] placeholder-[#6B6560] outline-none"
+                  rows={2}
+                  className="flex-1 bg-transparent text-sm text-[#F5F0E8] placeholder-[#6B6560] outline-none resize-none"
                 />
                 <button
                   type="submit"
@@ -172,6 +157,22 @@ export default function Control() {
                   <ArrowUp size={14} className="text-[#0D0C0B]" />
                 </button>
               </form>
+
+              {/* Suggestions during conversation */}
+              {state === 'idle' && suggestions.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {suggestions.slice(0, 3).map((text) => (
+                    <button
+                      key={text}
+                      onClick={() => handleSuggestion(text)}
+                      className="text-[10px] text-[#9B9590] border border-[#2C2B28] rounded-full px-2.5 py-1 hover:border-[#DA7756]/30 hover:text-[#F5F0E8] transition-colors cursor-pointer"
+                    >
+                      {text}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               <p className="text-[10px] text-[#6B6560] text-center mt-2">
                 Cadence may produce inaccurate information. Verify critical details.
               </p>

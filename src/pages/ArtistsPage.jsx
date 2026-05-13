@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Users, Search, ArrowUpDown, Check, X } from 'lucide-react';
 import ChartCard from '../components/shared/ChartCard';
 import Pagination from '../components/shared/Pagination';
+import FilterBar from '../components/shared/FilterBar';
 import BenchmarkRadarChart from '../components/charts/BenchmarkRadarChart';
 import { allArtists, getAggregateStats, getBenchmarkComparison } from '../data/artists';
 import { formatNumber } from '../utils/formatters';
@@ -23,11 +24,43 @@ export default function ArtistsPage() {
   const [query, setQuery] = useState('');
   const [sortKey, setSortKey] = useState('listeners');
   const [sortAsc, setSortAsc] = useState(false);
+  const [genreFilter, setGenreFilter] = useState('All');
+  const [labelFilter, setLabelFilter] = useState('All');
+  const [countryFilter, setCountryFilter] = useState('All');
+  const [tierFilter, setTierFilter] = useState('All');
+  const [typeFilter, setTypeFilter] = useState('All');
   const [selectedSlugs, setSelectedSlugs] = useState([]);
   const [showComparison, setShowComparison] = useState(false);
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(20);
   const comparisonRef = useRef(null);
+
+  const topGenres = useMemo(() => {
+    const counts = {};
+    allArtists.forEach(a => {
+      const g = a.genres?.primary?.name;
+      if (g) counts[g] = (counts[g] || 0) + 1;
+    });
+    return ['All', ...Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([k]) => k)];
+  }, []);
+
+  const topLabels = useMemo(() => {
+    const counts = {};
+    allArtists.forEach(a => {
+      const l = a.label;
+      if (l && l !== 'Independent') counts[l] = (counts[l] || 0) + 1;
+    });
+    return ['All', 'Independent', ...Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 7).map(([k]) => k)];
+  }, []);
+
+  const topCountries = useMemo(() => {
+    const counts = {};
+    allArtists.forEach(a => {
+      const c = a.country;
+      if (c) counts[c] = (counts[c] || 0) + 1;
+    });
+    return ['All', ...Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([k]) => k)];
+  }, []);
 
   const filtered = useMemo(() => {
     let list = allArtists;
@@ -39,6 +72,29 @@ export default function ArtistsPage() {
         (a.genres?.primary?.name || '').toLowerCase().includes(q) ||
         (a.city || '').toLowerCase().includes(q)
       );
+    }
+    if (genreFilter !== 'All') {
+      list = list.filter(a => (a.genres?.primary?.name || '') === genreFilter);
+    }
+    if (labelFilter !== 'All') {
+      list = list.filter(a => (a.label || '') === labelFilter);
+    }
+    if (countryFilter !== 'All') {
+      list = list.filter(a => (a.country || '') === countryFilter);
+    }
+    if (tierFilter !== 'All') {
+      list = list.filter(a => {
+        const l = a.spotify.monthlyListeners;
+        switch (tierFilter) {
+          case '1M+': return l >= 1_000_000;
+          case '100K–1M': return l >= 100_000 && l < 1_000_000;
+          case '<100K': return l < 100_000;
+          default: return true;
+        }
+      });
+    }
+    if (typeFilter !== 'All') {
+      list = list.filter(a => typeFilter === 'Band' ? a.isBand : !a.isBand);
     }
     const sorted = [...list].sort((a, b) => {
       let av, bv;
@@ -52,7 +108,7 @@ export default function ArtistsPage() {
       return sortAsc ? av - bv : bv - av;
     });
     return sorted;
-  }, [query, sortKey, sortAsc]);
+  }, [query, sortKey, sortAsc, genreFilter, labelFilter, countryFilter, tierFilter, typeFilter]);
 
   const paginated = useMemo(() => {
     const start = (page - 1) * perPage;
@@ -60,7 +116,7 @@ export default function ArtistsPage() {
   }, [filtered, page, perPage]);
 
   // Reset to page 1 when filters change
-  useMemo(() => { setPage(1); }, [query, sortKey, sortAsc]);
+  useMemo(() => { setPage(1); }, [query, sortKey, sortAsc, genreFilter, labelFilter, countryFilter, tierFilter, typeFilter]);
 
   const toggleSelect = (slug) => {
     if (selectedSlugs.includes(slug)) {
@@ -147,6 +203,15 @@ export default function ArtistsPage() {
         </div>
         <span className="text-[10px] text-[#6B6560]">{filtered.length} artists</span>
       </div>
+
+      {/* Filters */}
+      <FilterBar filters={[
+        { label: 'Genre', options: topGenres, value: genreFilter, onChange: setGenreFilter },
+        { label: 'Label', options: topLabels, value: labelFilter, onChange: setLabelFilter },
+        { label: 'Country', options: topCountries, value: countryFilter, onChange: setCountryFilter },
+        { label: 'Tier', options: ['All', '1M+', '100K–1M', '<100K'], value: tierFilter, onChange: setTierFilter },
+        { label: 'Type', options: ['All', 'Solo', 'Band'], value: typeFilter, onChange: setTypeFilter },
+      ]} />
 
       {/* Table */}
       <div className="bg-[#171614] border border-[#2C2B28] rounded overflow-hidden">

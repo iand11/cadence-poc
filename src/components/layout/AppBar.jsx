@@ -42,7 +42,7 @@ export default function AppBar() {
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2 shrink-0">
             <div className="w-7 h-7 rounded bg-[#DA7756]/15 flex items-center justify-center">
-              <span className="font-mono text-sm font-bold text-[#DA7756]">M</span>
+              <span className="font-mono text-sm font-bold text-[#DA7756]">C</span>
             </div>
             <span className="font-['Epilogue'] text-sm font-medium text-[#F5F0E8] hidden sm:block">
               Cadence
@@ -195,18 +195,16 @@ export default function AppBar() {
               <FileText size={14} />
               <span className="hidden md:inline">Reports</span>
             </Link>
-          </div>
 
-          {/* Right: Bell + Avatar */}
-          <div className="flex items-center gap-3 shrink-0">
+            {/* Notifications */}
             <div className="relative">
               <button
                 onClick={() => setNotifOpen(!notifOpen)}
                 onBlur={() => setTimeout(() => setNotifOpen(false), 200)}
-                className="relative text-[#9B9590] hover:text-[#F5F0E8] transition-colors cursor-pointer"
+                className="relative flex items-center gap-1.5 px-3 py-1.5 rounded text-xs text-[#9B9590] hover:text-[#F5F0E8] transition-colors cursor-pointer"
               >
-                <Bell size={16} />
-                <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-[#C75F4F] rounded-full text-[8px] font-bold text-white flex items-center justify-center">
+                <Bell size={14} />
+                <span className="absolute top-0.5 left-[22px] w-3.5 h-3.5 bg-[#C75F4F] rounded-full text-[8px] font-bold text-white flex items-center justify-center">
                   {breakoutAlerts.filter(a => a.severity === 'high' || a.severity === 'medium').length}
                 </span>
               </button>
@@ -256,9 +254,6 @@ export default function AppBar() {
                   </motion.div>
                 )}
               </AnimatePresence>
-            </div>
-            <div className="w-7 h-7 rounded-full bg-[#1C1B18] border border-[#2C2B28] flex items-center justify-center">
-              <span className="font-mono text-[10px] text-[#9B9590]">SJ</span>
             </div>
           </div>
         </div>

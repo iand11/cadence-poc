@@ -1,12 +1,13 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
-import { Music, Search, ArrowUpDown, Check, X, TrendingUp, BarChart3, ListMusic, Disc3 } from 'lucide-react';
+import { Music, Search, ArrowUpDown, Check, X, TrendingUp, BarChart3, ListMusic, Disc3, Loader2 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import ChartCard from '../components/shared/ChartCard';
 import Pagination from '../components/shared/Pagination';
-import { getTopTracksAcrossRoster, getArtist } from '../data/artists';
-import { getTrackComparison, getRosterTrackStats } from '../data/trackData';
+import FilterBar from '../components/shared/FilterBar';
+import { getArtist } from '../data/artists';
+import { getTrackComparison, getRosterTrackStats, loadAllRosterTracks } from '../data/trackData';
 import { formatNumber } from '../utils/formatters';
 
 const COLORS = ['#DA7756', '#7BAF73', '#C75F4F', '#D4A574'];
@@ -73,15 +74,39 @@ function MultiTrackTrendChart({ data, keys, colors }) {
 
 export default function TracksPage() {
   const stats = useMemo(() => getRosterTrackStats(), []);
-  const allTracks = useMemo(() => stats.topTracks, [stats]);
+  const [allTracks, setAllTracks] = useState(stats.topTracks);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadAllRosterTracks(5).then(tracks => {
+      setAllTracks(tracks);
+      setLoading(false);
+    });
+  }, []);
 
   const [query, setQuery] = useState('');
   const [sortKey, setSortKey] = useState('streams');
   const [sortAsc, setSortAsc] = useState(false);
+  const [growthFilter, setGrowthFilter] = useState('All');
+  const [popularityFilter, setPopularityFilter] = useState('All');
+  const [genreFilter, setGenreFilter] = useState('All');
+  const [streamsFilter, setStreamsFilter] = useState('All');
+  const [editorialFilter, setEditorialFilter] = useState('All');
+  const [tiktokFilter, setTiktokFilter] = useState('All');
   const [selectedIds, setSelectedIds] = useState([]);
   const [showComparison, setShowComparison] = useState(false);
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(20);
+
+  const trackGenres = useMemo(() => {
+    const counts = {};
+    allTracks.forEach(t => {
+      const artist = getArtist(t.artistSlug);
+      const g = artist?.genres?.primary?.name;
+      if (g) counts[g] = (counts[g] || 0) + 1;
+    });
+    return ['All', ...Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([k]) => k)];
+  }, [allTracks]);
 
   const filtered = useMemo(() => {
     let list = allTracks;
@@ -91,6 +116,41 @@ export default function TracksPage() {
         const artistName = getArtist(t.artistSlug)?.name || '';
         return t.name.toLowerCase().includes(q) || artistName.toLowerCase().includes(q);
       });
+    }
+    if (growthFilter === 'Growing') {
+      list = list.filter(t => t.perf.growthDelta >= 0);
+    } else if (growthFilter === 'Declining') {
+      list = list.filter(t => t.perf.growthDelta < 0);
+    }
+    if (popularityFilter === 'High') {
+      list = list.filter(t => t.popularity >= 70);
+    } else if (popularityFilter === 'Mid') {
+      list = list.filter(t => t.popularity >= 40 && t.popularity < 70);
+    } else if (popularityFilter === 'Low') {
+      list = list.filter(t => t.popularity < 40);
+    }
+    if (genreFilter !== 'All') {
+      list = list.filter(t => {
+        const artist = getArtist(t.artistSlug);
+        return (artist?.genres?.primary?.name || '') === genreFilter;
+      });
+    }
+    if (streamsFilter !== 'All') {
+      list = list.filter(t => {
+        switch (streamsFilter) {
+          case '1B+': return t.streams >= 1_000_000_000;
+          case '100M–1B': return t.streams >= 100_000_000 && t.streams < 1_000_000_000;
+          case '10M–100M': return t.streams >= 10_000_000 && t.streams < 100_000_000;
+          case '<10M': return t.streams < 10_000_000;
+          default: return true;
+        }
+      });
+    }
+    if (editorialFilter !== 'All') {
+      list = list.filter(t => editorialFilter === 'Yes' ? t.spotifyEditorialPlaylists > 0 : t.spotifyEditorialPlaylists === 0);
+    }
+    if (tiktokFilter !== 'All') {
+      list = list.filter(t => tiktokFilter === 'Viral' ? t.tiktokVideos >= 1_000_000 : t.tiktokVideos < 1_000_000);
     }
     const sorted = [...list].sort((a, b) => {
       let av, bv;
@@ -104,14 +164,14 @@ export default function TracksPage() {
       return sortAsc ? av - bv : bv - av;
     });
     return sorted;
-  }, [allTracks, query, sortKey, sortAsc]);
+  }, [allTracks, query, sortKey, sortAsc, growthFilter, popularityFilter, genreFilter, streamsFilter, editorialFilter, tiktokFilter]);
 
   const paginated = useMemo(() => {
     const start = (page - 1) * perPage;
     return filtered.slice(start, start + perPage);
   }, [filtered, page, perPage]);
 
-  useMemo(() => { setPage(1); }, [query, sortKey, sortAsc]);
+  useMemo(() => { setPage(1); }, [query, sortKey, sortAsc, growthFilter, popularityFilter, genreFilter, streamsFilter, editorialFilter, tiktokFilter]);
 
   const toggleSelect = (id) => {
     if (selectedIds.includes(id)) {
@@ -200,8 +260,21 @@ export default function TracksPage() {
             </button>
           )}
         </div>
-        <span className="text-[10px] text-[#6B6560]">{filtered.length} tracks</span>
+        <span className="text-[10px] text-[#6B6560]">
+          {loading && <Loader2 size={10} className="inline animate-spin mr-1" />}
+          {filtered.length} tracks
+        </span>
       </div>
+
+      {/* Filters */}
+      <FilterBar filters={[
+        { label: 'Genre', options: trackGenres, value: genreFilter, onChange: setGenreFilter },
+        { label: 'Popularity', options: ['All', 'High', 'Mid', 'Low'], value: popularityFilter, onChange: setPopularityFilter },
+        { label: 'Growth', options: ['All', 'Growing', 'Declining'], value: growthFilter, onChange: setGrowthFilter },
+        { label: 'Streams', options: ['All', '1B+', '100M–1B', '10M–100M', '<10M'], value: streamsFilter, onChange: setStreamsFilter },
+        { label: 'Editorial', options: ['All', 'Yes', 'No'], value: editorialFilter, onChange: setEditorialFilter },
+        { label: 'TikTok', options: ['All', 'Viral', 'Low'], value: tiktokFilter, onChange: setTiktokFilter },
+      ]} />
 
       {/* Table */}
       <div className="bg-[#171614] border border-[#2C2B28] rounded overflow-hidden">

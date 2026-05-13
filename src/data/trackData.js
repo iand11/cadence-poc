@@ -1,4 +1,4 @@
-import { getTopTracksAcrossRoster, getArtist } from './artists';
+import { getTopTracksAcrossRoster, getArtist, allArtists, loadArtistDetail } from './artists';
 import { getArtistPlaylists } from './playlistData';
 
 // --- Seeded random (same pattern as playlistData.js) ---
@@ -130,4 +130,39 @@ export function getRosterTrackStats() {
     topTracks: withPerf,
   };
   return _cachedStats;
+}
+
+// --- Load all roster tracks (async, fetches per-artist detail files) ---
+
+let _allTracksCache = null;
+
+export async function loadAllRosterTracks(topPerArtist = 5) {
+  if (_allTracksCache) return _allTracksCache;
+
+  const BATCH = 20;
+  const allTracks = [];
+  const slugs = allArtists.map(a => a.slug);
+
+  for (let i = 0; i < slugs.length; i += BATCH) {
+    const batch = slugs.slice(i, i + BATCH);
+    const results = await Promise.all(batch.map(s => loadArtistDetail(s)));
+    for (const detail of results) {
+      const top = detail.tracks.slice(0, topPerArtist);
+      allTracks.push(...top);
+    }
+  }
+
+  // Deduplicate by track id, keep highest-stream version
+  const byId = new Map();
+  for (const t of allTracks) {
+    const existing = byId.get(t.id);
+    if (!existing || t.streams > existing.streams) byId.set(t.id, t);
+  }
+
+  const deduped = [...byId.values()]
+    .map(t => ({ ...t, perf: generateTrackPerformance(t) }))
+    .sort((a, b) => b.streams - a.streams);
+
+  _allTracksCache = deduped;
+  return deduped;
 }

@@ -596,7 +596,7 @@ export default function ReportCenter() {
               <FileText size={14} className="text-[#9B9590]" />
               <span className="text-xs font-medium text-[#9B9590]">Components</span>
             </div>
-            <WidgetPicker selected={selected} onToggle={toggleWidget} />
+            <WidgetPicker selected={selected} onToggle={toggleWidget} onReorder={setSelected} />
           </div>
         </div>
 
