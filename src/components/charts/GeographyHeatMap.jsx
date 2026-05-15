@@ -24,6 +24,15 @@ const ALPHA2_TO_NUMERIC = {
 
 const worldGeo = feature(worldTopo, worldTopo.objects.countries);
 
+function MapResizer() {
+  const map = useMap();
+  useEffect(() => {
+    const timer = setTimeout(() => map.invalidateSize(), 100);
+    return () => clearTimeout(timer);
+  }, [map]);
+  return null;
+}
+
 function CountryLayer({ countryListeners, maxListeners }) {
   const geoRef = useRef();
 
@@ -127,6 +136,7 @@ export default function GeographyHeatMap({ data }) {
         style={{ height: '100%', width: '100%', background: '#0D0C0B' }}
         attributionControl={false}
       >
+        <MapResizer />
         <TileLayer url={TILE_URL} />
         <CountryLayer countryListeners={countryListeners} maxListeners={maxListeners} />
         {markers.map((m) => {

@@ -42,7 +42,9 @@ All routes nested under `<App>` (which renders AppBar + Outlet):
 - `/` → Control (AI chat)
 - `/dashboard` → Dashboard
 - `/artists`, `/tracks`, `/playlists` → List pages with filtering, sorting, pagination, comparison
-- `/artist/:id`, `/track/:id`, `/playlist/:id`, `/album/:id` → Profile pages
+- `/artist/:id`, `/track/:id`, `/playlist/:id`, `/album/:id`, `/chart/:id` → Profile pages
+- `/artist/:id/sheet` → ArtistSheet (custom data entry/editing)
+- `/sheets` → SheetsPage (sheet management)
 - `/reports`, `/reports/:id` → Report builder/viewer
 
 ### State Patterns
@@ -50,7 +52,7 @@ All routes nested under `<App>` (which renders AppBar + Outlet):
 - No global state library. Pages manage their own state with `useState` + `useMemo`.
 - List pages follow a consistent pattern: query/filter/sort state → `useMemo` for filtered results → `useMemo` for paginated slice. Filter state **must** be in the `useMemo` dependency array or filters won't work.
 - Persistence via localStorage: reports (`cadence-reports-v1`), favorites, dashboard layout.
-- Custom hooks: `useChat`, `useReports`, `useFavorites`, `useDashboardLayout`.
+- Custom hooks: `useChat`, `useReports`, `useFavorites`, `useDashboardLayout`, `useArtistCustomData`, `useSheets`.
 
 ### Styling
 
@@ -67,6 +69,21 @@ Tailwind CSS 4 via `@tailwindcss/vite` plugin (no tailwind.config — uses v4 CS
 
 Reports are composed of selectable widget components (8 available: artist-comparison, streaming-trends, revenue-breakdown, geography, social-growth, forecast, playlists, benchmarks). The `selected` array controls both visibility and render order. Widget ordering uses drag-and-drop in `WidgetPicker`. Reports auto-save with 500ms debounce. PDF export captures each `[data-pdf-section]` element individually for section-aware pagination.
 
+### Utilities (`src/utils/`)
+
+- **`formatters.js`** — `formatNumber` (1.2M/3.4K), `formatCurrency` ($1.2M), `formatDelta` (+3.5%), `formatDate` (short month/day).
+- **`chartTheme.js`** — Shared Recharts styling: `CHART_COLORS`, `AXIS_STYLE`, `GRID_STYLE`, `TOOLTIP_STYLE`. All charts use Recharts.
+- **`insights.js`** — Generates contextual insight text for chart cards.
+- **`csvParser.js`** — CSV import parsing for sheets.
+
+### Key Libraries
+
+- **Recharts** for all charts (streaming, forecast, revenue, geography, benchmarks)
+- **Leaflet / react-leaflet** for geography heat maps
+- **html2canvas + jsPDF** for PDF export
+- **Motion** (Framer Motion) for animations
+- **lucide-react** for icons
+
 ### Deployment
 
-Vercel with `vercel.json`. The `api/chat.js` function includes `responses.json` for building artist context at the edge.
+Vercel with `vercel.json`. The `api/chat.js` function includes `responses.json` for building artist context at the edge. The chat endpoint is duplicated: `vite.config.js` (dev middleware) and `api/chat.js` (Vercel serverless). Production has IP-based rate limiting (20 req/hour).

@@ -16,6 +16,7 @@ import ChartProfile from './pages/ChartProfile';
 import ReportsList from './pages/ReportsList';
 import ReportCenter from './pages/ReportCenter';
 import ArtistSheet from './pages/ArtistSheet';
+import SheetsPage from './pages/SheetsPage';
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -33,6 +34,7 @@ createRoot(document.getElementById('root')).render(
           <Route path="tracks" element={<TracksPage />} />
           <Route path="artists" element={<ArtistsPage />} />
           <Route path="chart/:id" element={<ChartProfile />} />
+          <Route path="sheets" element={<SheetsPage />} />
           <Route path="reports" element={<ReportsList />} />
           <Route path="reports/:id" element={<ReportCenter />} />
         </Route>
