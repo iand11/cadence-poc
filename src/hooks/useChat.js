@@ -198,6 +198,23 @@ export function useChat() {
         }
       }
 
+      // Handle render_chart tool
+      if (toolName === 'render_chart' && toolInputJson) {
+        try {
+          const chartSpec = JSON.parse(toolInputJson);
+          setMessages(prev => {
+            const updated = [...prev];
+            const last = updated.length - 1;
+            updated[last] = {
+              ...updated[last],
+              text: fullResponse || '',
+              chart: chartSpec,
+            };
+            return updated;
+          });
+        } catch { /* ignore parse errors */ }
+      }
+
       // Mark streaming complete
       setMessages(prev => {
         const updated = [...prev];

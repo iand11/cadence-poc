@@ -61,7 +61,8 @@ Rules:
 - Speak authoritatively — no hedging like "Based on my data".
 - End with one follow-up suggestion.
 - You are Cadence, not Claude.
-- Use markdown formatting: **bold** for artist names and key numbers, bullet lists for comparisons.`;
+- Use markdown formatting: **bold** for artist names and key numbers, bullet lists for comparisons.
+- When asked to show, visualize, or chart data, use the render_chart tool. Construct the data array from the roster stats above. Include brief text analysis alongside the chart.`;
 
 const tools = [{
   name: 'create_report',
@@ -81,6 +82,49 @@ const tools = [{
       },
     },
     required: ['artistSlugs'],
+  },
+}, {
+  name: 'render_chart',
+  description: 'Render an inline chart in the conversation. Use when the user asks to show, chart, graph, or visualize data. Build the data array from the roster data above. Keep data arrays concise (max ~20 items).',
+  input_schema: {
+    type: 'object',
+    properties: {
+      chartType: {
+        type: 'string',
+        enum: ['bar', 'line', 'area', 'pie', 'radar'],
+        description: 'Chart type to render',
+      },
+      title: {
+        type: 'string',
+        description: 'Short chart title',
+      },
+      data: {
+        type: 'array',
+        items: { type: 'object' },
+        description: 'Array of data objects. Each object is one data point with keys matching series definitions.',
+      },
+      series: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            key: { type: 'string', description: 'Data key in each data object' },
+            name: { type: 'string', description: 'Display label for this series' },
+          },
+          required: ['key'],
+        },
+        description: 'Series definitions. For pie charts: first item is the name key, second is the value key. For radar: first item is the angle axis key, rest are value series. For bar/line/area: each item is a Y-axis series.',
+      },
+      xKey: {
+        type: 'string',
+        description: 'Key for X-axis (bar/line/area only). Defaults to "name".',
+      },
+      unit: {
+        type: 'string',
+        description: 'Unit label for values (e.g. "streams", "followers", "USD"). Shown on Y-axis and tooltip.',
+      },
+    },
+    required: ['chartType', 'data', 'series'],
   },
 }];
 
@@ -118,7 +162,7 @@ export default async function handler(req, res) {
   try {
     const response = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 800,
+      max_tokens: 2048,
       system: systemPrompt(cached),
       messages: messages || [],
       tools,

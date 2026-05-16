@@ -434,9 +434,9 @@ export default function ArtistSheet() {
               <img src={artist.imageUrl} alt={artist.name} className="absolute inset-0 w-full h-full object-cover object-[center_20%]" />
               <div className="absolute inset-0" style={{ background: `linear-gradient(to top, ${bgColor} 0%, ${bgColor}dd 35%, ${bgColor}66 65%, transparent 100%)` }} />
               <div className="absolute bottom-0 left-0 right-0 p-10 text-center">
-                <EditableText value={getVal('overview', 'artistName', artist.name)} onSave={v => updateBlockSetting('overview', 'artistName', v)} editing={editing} as="h1" className="text-5xl font-light tracking-tight" style={{ color: '#F5F0E8' }} placeholder={artist.name} />
+                <EditableText value={getVal('overview', 'artistName', artist.name)} onSave={v => updateBlockSetting('overview', 'artistName', v)} editing={editing} as="h1" className="text-5xl font-light tracking-tight" style={{ color: colors.textPrimary }} placeholder={artist.name} />
                 <div className="mt-3">
-                  <EditableText value={getVal('overview', 'subtitle', '')} onSave={v => updateBlockSetting('overview', 'subtitle', v)} editing={editing} className="text-sm tracking-wide" style={{ color: '#F5F0E8aa' }} placeholder="Add subtitle..." />
+                  <EditableText value={getVal('overview', 'subtitle', '')} onSave={v => updateBlockSetting('overview', 'subtitle', v)} editing={editing} className="text-sm tracking-wide" style={{ color: colors.textSecondary }} placeholder="Add subtitle..." />
                 </div>
               </div>
             </div>
