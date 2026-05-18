@@ -322,7 +322,7 @@ export default function TracksPage() {
               </div>
 
               {/* Track info */}
-              <Link to={`/track/${track.id}`} className="flex items-center gap-2.5 min-w-0">
+              <Link to={`/app/track/${track.id}`} className="flex items-center gap-2.5 min-w-0">
                 {track.imageUrl ? (
                   <img src={track.imageUrl} alt="" className="w-8 h-8 rounded object-cover shrink-0" />
                 ) : (
@@ -340,7 +340,7 @@ export default function TracksPage() {
               </Link>
 
               {/* Artist */}
-              <Link to={`/artist/${track.artistSlug}`} className="text-[11px] text-[#9B9590] hover:text-[#F5F0E8] transition-colors truncate hidden md:block">
+              <Link to={`/app/artist/${track.artistSlug}`} className="text-[11px] text-[#9B9590] hover:text-[#F5F0E8] transition-colors truncate hidden md:block">
                 {artist?.name}
               </Link>
 
@@ -440,7 +440,7 @@ export default function TracksPage() {
             {/* Side-by-side KPIs */}
             <div className={`grid gap-3 ${comparisons.length <= 2 ? 'grid-cols-2' : comparisons.length === 3 ? 'grid-cols-3' : 'grid-cols-4'}`}>
               {comparisons.map((c, i) => (
-                <Link key={c.track.id} to={`/track/${c.track.id}`} className="block group">
+                <Link key={c.track.id} to={`/app/track/${c.track.id}`} className="block group">
                   <div className="bg-[#171614] border border-[#2C2B28] rounded p-4 hover:border-[#2C2B28]/80 transition-colors"
                     style={{ borderTopColor: COLORS[i], borderTopWidth: 2 }}>
                     <div className="flex items-center gap-2 mb-1">

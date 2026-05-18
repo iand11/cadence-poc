@@ -192,7 +192,7 @@ export function useChat() {
             });
           }
 
-          setPendingAction({ type: 'navigate', url: `/reports/${reportId}` });
+          setPendingAction({ type: 'navigate', url: `/app/reports/${reportId}` });
         } catch {
           // Failed to parse tool input, ignore
         }

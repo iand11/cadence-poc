@@ -16,7 +16,7 @@ export default function ProfileLayout({ title, subtitle, type, aiSummary, header
     <div className="space-y-8">
       {/* Back + Hero */}
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }}>
-        <Link to="/dashboard" className="inline-flex items-center gap-1.5 text-xs text-[#9B9590] hover:text-[#F5F0E8] transition-colors mb-6">
+        <Link to="/app/dashboard" className="inline-flex items-center gap-1.5 text-xs text-[#9B9590] hover:text-[#F5F0E8] transition-colors mb-6">
           <ArrowLeft size={14} />
           Back to Dashboard
         </Link>

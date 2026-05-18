@@ -147,7 +147,7 @@ export default function TrackComparison() {
     <div className="space-y-8">
       {/* Header */}
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }}>
-        <Link to="/dashboard" className="inline-flex items-center gap-1.5 text-xs text-[#9B9590] hover:text-[#F5F0E8] transition-colors mb-6">
+        <Link to="/app/dashboard" className="inline-flex items-center gap-1.5 text-xs text-[#9B9590] hover:text-[#F5F0E8] transition-colors mb-6">
           <ArrowLeft size={14} />
           Back to Dashboard
         </Link>
@@ -188,7 +188,7 @@ export default function TrackComparison() {
           {/* Side-by-side KPIs */}
           <div className={`grid gap-3 ${comparisons.length <= 2 ? 'grid-cols-2' : comparisons.length === 3 ? 'grid-cols-3' : 'grid-cols-4'}`}>
             {comparisons.map((c, i) => (
-              <Link key={c.track.id} to={`/track/${c.track.id}`} className="block group">
+              <Link key={c.track.id} to={`/app/track/${c.track.id}`} className="block group">
                 <div className="bg-[#171614] border border-[#2C2B28] rounded p-4 hover:border-[#2C2B28]/80 transition-colors"
                   style={{ borderTopColor: COLORS[i], borderTopWidth: 2 }}>
                   <div className="flex items-center gap-2 mb-1">

@@ -81,7 +81,7 @@ const leaderboardCols = [
   {
     key: 'name', label: 'Artist', align: 'left',
     format: (v, row) => (
-      <Link to={`/artist/${row.slug}`} className="text-[#F5F0E8] hover:text-[#DA7756] transition-colors">{v}</Link>
+      <Link to={`/app/artist/${row.slug}`} className="text-[#F5F0E8] hover:text-[#DA7756] transition-colors">{v}</Link>
     ),
   },
   { key: 'stat', label: 'Listeners', format: (v) => formatNumber(v) },
@@ -92,7 +92,7 @@ const socialCols = [
   {
     key: 'name', label: 'Artist', align: 'left',
     format: (v, row) => (
-      <Link to={`/artist/${row.slug}`} className="text-[#F5F0E8] hover:text-[#DA7756] transition-colors">{v}</Link>
+      <Link to={`/app/artist/${row.slug}`} className="text-[#F5F0E8] hover:text-[#DA7756] transition-colors">{v}</Link>
     ),
   },
   { key: 'stat', label: 'Social Following', format: (v) => formatNumber(v) },
@@ -432,7 +432,7 @@ function PlaylistWidget({ dragProps }) {
       </div>
       <div className="space-y-0.5">
         {plStats.topPlaylists.slice(0, 5).map((pl) => (
-          <Link key={pl.id} to={`/playlist/${pl.id}`} className="block">
+          <Link key={pl.id} to={`/app/playlist/${pl.id}`} className="block">
             <div className="group flex items-center gap-2.5 px-2 py-1.5 rounded hover:bg-[#0D0C0B] transition-all">
               <div className="w-7 h-7 rounded bg-[#2C2B28] flex items-center justify-center shrink-0">
                 <ListMusic size={11} className="text-[#6B6560]" />
@@ -469,7 +469,7 @@ function TrackIntelligenceWidget({ dragProps }) {
       </div>
       <div className="space-y-0.5">
         {tStats.topMovers.slice(0, 5).map((t, i) => (
-          <Link key={t.id} to={`/track/${t.id}`} className="block">
+          <Link key={t.id} to={`/app/track/${t.id}`} className="block">
             <div className="group flex items-center gap-2.5 px-2 py-1.5 rounded hover:bg-[#0D0C0B] transition-all">
               <span className="text-[10px] font-mono text-[#6B6560] w-4 text-right shrink-0">{i + 1}</span>
               {t.imageUrl ? (
@@ -646,7 +646,7 @@ export default function Dashboard() {
       <WidgetCard id="top-artists" title="Top Artists" subtitle="by overall rank" {...dragProps}>
         <div className="space-y-0.5">
           {top6.map((artist) => (
-            <Link key={artist.slug} to={`/artist/${artist.slug}`} className="block">
+            <Link key={artist.slug} to={`/app/artist/${artist.slug}`} className="block">
               <div className="group flex items-center gap-2.5 px-2 py-1.5 rounded hover:bg-[#0D0C0B] transition-all">
                 {artist.imageUrl ? (
                   <img src={artist.imageUrl} alt="" className="w-7 h-7 rounded object-cover shrink-0" />
@@ -678,7 +678,7 @@ export default function Dashboard() {
       <WidgetCard id="top-tracks" title="Top Tracks" subtitle="Roster — by Spotify streams" {...dragProps}>
         <div className="space-y-0.5">
           {getTopTracksAcrossRoster(8).map((t, i) => (
-            <Link key={t.id} to={`/track/${t.id}`} className="block">
+            <Link key={t.id} to={`/app/track/${t.id}`} className="block">
               <div className="group flex items-center gap-2.5 px-2 py-1.5 rounded hover:bg-[#0D0C0B] transition-all">
                 <span className="text-[10px] font-mono text-[#6B6560] w-4 text-right shrink-0">{i + 1}</span>
                 {t.imageUrl ? (
@@ -703,7 +703,7 @@ export default function Dashboard() {
       <WidgetCard id="recent-releases" title="Recent Releases" subtitle="Latest albums & singles" {...dragProps}>
         <div className="grid grid-cols-3 gap-2">
           {getRecentReleases(6).map((a) => (
-            <Link key={a.id} to={`/album/${a.id}`} className="group block">
+            <Link key={a.id} to={`/app/album/${a.id}`} className="group block">
               <div className="aspect-square rounded overflow-hidden bg-[#2C2B28] border border-[#2C2B28] group-hover:border-[#DA7756]/30 transition-colors mb-1.5">
                 {a.imageUrl ? (
                   <img src={a.imageUrl} alt={a.name} className="w-full h-full object-cover" />
@@ -748,7 +748,7 @@ export default function Dashboard() {
       <WidgetCard id="trending" title="Trending Artists" subtitle="High popularity artists" {...dragProps}>
         <div className="space-y-0.5">
           {trendingArtists.map((a) => (
-            <Link key={a.slug} to={`/artist/${a.slug}`} className="block">
+            <Link key={a.slug} to={`/app/artist/${a.slug}`} className="block">
               <div className="group flex items-center gap-2.5 px-2 py-1.5 rounded hover:bg-[#0D0C0B] transition-all">
                 <span className="text-[10px] font-mono text-[#6B6560] w-4 text-right shrink-0">{a.pos}</span>
                 <div className="flex-1 min-w-0">
@@ -923,7 +923,7 @@ export default function Dashboard() {
                 {favoriteArtists.map((artist) => (
                   <Link
                     key={artist.slug}
-                    to={`/artist/${artist.slug}`}
+                    to={`/app/artist/${artist.slug}`}
                     className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[#1C1B18] transition-colors group"
                   >
                     {artist.imageUrl ? (

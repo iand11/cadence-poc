@@ -247,7 +247,7 @@ export default function ArtistSheet() {
   const [sheetsError, setSheetsError] = useState(null);
 
   useEffect(() => {
-    if (!artist) navigate('/artists', { replace: true });
+    if (!artist) navigate('/app/artists', { replace: true });
   }, [artist, navigate]);
 
   if (!artist) return null;
@@ -315,7 +315,7 @@ export default function ArtistSheet() {
   };
 
   const buildShareUrl = useCallback(() => {
-    const url = new URL(window.location.origin + `/artist/${artist.slug}/sheet`);
+    const url = new URL(window.location.origin + `/app/artist/${artist.slug}/sheet`);
     url.searchParams.set('sections', visibleBlocks.map(b => b.id).join(','));
     if (accent !== DEFAULT_ACCENT) url.searchParams.set('accent', accent);
     if (bg !== DEFAULT_BG) url.searchParams.set('bg', bg);
@@ -1191,7 +1191,7 @@ export default function ArtistSheet() {
           </div>
           <h2 className="text-xl font-light mb-2" style={{ color: colors.textPrimary }}>This sheet is private</h2>
           <p className="text-sm mb-6" style={{ color: colors.textSecondary }}>The owner hasn't made this artist sheet public yet.</p>
-          <button onClick={() => navigate('/')} className="px-4 py-2 text-sm rounded border cursor-pointer transition-colors" style={{ borderColor: colors.border, color: colors.textSecondary }}>
+          <button onClick={() => navigate('/app')} className="px-4 py-2 text-sm rounded border cursor-pointer transition-colors" style={{ borderColor: colors.border, color: colors.textSecondary }}>
             Go Home
           </button>
         </div>

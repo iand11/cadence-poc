@@ -46,7 +46,7 @@ export default function PlaylistProfile() {
         <ListMusic size={32} className="mx-auto text-[#2C2B28] mb-3" />
         <p className="text-sm text-[#9B9590]">Playlist not found</p>
         <p className="text-[11px] text-[#6B6560] mt-1">id: {id}</p>
-        <Link to="/dashboard" className="inline-block mt-4 text-xs text-[#DA7756] hover:underline">
+        <Link to="/app/dashboard" className="inline-block mt-4 text-xs text-[#DA7756] hover:underline">
           Back to Dashboard
         </Link>
       </div>
@@ -84,7 +84,7 @@ export default function PlaylistProfile() {
               {profile.tracks.map((t, i) => {
                 const artist = { slug: t.artistSlug, name: t.artistName };
                 return (
-                  <Link key={`${t.artistSlug}-${i}`} to={`/artist/${artist.slug}`} className="block">
+                  <Link key={`${t.artistSlug}-${i}`} to={`/app/artist/${artist.slug}`} className="block">
                     <div className="flex items-center gap-3 px-2 py-2 rounded hover:bg-[#1C1B18] transition-colors group">
                       <span className="text-[10px] font-mono text-[#6B6560] w-6 text-right shrink-0">{i + 1}</span>
                       <div className="w-8 h-8 rounded bg-[#2C2B28] flex items-center justify-center shrink-0">
@@ -154,7 +154,7 @@ export default function PlaylistProfile() {
               {profile.similar.map((pl) => (
                 <Link
                   key={pl.id}
-                  to={`/playlist/${pl.id}`}
+                  to={`/app/playlist/${pl.id}`}
                   className="group block p-3 rounded border border-[#2C2B28] hover:border-[#DA7756]/30 transition-colors"
                 >
                   <div className="flex items-center gap-2 mb-2">

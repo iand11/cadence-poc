@@ -110,7 +110,7 @@ export default function TrackProfile() {
         <Music size={32} className="mx-auto text-[#2C2B28] mb-3" />
         <p className="text-sm text-[#9B9590]">Track not found</p>
         <p className="text-[11px] text-[#6B6560] mt-1">id: {id}</p>
-        <Link to="/dashboard" className="inline-block mt-4 text-xs text-[#DA7756] hover:underline">
+        <Link to="/app/dashboard" className="inline-block mt-4 text-xs text-[#DA7756] hover:underline">
           Back to Dashboard
         </Link>
       </div>
@@ -138,7 +138,7 @@ export default function TrackProfile() {
     <ProfileLayout
       title={track.name}
       subtitle={
-        <Link to={`/artist/${artist.slug}`} className="hover:text-[#DA7756] transition-colors">
+        <Link to={`/app/artist/${artist.slug}`} className="hover:text-[#DA7756] transition-colors">
           by {artist.name}{track.isFeature ? ' (feature)' : ''}
         </Link>
       }
@@ -178,7 +178,7 @@ export default function TrackProfile() {
                   <ListMusic size={13} className="text-[#6B6560]" />
                   <span>Album:</span>
                   {track.albumId ? (
-                    <Link to={`/album/${track.albumId}`} className="text-[#F5F0E8] hover:text-[#DA7756] truncate">{track.albumName}</Link>
+                    <Link to={`/app/album/${track.albumId}`} className="text-[#F5F0E8] hover:text-[#DA7756] truncate">{track.albumName}</Link>
                   ) : (
                     <span className="text-[#F5F0E8] truncate">{track.albumName}</span>
                   )}
@@ -235,7 +235,7 @@ export default function TrackProfile() {
                   {collabs.map(a => (
                     <Link
                       key={a.slug}
-                      to={`/artist/${a.slug}`}
+                      to={`/app/artist/${a.slug}`}
                       className="flex items-center gap-1.5 text-xs bg-[#171614] border border-[#2C2B28] hover:border-[#DA7756]/30 rounded px-2 py-1 transition-colors"
                     >
                       {a.imageUrl && (
@@ -299,7 +299,7 @@ export default function TrackProfile() {
             <ChartCard title={`${placements.length} playlist${placements.length === 1 ? '' : 's'} featuring ${artist.name}`}>
               <div className="space-y-1">
                 {shown.map((p, i) => (
-                  <Link key={`${p.playlistId}-${i}`} to={`/playlist/${p.playlistId}`} className="block">
+                  <Link key={`${p.playlistId}-${i}`} to={`/app/playlist/${p.playlistId}`} className="block">
                     <div className="flex items-center gap-3 px-2 py-2 rounded hover:bg-[#1C1B18] transition-colors group">
                       <span className="text-[10px] font-mono text-[#6B6560] w-5 text-right shrink-0">{i + 1}</span>
                       <div className="flex-1 min-w-0">
@@ -331,7 +331,7 @@ export default function TrackProfile() {
           <ChartCard title="Other top tracks">
             <div className="space-y-1">
               {similar.map((t, i) => (
-                <Link key={t.id} to={`/track/${t.id}`} className="block">
+                <Link key={t.id} to={`/app/track/${t.id}`} className="block">
                   <div className="flex items-center gap-3 px-2 py-2 rounded hover:bg-[#1C1B18] transition-colors group">
                     <span className="text-[10px] font-mono text-[#6B6560] w-6 text-right shrink-0">{i + 1}</span>
                     {t.imageUrl ? (

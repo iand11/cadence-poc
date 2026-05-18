@@ -271,7 +271,7 @@ export default function PlaylistsPage() {
               </div>
 
               {/* Playlist info */}
-              <Link to={`/playlist/${pl.id}`} className="min-w-0">
+              <Link to={`/app/playlist/${pl.id}`} className="min-w-0">
                 <p className="text-xs text-[#F5F0E8] truncate group-hover:text-[#DA7756] transition-colors">
                   {isSelected && <span className="inline-block w-1.5 h-1.5 rounded-full mr-1.5" style={{ backgroundColor: COLORS[colorIdx] }} />}
                   {pl.name}
@@ -382,7 +382,7 @@ export default function PlaylistsPage() {
             {/* Side-by-side KPIs */}
             <div className={`grid gap-3 ${comparisons.length <= 2 ? 'grid-cols-2' : comparisons.length === 3 ? 'grid-cols-3' : 'grid-cols-4'}`}>
               {comparisons.map((pl, i) => (
-                <Link key={pl.id} to={`/playlist/${pl.id}`} className="block group">
+                <Link key={pl.id} to={`/app/playlist/${pl.id}`} className="block group">
                   <div className="bg-[#171614] border border-[#2C2B28] rounded p-4 hover:border-[#2C2B28]/80 transition-colors"
                     style={{ borderTopColor: COLORS[i], borderTopWidth: 2 }}>
                     <p className="text-sm text-[#F5F0E8] truncate group-hover:text-[#DA7756] transition-colors mb-1">{pl.name}</p>
@@ -436,7 +436,7 @@ export default function PlaylistsPage() {
               <ChartCard title="Artist Overlap" subtitle={`${overlap.length} artist${overlap.length === 1 ? '' : 's'} on multiple selected playlists`}>
                 <div className="space-y-1">
                   {overlap.slice(0, 12).map((a) => (
-                    <Link key={a.slug} to={`/artist/${a.slug}`} className="block">
+                    <Link key={a.slug} to={`/app/artist/${a.slug}`} className="block">
                       <div className="flex items-center gap-3 px-2 py-2 rounded hover:bg-[#1C1B18] transition-colors group">
                         <div className="flex-1 min-w-0">
                           <p className="text-sm text-[#F5F0E8] truncate group-hover:text-[#DA7756] transition-colors">{a.name}</p>
@@ -470,7 +470,7 @@ export default function PlaylistsPage() {
                 <ChartCard key={pl.id} title={pl.name} subtitle="Top roster artists">
                   <div className="space-y-0.5">
                     {(pl.tracks || []).slice(0, 5).map((t, j) => (
-                      <Link key={`${t.artistSlug}-${j}`} to={`/artist/${t.artistSlug}`} className="block">
+                      <Link key={`${t.artistSlug}-${j}`} to={`/app/artist/${t.artistSlug}`} className="block">
                         <div className="group flex items-center gap-2 px-1 py-1 rounded hover:bg-[#0D0C0B] transition-all">
                           <span className="text-[9px] font-mono text-[#6B6560] w-4 text-right shrink-0">{j + 1}</span>
                           <p className="text-[11px] text-[#F5F0E8] truncate flex-1 group-hover:text-[#DA7756] transition-colors">{t.artistName}</p>

@@ -33,7 +33,7 @@ const comparisonCols = [
   {
     key: 'name', label: 'Artist', align: 'left',
     format: (v, row) => (
-      <Link to={`/artist/${row.slug}`} className="text-[#F5F0E8] hover:text-[#DA7756] transition-colors">
+      <Link to={`/app/artist/${row.slug}`} className="text-[#F5F0E8] hover:text-[#DA7756] transition-colors">
         <span className="flex items-center gap-2">
           {row.imageUrl && <img src={row.imageUrl} alt="" className="w-6 h-6 rounded object-cover" />}
           {v}
@@ -54,7 +54,7 @@ const playlistCols = [
   {
     key: 'name', label: 'Artist', align: 'left',
     format: (v, row) => (
-      <Link to={`/artist/${row.slug}`} className="text-[#F5F0E8] hover:text-[#DA7756] transition-colors">{v}</Link>
+      <Link to={`/app/artist/${row.slug}`} className="text-[#F5F0E8] hover:text-[#DA7756] transition-colors">{v}</Link>
     ),
   },
   { key: 'editorial', label: 'Editorial', align: 'right', format: (v) => formatNumber(v) },
@@ -76,7 +76,7 @@ export default function ReportCenter() {
   // Redirect if report ID was given but not found
   useEffect(() => {
     if (id && !existingReport) {
-      navigate('/reports', { replace: true });
+      navigate('/app/reports', { replace: true });
     }
   }, [id, existingReport, navigate]);
 
@@ -462,7 +462,7 @@ export default function ReportCenter() {
                 Edit
               </button>
               <button
-                onClick={() => navigate('/reports')}
+                onClick={() => navigate('/app/reports')}
                 className="p-1.5 text-[#6B6560] hover:text-[#9B9590] transition-colors cursor-pointer"
               >
                 <X size={16} />
@@ -537,7 +537,7 @@ export default function ReportCenter() {
   return (
     <div className="space-y-6">
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-        <Link to="/reports" className="inline-flex items-center gap-1.5 text-xs text-[#9B9590] hover:text-[#F5F0E8] transition-colors mb-4">
+        <Link to="/app/reports" className="inline-flex items-center gap-1.5 text-xs text-[#9B9590] hover:text-[#F5F0E8] transition-colors mb-4">
           <ArrowLeft size={12} />
           All Reports
         </Link>

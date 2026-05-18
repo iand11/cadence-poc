@@ -35,7 +35,7 @@ export default function ReportsList() {
 
   const handleNew = () => {
     const id = createReport({ name: 'Untitled Report' });
-    navigate(`/reports/${id}`);
+    navigate(`/app/reports/${id}`);
   };
 
   const handleDelete = (e, id) => {
@@ -110,7 +110,7 @@ export default function ReportsList() {
                   layout
                 >
                   <Link
-                    to={`/reports/${report.id}`}
+                    to={`/app/reports/${report.id}`}
                     className="block relative bg-[#171614] border border-[#2C2B28] rounded p-5 hover:border-[#3D3B37] transition-colors group"
                   >
                     {/* Card Header */}

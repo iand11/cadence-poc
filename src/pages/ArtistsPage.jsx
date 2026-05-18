@@ -257,7 +257,7 @@ export default function ArtistsPage() {
               </div>
 
               {/* Artist info */}
-              <Link to={`/artist/${artist.slug}`} className="flex items-center gap-2.5 min-w-0">
+              <Link to={`/app/artist/${artist.slug}`} className="flex items-center gap-2.5 min-w-0">
                 {artist.imageUrl ? (
                   <img src={artist.imageUrl} alt="" className="w-8 h-8 rounded-full object-cover shrink-0" />
                 ) : (
@@ -372,7 +372,7 @@ export default function ArtistsPage() {
             {/* Side-by-side KPIs */}
             <div className={`grid gap-3 ${selectedArtists.length <= 2 ? 'grid-cols-2' : selectedArtists.length === 3 ? 'grid-cols-3' : 'grid-cols-4'}`}>
               {selectedArtists.map((a, i) => (
-                <Link key={a.slug} to={`/artist/${a.slug}`} className="block group">
+                <Link key={a.slug} to={`/app/artist/${a.slug}`} className="block group">
                   <div className="bg-[#171614] border border-[#2C2B28] rounded p-4 hover:border-[#2C2B28]/80 transition-colors"
                     style={{ borderTopColor: COLORS[i], borderTopWidth: 2 }}>
                     <div className="flex items-center gap-2 mb-1">

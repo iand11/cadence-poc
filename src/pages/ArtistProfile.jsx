@@ -72,7 +72,7 @@ export default function ArtistProfile() {
       headerRight={
         <div className="flex items-center gap-2">
           <Link
-            to={`/artist/${artist.slug}/sheet`}
+            to={`/app/artist/${artist.slug}/sheet`}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded border border-[#DA7756]/20 bg-[#DA7756]/10 text-[#DA7756] hover:bg-[#DA7756]/20 transition-colors"
           >
             <FileText size={14} />
@@ -208,7 +208,7 @@ export default function ArtistProfile() {
           <ChartCard title={`${tracks.length} tracked song${tracks.length === 1 ? '' : 's'} — sorted by Spotify streams`}>
             <div className="space-y-1">
               {tracks.slice(0, 12).map((t, i) => (
-                <Link key={t.id} to={`/track/${t.id}`} className="block">
+                <Link key={t.id} to={`/app/track/${t.id}`} className="block">
                   <div className="flex items-center gap-3 px-2 py-2 rounded hover:bg-[#1C1B18] transition-colors group">
                     <span className="text-[10px] font-mono text-[#6B6560] w-6 text-right shrink-0">{i + 1}</span>
                     {t.imageUrl ? (
@@ -254,7 +254,7 @@ export default function ArtistProfile() {
           <ChartCard title={`${albums.length} release${albums.length === 1 ? '' : 's'}`}>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4 pt-2">
               {albums.slice(0, 24).map(a => (
-                <Link key={a.id} to={`/album/${a.id}`} className="group block">
+                <Link key={a.id} to={`/app/album/${a.id}`} className="group block">
                   <div className="aspect-square rounded overflow-hidden bg-[#2C2B28] border border-[#2C2B28] group-hover:border-[#DA7756]/30 transition-colors mb-2">
                     {a.imageUrl ? (
                       <img src={a.imageUrl} alt={a.name} className="w-full h-full object-cover" />
@@ -361,7 +361,7 @@ export default function ArtistProfile() {
               <ChartCard title="Active Playlists" subtitle={`${activePlaylists.length} playlist placement${activePlaylists.length === 1 ? '' : 's'}`}>
                 <div className="space-y-1">
                   {shown.map((p, i) => (
-                    <Link key={`${p.playlistId}-${i}`} to={`/playlist/${p.playlistId}`} className="block">
+                    <Link key={`${p.playlistId}-${i}`} to={`/app/playlist/${p.playlistId}`} className="block">
                       <div className="flex items-center gap-3 px-2 py-2 rounded hover:bg-[#1C1B18] transition-colors group">
                         <span className="text-[10px] font-mono text-[#6B6560] w-5 text-right shrink-0">{i + 1}</span>
                         <div className="w-7 h-7 rounded bg-[#2C2B28] flex items-center justify-center shrink-0">

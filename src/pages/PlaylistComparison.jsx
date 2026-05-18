@@ -129,7 +129,7 @@ export default function PlaylistComparison() {
     <div className="space-y-8">
       {/* Header */}
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }}>
-        <Link to="/dashboard" className="inline-flex items-center gap-1.5 text-xs text-[#9B9590] hover:text-[#F5F0E8] transition-colors mb-6">
+        <Link to="/app/dashboard" className="inline-flex items-center gap-1.5 text-xs text-[#9B9590] hover:text-[#F5F0E8] transition-colors mb-6">
           <ArrowLeft size={14} />
           Back to Dashboard
         </Link>
@@ -170,7 +170,7 @@ export default function PlaylistComparison() {
           {/* Side-by-side KPIs */}
           <div className={`grid gap-3 ${playlists.length <= 2 ? 'grid-cols-2' : playlists.length === 3 ? 'grid-cols-3' : 'grid-cols-4'}`}>
             {playlists.map((pl, i) => (
-              <Link key={pl.id} to={`/playlist/${pl.id}`} className="block group">
+              <Link key={pl.id} to={`/app/playlist/${pl.id}`} className="block group">
                 <div className="bg-[#171614] border border-[#2C2B28] rounded p-4 hover:border-[#2C2B28]/80 transition-colors"
                   style={{ borderTopColor: COLORS[i], borderTopWidth: 2 }}>
                   <p className="text-sm text-[#F5F0E8] truncate group-hover:text-[#DA7756] transition-colors mb-1">{pl.name}</p>
@@ -224,7 +224,7 @@ export default function PlaylistComparison() {
             <ChartCard title="Artist Overlap" subtitle={`${overlap.length} artist${overlap.length === 1 ? '' : 's'} on multiple selected playlists`}>
               <div className="space-y-1">
                 {overlap.slice(0, 12).map((a) => (
-                  <Link key={a.slug} to={`/artist/${a.slug}`} className="block">
+                  <Link key={a.slug} to={`/app/artist/${a.slug}`} className="block">
                     <div className="flex items-center gap-3 px-2 py-2 rounded hover:bg-[#1C1B18] transition-colors group">
                       <div className="flex-1 min-w-0">
                         <p className="text-sm text-[#F5F0E8] truncate group-hover:text-[#DA7756] transition-colors">{a.name}</p>
@@ -258,7 +258,7 @@ export default function PlaylistComparison() {
               <ChartCard key={pl.id} title={pl.name} subtitle={`Top roster artists`}>
                 <div className="space-y-0.5">
                   {(pl.tracks || []).slice(0, 5).map((t, j) => (
-                    <Link key={`${t.artistSlug}-${j}`} to={`/artist/${t.artistSlug}`} className="block">
+                    <Link key={`${t.artistSlug}-${j}`} to={`/app/artist/${t.artistSlug}`} className="block">
                       <div className="group flex items-center gap-2 px-1 py-1 rounded hover:bg-[#0D0C0B] transition-all">
                         <span className="text-[9px] font-mono text-[#6B6560] w-4 text-right shrink-0">{j + 1}</span>
                         <p className="text-[11px] text-[#F5F0E8] truncate flex-1 group-hover:text-[#DA7756] transition-colors">{t.artistName}</p>

@@ -58,7 +58,7 @@ export default function SheetsPage() {
     createSheet(artist.slug);
     setSearchOpen(false);
     setQuery('');
-    navigate(`/artist/${artist.slug}/sheet`);
+    navigate(`/app/artist/${artist.slug}/sheet`);
   };
 
   const openSearch = () => {
@@ -93,7 +93,7 @@ export default function SheetsPage() {
   const handleCopyLink = (e, slug) => {
     e.preventDefault();
     e.stopPropagation();
-    const url = new URL(window.location.origin + `/artist/${slug}/sheet`);
+    const url = new URL(window.location.origin + `/app/artist/${slug}/sheet`);
     url.searchParams.set('view', 'true');
     navigator.clipboard.writeText(url.toString());
     setLinkCopied(slug);
@@ -103,7 +103,7 @@ export default function SheetsPage() {
   const handlePreview = (e, slug) => {
     e.preventDefault();
     e.stopPropagation();
-    navigate(`/artist/${slug}/sheet?view=true`);
+    navigate(`/app/artist/${slug}/sheet?view=true`);
   };
 
   return (
@@ -239,7 +239,7 @@ export default function SheetsPage() {
                   layout
                 >
                   <Link
-                    to={`/artist/${artist.slug}/sheet`}
+                    to={`/app/artist/${artist.slug}/sheet`}
                     className="block relative bg-[#171614] border border-[#2C2B28] rounded overflow-hidden hover:border-[#3D3B37] transition-colors group"
                   >
                     {/* Artist Image */}

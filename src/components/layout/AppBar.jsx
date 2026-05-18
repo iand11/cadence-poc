@@ -8,9 +8,9 @@ import { formatNumber } from '../../utils/formatters';
 import { useFavorites } from '../../hooks/useFavorites';
 
 const LIST_ITEMS = [
-  { path: '/tracks', label: 'Tracks', icon: Music, match: '/track' },
-  { path: '/playlists', label: 'Playlists', icon: ListMusic, match: '/playlist' },
-  { path: '/artists', label: 'Artists', icon: Users, match: '/artist' },
+  { path: '/app/tracks', label: 'Tracks', icon: Music, match: '/app/track' },
+  { path: '/app/playlists', label: 'Playlists', icon: ListMusic, match: '/app/playlist' },
+  { path: '/app/artists', label: 'Artists', icon: Users, match: '/app/artist' },
 ];
 
 export default function AppBar() {
@@ -27,7 +27,7 @@ export default function AppBar() {
   const results = query.length >= 2 ? searchArtists(query).slice(0, 6) : [];
 
   const handleSelect = (artist) => {
-    navigate(`/artist/${artist.slug}`);
+    navigate(`/app/artist/${artist.slug}`);
     setQuery('');
     setFocused(false);
     inputRef.current?.blur();
@@ -40,7 +40,7 @@ export default function AppBar() {
       <div className="max-w-[1400px] mx-auto px-6 lg:px-10">
         <div className="flex items-center h-14 gap-6">
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2 shrink-0">
+          <Link to="/app" className="flex items-center gap-2 shrink-0">
             <div className="w-7 h-7 rounded bg-[#DA7756]/15 flex items-center justify-center">
               <span className="font-mono text-sm font-bold text-[#DA7756]">C</span>
             </div>
@@ -117,9 +117,9 @@ export default function AppBar() {
           {/* Nav Links */}
           <div className="flex items-center gap-1 shrink-0">
             <Link
-              to="/"
+              to="/app"
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs transition-colors ${
-                location.pathname === '/'
+                location.pathname === '/app'
                   ? 'text-[#F5F0E8] bg-[#171614]'
                   : 'text-[#9B9590] hover:text-[#F5F0E8]'
               }`}
@@ -128,9 +128,9 @@ export default function AppBar() {
               <span className="hidden md:inline">Chat</span>
             </Link>
             <Link
-              to="/dashboard"
+              to="/app/dashboard"
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs transition-colors ${
-                location.pathname.startsWith('/dashboard')
+                location.pathname.startsWith('/app/dashboard')
                   ? 'text-[#F5F0E8] bg-[#171614]'
                   : 'text-[#9B9590] hover:text-[#F5F0E8]'
               }`}
@@ -185,9 +185,9 @@ export default function AppBar() {
             </div>
 
             <Link
-              to="/reports"
+              to="/app/reports"
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs transition-colors ${
-                location.pathname.startsWith('/reports')
+                location.pathname.startsWith('/app/reports')
                   ? 'text-[#F5F0E8] bg-[#171614]'
                   : 'text-[#9B9590] hover:text-[#F5F0E8]'
               }`}
@@ -197,9 +197,9 @@ export default function AppBar() {
             </Link>
 
             <Link
-              to="/sheets"
+              to="/app/sheets"
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs transition-colors ${
-                location.pathname.startsWith('/sheets') || location.pathname.match(/\/artist\/[^/]+\/sheet/)
+                location.pathname.startsWith('/app/sheets') || location.pathname.match(/\/app\/artist\/[^/]+\/sheet/)
                   ? 'text-[#F5F0E8] bg-[#171614]'
                   : 'text-[#9B9590] hover:text-[#F5F0E8]'
               }`}

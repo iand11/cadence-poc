@@ -112,7 +112,7 @@ export default function AlbumProfile() {
         <Disc3 size={32} className="mx-auto text-[#2C2B28] mb-3" />
         <p className="text-sm text-[#9B9590]">Album not found</p>
         <p className="text-[11px] text-[#6B6560] mt-1">id: {id}</p>
-        <Link to="/dashboard" className="inline-block mt-4 text-xs text-[#DA7756] hover:underline">
+        <Link to="/app/dashboard" className="inline-block mt-4 text-xs text-[#DA7756] hover:underline">
           Back to Dashboard
         </Link>
       </div>
@@ -128,7 +128,7 @@ export default function AlbumProfile() {
       title={album.name}
       subtitle={
         artist ? (
-          <Link to={`/artist/${artist.slug}`} className="hover:text-[#DA7756] transition-colors">
+          <Link to={`/app/artist/${artist.slug}`} className="hover:text-[#DA7756] transition-colors">
             by {artist.name}
           </Link>
         ) : null
@@ -242,7 +242,7 @@ export default function AlbumProfile() {
                   {collabs.map(a => (
                     <Link
                       key={a.slug}
-                      to={`/artist/${a.slug}`}
+                      to={`/app/artist/${a.slug}`}
                       className="flex items-center gap-1.5 text-xs bg-[#171614] border border-[#2C2B28] hover:border-[#DA7756]/30 rounded px-2 py-1 transition-colors"
                     >
                       {a.imageUrl && <img src={a.imageUrl} alt="" className="w-4 h-4 rounded object-cover" />}
@@ -272,7 +272,7 @@ export default function AlbumProfile() {
           <ChartCard title={`${tracks.length} tracked song${tracks.length === 1 ? '' : 's'}`}>
             <div className="space-y-1">
               {tracks.map((t, i) => (
-                <Link key={t.id} to={`/track/${t.id}`} className="block">
+                <Link key={t.id} to={`/app/track/${t.id}`} className="block">
                   <div className="flex items-center gap-3 px-2 py-2 rounded hover:bg-[#1C1B18] transition-colors group">
                     <span className="text-[10px] font-mono text-[#6B6560] w-6 text-right shrink-0">{i + 1}</span>
                     {t.imageUrl ? (
@@ -304,7 +304,7 @@ export default function AlbumProfile() {
           <ChartCard title="Other releases">
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 pt-2">
               {otherAlbums.map(a => (
-                <Link key={a.id} to={`/album/${a.id}`} className="group block">
+                <Link key={a.id} to={`/app/album/${a.id}`} className="group block">
                   <div className="aspect-square rounded overflow-hidden bg-[#2C2B28] border border-[#2C2B28] group-hover:border-[#DA7756]/30 transition-colors mb-2">
                     {a.imageUrl ? (
                       <img src={a.imageUrl} alt={a.name} className="w-full h-full object-cover" />

@@ -21,7 +21,7 @@ export default function SearchOverlay({ onClose }) {
   const trending = getTopArtists(6);
 
   const handleSelect = (artist) => {
-    navigate(`/artist/${artist.slug}`);
+    navigate(`/app/artist/${artist.slug}`);
     onClose();
   };
 
