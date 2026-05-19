@@ -514,7 +514,7 @@ export default function Landing() {
             transition={{ delay: 0.1 }}
             className="text-center mb-10"
           >
-            <h2 className="font-display text-3xl sm:text-4xl font-light tracking-tight mb-3">Beautiful one-pagers, built in seconds</h2>
+            <h2 className="font-display text-3xl sm:text-4xl font-light tracking-tight mb-3">Beautiful artist pages, built instantly</h2>
             <p className="text-sm text-[#9B9590] max-w-lg mx-auto leading-relaxed">
               Every artist gets a branded sheet with live data, editable copy, and one-click export. Customize colors, toggle sections, and share a link — no design tools needed.
             </p>

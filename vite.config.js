@@ -40,6 +40,51 @@ function buildArtistContext() {
   };
 }
 
+function sheetProxyPlugin() {
+  return {
+    name: 'sheet-csv-proxy',
+    configureServer(server) {
+      server.middlewares.use('/api/sheet-proxy', async (req, res, next) => {
+        if (req.method !== 'POST') return next();
+
+        let body = '';
+        for await (const chunk of req) body += chunk;
+
+        let parsed;
+        try { parsed = JSON.parse(body); }
+        catch { res.writeHead(400); res.end('Invalid JSON'); return; }
+
+        const { url } = parsed;
+        if (!url || !url.includes('docs.google.com')) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid Google Sheets URL' }));
+          return;
+        }
+
+        try {
+          const response = await fetch(url, {
+            headers: { Accept: 'text/csv,text/plain,*/*' },
+            redirect: 'follow',
+          });
+          if (!response.ok) {
+            res.writeHead(response.status, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: response.status === 404
+              ? 'Sheet not found. Make sure it is published to the web.'
+              : `Google Sheets returned ${response.status}` }));
+            return;
+          }
+          const text = await response.text();
+          res.writeHead(200, { 'Content-Type': 'text/csv' });
+          res.end(text);
+        } catch (err) {
+          res.writeHead(502, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        }
+      });
+    },
+  };
+}
+
 function claudeApiPlugin() {
   let cached = null;
   let Anthropic = null;
@@ -196,5 +241,5 @@ Rules:
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   Object.assign(process.env, env);
-  return { plugins: [react(), tailwindcss(), claudeApiPlugin()] };
+  return { plugins: [react(), tailwindcss(), sheetProxyPlugin(), claudeApiPlugin()] };
 });

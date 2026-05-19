@@ -196,6 +196,39 @@ export default function ArtistSheet() {
     }
   }, [artist?.imageUrl]);
 
+  // Auto-sample background color from artist image on first load
+  const autoSampledRef = useRef(false);
+  useEffect(() => {
+    if (autoSampledRef.current || searchParams.has('bg') || !artist?.imageUrl) return;
+    autoSampledRef.current = true;
+    const img = new window.Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const size = 40;
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, size, size);
+      const { data } = ctx.getImageData(0, 0, size, size);
+      let totalR = 0, totalG = 0, totalB = 0, totalWeight = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i], g = data[i + 1], b = data[i + 2];
+        const max = Math.max(r, g, b), min = Math.min(r, g, b);
+        const sat = max === 0 ? 0 : (max - min) / max;
+        const weight = 1 + sat * 3;
+        totalR += r * weight; totalG += g * weight; totalB += b * weight; totalWeight += weight;
+      }
+      const darken = 0.25;
+      const rr = Math.round((totalR / totalWeight) * darken);
+      const gg = Math.round((totalG / totalWeight) * darken);
+      const bb = Math.round((totalB / totalWeight) * darken);
+      const hex = [rr, gg, bb].map(v => v.toString(16).padStart(2, '0')).join('');
+      setBg(hex);
+    };
+    img.src = artist.imageUrl;
+  }, [artist?.imageUrl, searchParams]);
+
   // Block settings — per-block overrides for all text content
   const [blockSettings, setBlockSettings] = useState(() => customData.blockSettings || {});
 
@@ -710,7 +743,12 @@ export default function ArtistSheet() {
               subtitle={editableTitle('geography', 'chartSubtitle', 'Listeners by city')}
               colors={colors}
             >
-              <GeographyHeatMap data={cities} />
+              {dragIdx === null && <GeographyHeatMap data={cities} />}
+              {dragIdx !== null && (
+                <div className="flex items-center justify-center rounded border border-[#2C2B28]" style={{ height: 340, background: '#0D0C0B' }}>
+                  <span className="text-xs text-[#6B6560]">Map paused during reorder</span>
+                </div>
+              )}
               <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${colors.border}` }}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6">
                   {cities.map((c, i) => {

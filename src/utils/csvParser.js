@@ -14,12 +14,14 @@ function extractGid(url) {
 }
 
 export function toCSVUrl(url) {
-  if (url.includes('/pub?') || url.includes('output=csv') || url.includes('format=csv')) {
+  if (url.includes('/pub?') || url.includes('output=csv') || url.includes('format=csv') || url.includes('tqx=out:csv')) {
     return url;
   }
   const id = extractSheetId(url);
   if (id) {
-    return `https://docs.google.com/spreadsheets/d/${id}/export?format=csv&gid=${extractGid(url)}`;
+    // Use gviz endpoint — works for any sheet shared with "anyone with the link"
+    // The /export endpoint requires auth cookies and fails with 401 server-side
+    return `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&gid=${extractGid(url)}`;
   }
   return url;
 }

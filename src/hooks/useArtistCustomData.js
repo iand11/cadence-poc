@@ -79,13 +79,15 @@ export function useArtistCustomData(slug) {
   const syncSheets = useCallback(async () => {
     if (!data.sheetsUrl.trim()) return;
     const csvUrl = toCSVUrl(data.sheetsUrl.trim());
-    const res = await fetch(csvUrl, { headers: { Accept: 'text/csv,text/plain,*/*' } });
+    const res = await fetch('/api/sheet-proxy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: csvUrl }),
+    });
     if (!res.ok) {
-      throw new Error(
-        res.status === 404
-          ? 'Sheet not found. Make sure it is published to the web.'
-          : `Failed to fetch sheet (${res.status})`
-      );
+      let msg = `Failed to fetch sheet (${res.status})`;
+      try { const j = await res.json(); msg = j.error || msg; } catch { /* ignore */ }
+      throw new Error(msg);
     }
     const text = await res.text();
     const rows = parseCSV(text);
