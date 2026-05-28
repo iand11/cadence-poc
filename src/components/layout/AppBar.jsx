@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router';
-import { Search, Bell, FileText, LayoutDashboard, Music, Star, Sparkles, ListMusic, Users, ChevronDown, AlertTriangle, TrendingUp, Zap, Sheet } from 'lucide-react';
+import { Search, Bell, FileText, LayoutDashboard, Music, Star, Sparkles, ListMusic, Users, ChevronDown, AlertTriangle, TrendingUp, Zap, Sheet, ListChecks } from 'lucide-react';
 import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { searchArtists } from '../../data/artists';
@@ -196,6 +196,17 @@ export default function AppBar() {
               <span className="hidden md:inline">Reports</span>
             </Link>
 
+            <Link
+              to="/app/actions"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs transition-colors ${
+                location.pathname.startsWith('/app/actions')
+                  ? 'text-[#F5F0E8] bg-[#171614]'
+                  : 'text-[#9B9590] hover:text-[#F5F0E8]'
+              }`}
+            >
+              <ListChecks size={14} />
+              <span className="hidden md:inline">Actions</span>
+            </Link>
             <Link
               to="/app/sheets"
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs transition-colors ${

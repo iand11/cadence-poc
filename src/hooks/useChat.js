@@ -55,13 +55,15 @@ function getRandomSuggestions(exclude, count = 3) {
   return shuffled.slice(0, count);
 }
 
-export function useChat() {
+export function useChat({ onCreateAction } = {}) {
   const [messages, setMessages] = useState([welcomeMessage]);
   const [state, setState] = useState('idle'); // idle | streaming
   const [suggestions, setSuggestions] = useState(suggestedPrompts);
   const [pendingAction, setPendingAction] = useState(null);
   const conversationRef = useRef([]); // API-format history
   const abortRef = useRef(null);
+  const onCreateActionRef = useRef(onCreateAction);
+  onCreateActionRef.current = onCreateAction;
 
   const sendMessage = useCallback(async (text) => {
     // Add user message to display
@@ -212,6 +214,32 @@ export function useChat() {
             };
             return updated;
           });
+        } catch { /* ignore parse errors */ }
+      }
+
+      // Handle create_action tool
+      if (toolName === 'create_action' && toolInputJson) {
+        try {
+          const toolInput = JSON.parse(toolInputJson);
+          if (onCreateActionRef.current) {
+            onCreateActionRef.current({
+              artistSlug: toolInput.artistSlug,
+              platform: toolInput.platform || 'general',
+              dataType: toolInput.dataType || 'general',
+              text: toolInput.text || '',
+              action: toolInput.action,
+            });
+          }
+          if (!fullResponse) {
+            const label = toolInput.artistSlug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+            fullResponse = `I've added an action item for **${label}** to your Action Center: "${toolInput.action}"`;
+            setMessages(prev => {
+              const updated = [...prev];
+              const last = updated.length - 1;
+              updated[last] = { ...updated[last], text: fullResponse };
+              return updated;
+            });
+          }
         } catch { /* ignore parse errors */ }
       }
 

@@ -18,6 +18,8 @@ import ReportsList from './pages/ReportsList';
 import ReportCenter from './pages/ReportCenter';
 import ArtistSheet from './pages/ArtistSheet';
 import SheetsPage from './pages/SheetsPage';
+import ActionsPage from './pages/ActionsPage';
+import ArtistActionsPage from './pages/ArtistActionsPage';
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -26,6 +28,8 @@ createRoot(document.getElementById('root')).render(
         <Route path="/" element={<Landing />} />
         <Route path="app" element={<App />}>
           <Route index element={<Control />} />
+          <Route path="actions" element={<ActionsPage />} />
+          <Route path="actions/:artistSlug" element={<ArtistActionsPage />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="artist/:id" element={<ArtistProfile />} />
           <Route path="artist/:id/sheet" element={<ArtistSheet />} />

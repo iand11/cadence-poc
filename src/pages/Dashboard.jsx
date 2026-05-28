@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   Star, Sparkles, ArrowUp, Music, GripVertical,
   RotateCcw, MessageSquare, X, TrendingUp,
-  Plus, LayoutGrid, Check, ListMusic,
+  Plus, LayoutGrid, Check, ListMusic, ListChecks,
 } from 'lucide-react';
 import KpiCard from '../components/shared/KpiCard';
 import DataTable from '../components/shared/DataTable';
@@ -35,10 +35,11 @@ import { getRosterTrackStats } from '../data/trackData';
 import { generateInsights } from '../utils/insights';
 import { useChat } from '../hooks/useChat';
 import { useFavorites } from '../hooks/useFavorites';
+import { useActions } from '../hooks/useActions';
 import { formatNumber, formatCurrency } from '../utils/formatters';
 
 const STORAGE_KEY = 'cadence-widgets-v3';
-const DEFAULT_ACTIVE = ['top-artists', 'streaming', 'revenue', 'social'];
+const DEFAULT_ACTIVE = ['action-alerts', 'top-artists', 'streaming', 'revenue', 'social'];
 
 const WIDGET_CATALOG = [
   { id: 'top-artists',           title: 'Top Artists',           subtitle: 'by overall rank' },
@@ -57,6 +58,7 @@ const WIDGET_CATALOG = [
   { id: 'leaderboard-social',    title: 'Top by Social',         subtitle: 'Combined following' },
   { id: 'playlist-overview',     title: 'Playlist Intelligence', subtitle: 'Roster playlist insights' },
   { id: 'track-intelligence',    title: 'Track Intelligence',    subtitle: 'Track analytics & movers' },
+  { id: 'action-alerts',         title: 'Action Alerts',         subtitle: 'Artists with active actions' },
 ];
 
 function loadActive() {
@@ -501,6 +503,7 @@ function TrackIntelligenceWidget({ dragProps }) {
 export default function Dashboard() {
   const navigate = useNavigate();
   const { favorites, toggleFavorite, isFavorite } = useFavorites();
+  const { artistSummary, counts: actionCounts } = useActions();
   const { messages, state: chatState, suggestions, sendMessage, pendingAction, clearAction } = useChat();
 
   const [activeWidgets, setActiveWidgets] = useState(loadActive);
@@ -786,6 +789,47 @@ export default function Dashboard() {
     ),
     'playlist-overview': <PlaylistWidget dragProps={dragProps} />,
     'track-intelligence': <TrackIntelligenceWidget dragProps={dragProps} />,
+    'action-alerts': (
+      <WidgetCard id="action-alerts" title="Action Alerts" subtitle={`${actionCounts.selected} actions across ${artistSummary.length} artists`} {...dragProps}>
+        {artistSummary.length > 0 ? (
+          <div className="space-y-0.5">
+            {artistSummary.slice(0, 8).map((a) => {
+              const severityColor = a.topSeverity === 'danger' ? '#C75F4F' : a.topSeverity === 'warning' ? '#DA7756' : a.topSeverity === 'success' ? '#7BAF73' : '#D4A574';
+              return (
+                <Link key={a.slug} to={`/app/actions/${a.slug}`} className="block">
+                  <div className="group flex items-center gap-2.5 px-2 py-1.5 rounded hover:bg-[#0D0C0B] transition-all">
+                    {a.imageUrl ? (
+                      <img src={a.imageUrl} alt="" className="w-7 h-7 rounded object-cover shrink-0" />
+                    ) : (
+                      <div className="w-7 h-7 rounded bg-[#2C2B28] flex items-center justify-center shrink-0">
+                        <Music size={11} className="text-[#6B6560]" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-[#F5F0E8] truncate group-hover:text-[#DA7756] transition-colors">{a.name}</p>
+                      <p className="text-[9px] text-[#6B6560]">{a.count} action{a.count !== 1 ? 's' : ''}</p>
+                    </div>
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: severityColor }} />
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="text-center py-6">
+            <ListChecks size={18} className="mx-auto mb-2 text-[#2C2B28]" />
+            <p className="text-[10px] text-[#6B6560] leading-relaxed">
+              No actions selected yet.<br />
+              <Link to="/app/actions" className="text-[#DA7756] hover:text-[#F5F0E8] transition-colors">Add actions</Link> to track them here.
+            </p>
+          </div>
+        )}
+        {artistSummary.length > 0 && (
+          <StaticInsight type={artistSummary[0]?.warningCount > 0 ? 'warning' : 'info'}
+            text={`${actionCounts.selected} action${actionCounts.selected !== 1 ? 's' : ''} across ${artistSummary.length} artist${artistSummary.length !== 1 ? 's' : ''} — ${artistSummary.reduce((s, a) => s + a.warningCount, 0)} require attention.`} />
+        )}
+      </WidgetCard>
+    ),
   };
 
   return (

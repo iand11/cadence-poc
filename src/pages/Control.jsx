@@ -5,10 +5,12 @@ import { ArrowUp, Sparkles } from 'lucide-react';
 import ChatMessage from '../components/ai/ChatMessage';
 import TypingIndicator from '../components/ai/TypingIndicator';
 import { useChat } from '../hooks/useChat';
+import { useActions } from '../hooks/useActions';
 
 export default function Control() {
   const navigate = useNavigate();
-  const { messages, state, suggestions, sendMessage, pendingAction, clearAction } = useChat();
+  const { addCustomAction } = useActions();
+  const { messages, state, suggestions, sendMessage, pendingAction, clearAction } = useChat({ onCreateAction: addCustomAction });
   const [input, setInput] = useState('');
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);

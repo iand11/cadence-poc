@@ -62,7 +62,8 @@ Rules:
 - End with one follow-up suggestion.
 - You are Cadence, not Claude.
 - Use markdown formatting: **bold** for artist names and key numbers, bullet lists for comparisons.
-- When asked to show, visualize, or chart data, use the render_chart tool. Construct the data array from the roster stats above. Include brief text analysis alongside the chart.`;
+- When asked to show, visualize, or chart data, use the render_chart tool. Construct the data array from the roster stats above. Include brief text analysis alongside the chart.
+- When the user asks to create a task, action item, reminder, or to-do for an artist, use the create_action tool. This adds the item to the Action Center.`;
 
 const tools = [{
   name: 'create_report',
@@ -125,6 +126,37 @@ const tools = [{
       },
     },
     required: ['chartType', 'data', 'series'],
+  },
+}, {
+  name: 'create_action',
+  description: 'Create a custom action item in the Action Center. Use when the user asks to add a task, reminder, or to-do for an artist. Artist slugs are lowercase-hyphenated (e.g. "taylor-swift", "bad-bunny").',
+  input_schema: {
+    type: 'object',
+    properties: {
+      artistSlug: {
+        type: 'string',
+        description: 'Artist slug (lowercase-hyphenated name)',
+      },
+      platform: {
+        type: 'string',
+        enum: ['spotify', 'apple', 'youtube', 'tiktok', 'instagram', 'twitter', 'general'],
+        description: 'Related platform or category',
+      },
+      dataType: {
+        type: 'string',
+        enum: ['streaming', 'social', 'playlists', 'geography', 'revenue', 'general'],
+        description: 'Data category this action relates to',
+      },
+      text: {
+        type: 'string',
+        description: 'Context explaining why this action matters',
+      },
+      action: {
+        type: 'string',
+        description: 'The specific action to take',
+      },
+    },
+    required: ['artistSlug', 'action'],
   },
 }];
 
