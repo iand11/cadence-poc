@@ -117,17 +117,6 @@ export default function AppBar() {
           {/* Nav Links */}
           <div className="flex items-center gap-1 shrink-0">
             <Link
-              to="/app"
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs transition-colors ${
-                location.pathname === '/app'
-                  ? 'text-[#F5F0E8] bg-[#171614]'
-                  : 'text-[#9B9590] hover:text-[#F5F0E8]'
-              }`}
-            >
-              <Sparkles size={14} />
-              <span className="hidden md:inline">Chat</span>
-            </Link>
-            <Link
               to="/app/dashboard"
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs transition-colors ${
                 location.pathname.startsWith('/app/dashboard')
@@ -196,6 +185,17 @@ export default function AppBar() {
               <span className="hidden md:inline">Reports</span>
             </Link>
 
+            <Link
+              to="/app/actions"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs transition-colors ${
+                location.pathname.startsWith('/app/actions')
+                  ? 'text-[#F5F0E8] bg-[#171614]'
+                  : 'text-[#9B9590] hover:text-[#F5F0E8]'
+              }`}
+            >
+              <ListChecks size={14} />
+              <span className="hidden md:inline">Actions</span>
+            </Link>
             <Link
               to="/app/ads"
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs transition-colors ${
