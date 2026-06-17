@@ -270,8 +270,32 @@ Rules:
   };
 }
 
+function campaignGeneratePlugin() {
+  return {
+    name: 'campaign-generate-proxy',
+    configureServer(server) {
+      server.middlewares.use('/api/campaign/generate', async (req, res, next) => {
+        if (req.method !== 'POST') return next();
+
+        let body = '';
+        for await (const chunk of req) body += chunk;
+        let parsed;
+        try { parsed = JSON.parse(body); }
+        catch { res.writeHead(400); res.end('Invalid JSON'); return; }
+
+        req.body = parsed;
+        // Disable Nagle for SSE
+        if (res.socket) res.socket.setNoDelay(true);
+
+        const handler = (await import('./api/campaign/generate.js')).default;
+        await handler(req, res);
+      });
+    },
+  };
+}
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   Object.assign(process.env, env);
-  return { plugins: [react(), tailwindcss(), sheetProxyPlugin(), claudeApiPlugin()] };
+  return { plugins: [react(), tailwindcss(), sheetProxyPlugin(), claudeApiPlugin(), campaignGeneratePlugin()] };
 });
