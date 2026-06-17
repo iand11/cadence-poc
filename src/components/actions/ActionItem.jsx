@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Check, X, RotateCcw, ChevronRight, Sparkles, Pencil, Plus, Trash2, BookmarkMinus } from 'lucide-react';
+import { Check, X, RotateCcw, ChevronRight, Sparkles, Pencil, Plus, Trash2, BookmarkMinus, Calendar } from 'lucide-react';
 import Badge from '../shared/Badge';
 import { DATA_TYPE_LABELS, PLATFORM_LABELS } from '../../data/actions';
 import { PLATFORM_COLORS } from '../../constants/colors';
@@ -152,6 +152,14 @@ export default function ActionItem({ item, onComplete, onIgnore, onRestore, onDe
             {item.source === 'ai' && (
               <span className="text-[10px] font-mono text-[#DA7756]">AI</span>
             )}
+            {item.dueDate && !archived && (
+              <span className={`flex items-center gap-0.5 text-[9px] font-mono ml-auto ${
+                item.dueDate < new Date().toISOString().split('T')[0] ? 'text-[#C75F4F]' : 'text-[#6B6560]'
+              }`}>
+                <Calendar size={8} />
+                {new Date(item.dueDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              </span>
+            )}
           </div>
 
           {/* Action headline — editable */}
@@ -250,6 +258,30 @@ export default function ActionItem({ item, onComplete, onIgnore, onRestore, onDe
                     />
                   ) : (
                     <p>{item.text}</p>
+                  )}
+                </div>
+              )}
+
+              {/* Due date */}
+              {onEditAction && (
+                <div className="flex items-center gap-2 mb-3">
+                  <Calendar size={10} className="text-[#6B6560]" />
+                  <label className="text-[9px] font-mono text-[#6B6560]">Due</label>
+                  <input
+                    type="date"
+                    value={item.dueDate || ''}
+                    onChange={e => onEditAction(item.id, 'dueDate', e.target.value || null)}
+                    onClick={e => e.stopPropagation()}
+                    className="bg-[#0D0C0B] border border-[#2C2B28] rounded px-2 py-0.5 text-[10px] font-mono text-[#F5F0E8] outline-none focus:border-[#DA7756]/40 transition-colors [color-scheme:dark]"
+                  />
+                  {item.dueDate && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onEditAction(item.id, 'dueDate', null); }}
+                      className="text-[#6B6560] hover:text-[#C75F4F] transition-colors cursor-pointer"
+                      title="Clear date"
+                    >
+                      <X size={10} />
+                    </button>
                   )}
                 </div>
               )}

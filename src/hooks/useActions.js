@@ -45,6 +45,7 @@ export function useActions() {
         ...a,
         action: actionEdits.action ?? a.action,
         text: actionEdits.text ?? a.text,
+        dueDate: actionEdits.dueDate ?? a.dueDate ?? null,
         status: stored.statuses[a.id] || 'active',
         selected: !!stored.selected[a.id],
         steps: [
