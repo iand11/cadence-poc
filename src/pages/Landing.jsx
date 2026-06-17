@@ -444,7 +444,7 @@ export default function Landing() {
             transition={{ duration: 0.6, delay: 0.7 }}
             className="text-lg sm:text-xl text-[#9B9590] max-w-2xl mx-auto leading-relaxed mb-12"
           >
-            Branded artist sheets, streaming analytics, and AI-powered insights — built for A&R teams, managers, and label executives.
+            Branded artist sheets, real-time analytics, and AI-powered insights and marketing — built for artists, A&R teams, managers, and label executives.
           </motion.p>
 
           {/* CTAs */}
