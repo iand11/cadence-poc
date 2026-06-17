@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router';
 import { motion } from 'motion/react';
 import { X, Search, Music, Loader2, Heart, Eye, CheckCircle, Play, Plus, ChevronDown, Image, Link2, Upload, FileAudio, FileVideo, Trash2 } from 'lucide-react';
 import { PLATFORM_OBJECTIVES, PLATFORM_CONSTRAINTS, PLATFORM_LABELS, CREATIVE_TYPES } from '../../data/directives';
@@ -82,6 +83,7 @@ function FileUploadField({ label, accept, file, onChange, onClear, icon: Icon = 
 }
 
 export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, onAcceptAllocation, initialData, connectedPlatforms, launchMode, launchProgress }) {
+  const navigate = useNavigate();
   const editing = !!initialData?.id;
 
   const [platform, setPlatform] = useState(initialData?.platform || connectedPlatforms?.[0] || 'spotify');
@@ -385,8 +387,8 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
 
   const handleSave = async () => {
     if (!canSave) return;
-    onSave(await buildDirective());
-    if (!launchMode) onClose();
+    const d = await buildDirective();
+    onSave(d);
   };
 
   const handleSubmit = async () => {
@@ -394,7 +396,6 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
     const d = await buildDirective();
     d.status = 'pending_approval';
     onSubmit(d);
-    if (!launchMode) onClose();
   };
 
   const toggleLocation = (code) => {
@@ -804,72 +805,124 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
                   </div>
                 ) : (
                 <div className="space-y-3 bg-[#0D0C0B] border border-[#2C2B28] rounded-lg p-3">
-                  <div>
-                    <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">Headline</label>
-                    <input
-                      value={headline}
-                      onChange={e => setHeadline(e.target.value)}
-                      placeholder={`Listen to ${selectedArtist?.name || artistSlug}`}
-                      className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">Description</label>
-                    <input
-                      value={description}
-                      onChange={e => setDescription(e.target.value)}
-                      placeholder={`Discover ${selectedArtist?.name || artistSlug}'s latest music`}
-                      className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">
-                      <span className="flex items-center gap-1"><Image size={9} /> Image URL</span>
-                    </label>
-                    <input
-                      value={imageUrl}
-                      onChange={e => setImageUrl(e.target.value)}
-                      placeholder="https://..."
-                      className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none font-mono"
-                    />
-                    {!imageUrl && selectedArtist?.imageUrl && (
-                      <button
-                        onClick={() => setImageUrl(selectedArtist.imageUrl)}
-                        className="text-[9px] text-[#DA7756] hover:text-[#DA7756]/80 mt-1 cursor-pointer"
-                      >
-                        Use artist image
-                      </button>
-                    )}
-                  </div>
-                  <div>
-                    <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">
-                      <span className="flex items-center gap-1"><Link2 size={9} /> Destination URL</span>
-                    </label>
-                    <input
-                      value={trackUrl}
-                      onChange={e => setTrackUrl(e.target.value)}
-                      placeholder="https://open.spotify.com/track/..."
-                      className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">Call to Action</label>
-                    <div className="flex gap-1">
-                      {['Listen Now', 'Learn More', 'Watch Now', 'Shop Now'].map(c => (
-                        <button
-                          key={c}
-                          onClick={() => setCta(c)}
-                          className={`text-[9px] font-mono px-2 py-1 rounded border transition-colors cursor-pointer ${
-                            cta === c
-                              ? 'border-[#DA7756]/30 bg-[#DA7756]/10 text-[#F5F0E8]'
-                              : 'border-[#2C2B28] text-[#6B6560] hover:text-[#9B9590]'
-                          }`}
-                        >
-                          {c}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                  {platform === 'x' ? (
+                    /* X (Twitter): promoted tweet */
+                    <>
+                      <div>
+                        <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">Tweet Text <span className="text-[#6B6560]">(280 chars max)</span></label>
+                        <textarea
+                          value={headline}
+                          onChange={e => setHeadline(e.target.value)}
+                          maxLength={280}
+                          rows={3}
+                          placeholder={`🎵 ${selectedArtist?.name || 'Artist'}'s new track just dropped. Stream it now 🔥`}
+                          className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none resize-none"
+                        />
+                        <span className="text-[8px] text-[#6B6560] mt-0.5 block text-right">{(headline || '').length}/280</span>
+                      </div>
+                      <div>
+                        <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">
+                          <span className="flex items-center gap-1"><Image size={9} /> Media URL <span className="text-[#6B6560]">(optional)</span></span>
+                        </label>
+                        <input
+                          value={imageUrl}
+                          onChange={e => setImageUrl(e.target.value)}
+                          placeholder="https://..."
+                          className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none font-mono"
+                        />
+                        {!imageUrl && selectedArtist?.imageUrl && (
+                          <button
+                            onClick={() => setImageUrl(selectedArtist.imageUrl)}
+                            className="text-[9px] text-[#DA7756] hover:text-[#DA7756]/80 mt-1 cursor-pointer"
+                          >
+                            Use artist image
+                          </button>
+                        )}
+                      </div>
+                      <div>
+                        <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">
+                          <span className="flex items-center gap-1"><Link2 size={9} /> Card URL <span className="text-[#6B6560]">(optional)</span></span>
+                        </label>
+                        <input
+                          value={trackUrl}
+                          onChange={e => setTrackUrl(e.target.value)}
+                          placeholder="https://open.spotify.com/track/..."
+                          className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none font-mono"
+                        />
+                        <span className="text-[8px] text-[#6B6560] mt-0.5 block">Link preview card attached to the tweet</span>
+                      </div>
+                    </>
+                  ) : (
+                    /* Meta / TikTok: image or video ad */
+                    <>
+                      <div>
+                        <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">Headline</label>
+                        <input
+                          value={headline}
+                          onChange={e => setHeadline(e.target.value)}
+                          placeholder={`Listen to ${selectedArtist?.name || artistSlug}`}
+                          className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">Description</label>
+                        <input
+                          value={description}
+                          onChange={e => setDescription(e.target.value)}
+                          placeholder={`Discover ${selectedArtist?.name || artistSlug}'s latest music`}
+                          className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">
+                          <span className="flex items-center gap-1"><Image size={9} /> Image URL</span>
+                        </label>
+                        <input
+                          value={imageUrl}
+                          onChange={e => setImageUrl(e.target.value)}
+                          placeholder="https://..."
+                          className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none font-mono"
+                        />
+                        {!imageUrl && selectedArtist?.imageUrl && (
+                          <button
+                            onClick={() => setImageUrl(selectedArtist.imageUrl)}
+                            className="text-[9px] text-[#DA7756] hover:text-[#DA7756]/80 mt-1 cursor-pointer"
+                          >
+                            Use artist image
+                          </button>
+                        )}
+                      </div>
+                      <div>
+                        <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">
+                          <span className="flex items-center gap-1"><Link2 size={9} /> Destination URL</span>
+                        </label>
+                        <input
+                          value={trackUrl}
+                          onChange={e => setTrackUrl(e.target.value)}
+                          placeholder="https://open.spotify.com/track/..."
+                          className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">Call to Action</label>
+                        <div className="flex gap-1">
+                          {['Listen Now', 'Learn More', 'Watch Now', 'Shop Now'].map(c => (
+                            <button
+                              key={c}
+                              onClick={() => setCta(c)}
+                              className={`text-[9px] font-mono px-2 py-1 rounded border transition-colors cursor-pointer ${
+                                cta === c
+                                  ? 'border-[#DA7756]/30 bg-[#DA7756]/10 text-[#F5F0E8]'
+                                  : 'border-[#2C2B28] text-[#6B6560] hover:text-[#9B9590]'
+                              }`}
+                            >
+                              {c}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
                 )
               ) : (

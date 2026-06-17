@@ -80,6 +80,11 @@ export default function AdsPage() {
       createDirective(directive);
     }
     setEditingDirective(null);
+    setBuilderOpen(false);
+    setWizardOpen(false);
+    setWizardArtistSlug(null);
+    setWizardSuggestion(null);
+    setTab('drafts');
   };
 
   const handleSubmit = (directive) => {
@@ -90,6 +95,11 @@ export default function AdsPage() {
       createDirective({ ...directive, status: 'pending_approval' });
     }
     setEditingDirective(null);
+    setBuilderOpen(false);
+    setWizardOpen(false);
+    setWizardArtistSlug(null);
+    setWizardSuggestion(null);
+    setTab('active');
   };
 
   const handleEdit = (directive) => {
@@ -137,6 +147,10 @@ export default function AdsPage() {
       setLaunchFinalized([]);
       setEditingDirective(null);
       setBuilderOpen(false);
+      setWizardOpen(false);
+      setWizardArtistSlug(null);
+      setWizardSuggestion(null);
+      setTab('drafts');
     }
   };
 
