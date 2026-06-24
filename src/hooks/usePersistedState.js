@@ -5,7 +5,7 @@ import { api } from '../data/api';
  * Hook that persists state to the user_data DB table, with localStorage fallback.
  * On first load: tries API, falls back to localStorage, migrates localStorage data to API.
  *
- * @param {string} key - Storage key (e.g. 'cadence-favorites')
+ * @param {string} key - Storage key (e.g. 'musicspace-favorites')
  * @param {*} defaultValue - Default value if nothing is stored
  * @returns {[value, setValue, { loaded }]}
  */

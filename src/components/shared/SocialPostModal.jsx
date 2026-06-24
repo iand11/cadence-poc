@@ -144,7 +144,7 @@ export default function SocialPostModal({ artistSlug, accentColor = '#DA7756', o
   const handleDownload = useCallback(() => {
     if (!imageUrl || !artist) return;
     const link = document.createElement('a');
-    link.download = `${artist.name.replace(/\s+/g, '_')}_Cadence.png`;
+    link.download = `${artist.name.replace(/\s+/g, '_')}_MusicSpace.png`;
     link.href = imageUrl;
     link.click();
   }, [imageUrl, artist]);
@@ -443,7 +443,7 @@ export default function SocialPostModal({ artistSlug, accentColor = '#DA7756', o
                 fontWeight: 500,
                 color: '#F5F0E8',
               }}>
-                Cadence
+                MusicSpace
               </span>
             </div>
           </div>

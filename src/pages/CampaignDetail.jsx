@@ -154,7 +154,7 @@ export default function CampaignDetail() {
     { name: metrics?.resultLabel || 'Results', value: totals.results, fill: CHART_COLORS[3] },
   ] : [];
 
-  const chatWelcome = `I'm Cadence. I have full context on this ${PLATFORM_LABELS[directive.platform] || directive.platform} ${OBJECTIVE_LABELS[directive.objective] || directive.objective} campaign for ${directive.artistName || directive.artistSlug}. Ask me anything about performance, optimization, or next steps.`;
+  const chatWelcome = `I'm MusicSpace. I have full context on this ${PLATFORM_LABELS[directive.platform] || directive.platform} ${OBJECTIVE_LABELS[directive.objective] || directive.objective} campaign for ${directive.artistName || directive.artistSlug}. Ask me anything about performance, optimization, or next steps.`;
 
   const chatSuggestions = [
     'How is this campaign performing?',

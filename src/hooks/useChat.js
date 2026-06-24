@@ -3,7 +3,7 @@ import { allArtists, getAggregateStats } from '../data/artists';
 
 const welcomeMessage = {
   role: 'ai',
-  text: "Hi, I'm Cadence. I'm tracking 100 artists across all major platforms including Spotify, Apple Music, TikTok, Instagram, and YouTube. Ask me anything about the roster — from breakout signals to tour routing to revenue projections. I can also build custom reports for you.",
+  text: "Hi, I'm MusicSpace. I'm tracking 100 artists across all major platforms including Spotify, Apple Music, TikTok, Instagram, and YouTube. Ask me anything about the roster — from breakout signals to tour routing to revenue projections. I can also build custom reports for you.",
   isStreaming: false,
 };
 
@@ -178,9 +178,9 @@ export function useChat({ onCreateAction } = {}) {
           };
 
           try {
-            const stored = JSON.parse(localStorage.getItem('cadence-reports-v1') || '[]');
+            const stored = JSON.parse(localStorage.getItem('musicspace-reports-v1') || '[]');
             stored.unshift(newReport);
-            localStorage.setItem('cadence-reports-v1', JSON.stringify(stored));
+            localStorage.setItem('musicspace-reports-v1', JSON.stringify(stored));
           } catch { /* ignore */ }
 
           // If no text response, add a message about the report

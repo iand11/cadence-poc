@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 
-const STORAGE_KEY = 'cadence-dashboard-layout-v2';
+const STORAGE_KEY = 'musicspace-dashboard-layout-v2';
 
 const DEFAULT_LAYOUT = [
   { i: 'top-artists',           x: 0, y: 0,  w: 5, h: 8, minW: 4, minH: 6 },

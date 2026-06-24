@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 
-const STORAGE_KEY = 'cadence-sheets-v1';
+const STORAGE_KEY = 'musicspace-sheets-v1';
 
 function load() {
   try {

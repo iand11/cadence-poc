@@ -389,7 +389,7 @@ export default function ActionItem({ item, onComplete, onIgnore, onRestore, onDe
                   className="flex items-center gap-1.5 mt-2 text-[10px] font-mono text-[#DA7756] hover:text-[#F5F0E8] transition-colors cursor-pointer"
                 >
                   <Sparkles size={10} />
-                  Get tailored steps from Cadence
+                  Get tailored steps from MusicSpace
                 </button>
               )}
             </div>

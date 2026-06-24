@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { getTopArtists } from '../data/artists';
 
-const STORAGE_KEY = 'cadence-favorites';
+const STORAGE_KEY = 'musicspace-favorites';
 const DEFAULT_FAVORITES = getTopArtists(7).map(a => a.slug);
 
 function load() {

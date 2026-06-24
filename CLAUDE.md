@@ -16,7 +16,7 @@ The `ANTHROPIC_API_KEY` env var is required for the AI chat feature.
 
 ## Architecture
 
-Cadence is a React 19 + Vite SPA for music industry intelligence. No TypeScript, no database — all data is static JSON processed at build time.
+MusicSpace is a React 19 + Vite SPA for music industry intelligence. No TypeScript, no database — all data is static JSON processed at build time.
 
 ### Data Pipeline
 
@@ -51,7 +51,7 @@ All routes nested under `<App>` (which renders AppBar + Outlet):
 
 - No global state library. Pages manage their own state with `useState` + `useMemo`.
 - List pages follow a consistent pattern: query/filter/sort state → `useMemo` for filtered results → `useMemo` for paginated slice. Filter state **must** be in the `useMemo` dependency array or filters won't work.
-- Persistence via localStorage: reports (`cadence-reports-v1`), favorites, dashboard layout.
+- Persistence via localStorage: reports (`musicspace-reports-v1`), favorites, dashboard layout.
 - Custom hooks: `useChat`, `useReports`, `useFavorites`, `useDashboardLayout`, `useArtistCustomData`, `useSheets`.
 
 ### Styling

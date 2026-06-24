@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 
-const STORAGE_KEY = 'cadence-directives-v2';
+const STORAGE_KEY = 'musicspace-directives-v2';
 
 const SEED_CAMPAIGNS = [
   {

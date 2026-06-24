@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { generateAllActions } from '../data/actions';
 
-const STORAGE_KEY = 'cadence-actions-v1';
+const STORAGE_KEY = 'musicspace-actions-v1';
 
 function load() {
   try {

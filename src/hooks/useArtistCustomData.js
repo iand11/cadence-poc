@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { toCSVUrl, parseCSV } from '../utils/csvParser';
 
-const STORAGE_PREFIX = 'cadence-artist-custom-';
+const STORAGE_PREFIX = 'musicspace-artist-custom-';
 
 const DEFAULT_DATA = {
   bio: '',

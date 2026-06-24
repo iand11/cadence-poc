@@ -5,7 +5,7 @@ import { getIdToken } from '../lib/firebase';
 const DEFAULT_STORED = { applied: [], dismissed: [] };
 
 export function useOptimizations() {
-  const [stored, setStored] = usePersistedState('cadence-optimizations-v1', DEFAULT_STORED);
+  const [stored, setStored] = usePersistedState('musicspace-optimizations-v1', DEFAULT_STORED);
 
   const applied = stored.applied;
   const dismissed = stored.dismissed;

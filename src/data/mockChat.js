@@ -63,5 +63,5 @@ export const suggestedPrompts = [
 // --- Welcome Message ---
 export const welcomeMessage = {
   role: 'ai',
-  text: "Hi, I'm Cadence. I'm tracking 100 artists across all major platforms including Spotify, Apple Music, TikTok, Instagram, and YouTube. What would you like to know?",
+  text: "Hi, I'm MusicSpace. I'm tracking 100 artists across all major platforms including Spotify, Apple Music, TikTok, Instagram, and YouTube. What would you like to know?",
 };

@@ -137,7 +137,7 @@ function Ticker() {
 }
 
 const SHEET_COLOR_SWATCHES = [
-  { hex: '#DA7756', label: 'Cadence' },
+  { hex: '#DA7756', label: 'MusicSpace' },
   { hex: '#4A90D9', label: 'Ocean' },
   { hex: '#7BAF73', label: 'Sage' },
   { hex: '#9B7ED8', label: 'Violet' },
@@ -173,7 +173,7 @@ function MockArtistSheet() {
             <div className="w-2.5 h-2.5 rounded-full bg-[#7BAF73]/40" />
           </div>
           <div className="flex-1 flex justify-center">
-            <div className="px-12 py-1 rounded bg-[#0D0C0B] border border-white/[0.04] text-[9px] font-mono text-[#6B6560]">cadence.app/artist/billie-eilish/sheet</div>
+            <div className="px-12 py-1 rounded bg-[#0D0C0B] border border-white/[0.04] text-[9px] font-mono text-[#6B6560]">musicspace.app/artist/billie-eilish/sheet</div>
           </div>
         </div>
 
@@ -337,9 +337,9 @@ export default function Landing() {
         <div className="max-w-6xl mx-auto px-6 lg:px-10 h-14 flex items-center justify-between">
           <motion.div initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5 }} className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#DA7756] to-[#C75F4F] flex items-center justify-center shadow-lg shadow-[#DA7756]/20">
-              <span className="font-mono text-sm font-bold text-white">C</span>
+              <span className="font-mono text-sm font-bold text-white">M</span>
             </div>
-            <span className="text-sm font-semibold tracking-tight">Cadence</span>
+            <span className="text-sm font-semibold tracking-tight">MusicSpace</span>
           </motion.div>
           <motion.div initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5 }}>
             <Link
@@ -579,7 +579,7 @@ export default function Landing() {
           <div className="space-y-0 divide-y divide-white/[0.04]">
             {[
               { icon: Sheet, accent: '#9B7ED8', title: 'Artist Sheets', body: 'Branded one-pagers for every artist on your roster. Drag blocks, pick colors, edit any field inline, embed Spotify players, and export to PDF — or share a live link with anyone.' },
-              { icon: MessageSquare, accent: '#DA7756', title: 'AI Chat', body: 'Ask anything about your roster in plain English. Cadence answers with live data, renders charts inline, and can build full reports from a single prompt.' },
+              { icon: MessageSquare, accent: '#DA7756', title: 'AI Chat', body: 'Ask anything about your roster in plain English. MusicSpace answers with live data, renders charts inline, and can build full reports from a single prompt.' },
               { icon: BarChart3, accent: '#7BAF73', title: 'Analytics', body: 'Streaming trends, social growth, playlist intelligence, audience geography, and revenue estimates across Spotify, Apple Music, TikTok, YouTube, Instagram, and Shazam.' },
               { icon: FileText, accent: '#4A90D9', title: 'Reports', body: 'Compose reports from 8 widget types. Drag to reorder, select artists, and export. Reports auto-save and can be shared via link.' },
             ].map((f, i) => (
@@ -644,7 +644,7 @@ export default function Landing() {
                 <div className="w-2.5 h-2.5 rounded-full bg-[#7BAF73]/40" />
               </div>
               <div className="flex-1 flex justify-center">
-                <div className="px-12 py-1 rounded bg-[#0D0C0B] border border-white/[0.04] text-[9px] font-mono text-[#6B6560]">cadence.app/reports/artist-comparison</div>
+                <div className="px-12 py-1 rounded bg-[#0D0C0B] border border-white/[0.04] text-[9px] font-mono text-[#6B6560]">musicspace.app/reports/artist-comparison</div>
               </div>
             </div>
 
@@ -769,7 +769,7 @@ export default function Landing() {
               <span className="text-gradient-signal">come alive?</span>
             </h2>
             <p className="text-base text-[#9B9590] mb-12 max-w-md mx-auto leading-relaxed">
-              Join the labels and managers already using Cadence to make smarter, faster decisions.
+              Join the labels and managers already using MusicSpace to make smarter, faster decisions.
             </p>
             <Link
               to="/app"
@@ -783,7 +783,7 @@ export default function Landing() {
               />
               <span className="relative flex items-center gap-2.5">
                 <Sparkles size={16} />
-                Enter Cadence
+                Enter MusicSpace
                 <ArrowRight size={15} className="group-hover:translate-x-1 transition-transform" />
               </span>
             </Link>
@@ -796,11 +796,11 @@ export default function Landing() {
         <div className="max-w-6xl mx-auto px-6 lg:px-10 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="w-6 h-6 rounded-md bg-gradient-to-br from-[#DA7756] to-[#C75F4F] flex items-center justify-center">
-              <span className="font-mono text-[9px] font-bold text-white">C</span>
+              <span className="font-mono text-[9px] font-bold text-white">M</span>
             </div>
-            <span className="text-xs text-[#6B6560]">Cadence</span>
+            <span className="text-xs text-[#6B6560]">MusicSpace</span>
           </div>
-          <span className="text-[10px] text-[#6B6560]">&copy; 2026 Cadence. All rights reserved.</span>
+          <span className="text-[10px] text-[#6B6560]">&copy; 2026 MusicSpace. All rights reserved.</span>
         </div>
       </footer>
     </div>

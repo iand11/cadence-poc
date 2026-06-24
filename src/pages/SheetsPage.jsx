@@ -7,7 +7,7 @@ import { getArtist, searchArtists } from '../data/artists';
 
 function getSheetVisibility(slug) {
   try {
-    const stored = localStorage.getItem('cadence-artist-custom-' + slug);
+    const stored = localStorage.getItem('musicspace-artist-custom-' + slug);
     if (!stored) return 'private';
     const data = JSON.parse(stored);
     return data.visibility || 'private';
@@ -17,7 +17,7 @@ function getSheetVisibility(slug) {
 }
 
 function toggleSheetVisibility(slug) {
-  const key = 'cadence-artist-custom-' + slug;
+  const key = 'musicspace-artist-custom-' + slug;
   try {
     const stored = localStorage.getItem(key);
     const data = stored ? JSON.parse(stored) : {};
