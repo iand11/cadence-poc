@@ -1,10 +1,6 @@
 import { ImageResponse } from '@vercel/og';
 
-export const config = {
-  runtime: 'edge',
-};
-
-export default function handler(req) {
+export default async function handler() {
   return new ImageResponse(
     (
       <div
