@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useLocation } from 'react-router';
 import { motion } from 'motion/react';
 import { ArrowUp, Sparkles } from 'lucide-react';
 import ChatMessage from '../components/ai/ChatMessage';
@@ -9,11 +9,13 @@ import { useActions } from '../hooks/useActions';
 
 export default function Control() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { addCustomAction } = useActions();
   const { messages, state, suggestions, sendMessage, pendingAction, clearAction } = useChat({ onCreateAction: addCustomAction });
   const [input, setInput] = useState('');
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  const sentInitialRef = useRef(false);
 
   const hasConversation = messages.length > 1;
   const welcome = messages[0];
@@ -27,6 +29,17 @@ export default function Control() {
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  // Auto-send a prompt passed via navigation state (e.g. from an artist's AI summary suggestions)
+  useEffect(() => {
+    const prompt = location.state?.prompt;
+    if (prompt && !sentInitialRef.current) {
+      sentInitialRef.current = true;
+      // Clear the state so a refresh or back-nav doesn't re-send it
+      navigate(location.pathname, { replace: true, state: null });
+      sendMessage(prompt);
+    }
+  }, [location, navigate, sendMessage]);
 
   useEffect(() => {
     if (pendingAction?.type === 'navigate') {

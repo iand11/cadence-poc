@@ -1058,7 +1058,7 @@ export default function ArtistSheet() {
         className="flex items-center justify-between px-4 py-3 border-b border-[#2C2B28] hover:bg-[#0D0C0B]/50 transition-colors cursor-pointer shrink-0">
         <div className="flex items-center gap-2">
           <Settings size={13} className="text-[#6B6560]" />
-          <span className="text-xs font-medium text-[#9B9590]">Sheet Settings</span>
+          <span className="text-xs font-medium text-[#9B9590]">Page Settings</span>
         </div>
         <motion.div animate={{ rotate: settingsOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
           <ChevronDown size={13} className="text-[#6B6560]" />
@@ -1227,8 +1227,8 @@ export default function ArtistSheet() {
           <div className="w-16 h-16 rounded-full mx-auto mb-6 flex items-center justify-center" style={{ backgroundColor: `${accentColor}15` }}>
             <Lock size={24} style={{ color: accentColor }} />
           </div>
-          <h2 className="text-xl font-light mb-2" style={{ color: colors.textPrimary }}>This sheet is private</h2>
-          <p className="text-sm mb-6" style={{ color: colors.textSecondary }}>The owner hasn't made this artist sheet public yet.</p>
+          <h2 className="text-xl font-light mb-2" style={{ color: colors.textPrimary }}>This page is private</h2>
+          <p className="text-sm mb-6" style={{ color: colors.textSecondary }}>The owner hasn't made this artist page public yet.</p>
           <button onClick={() => navigate('/app')} className="px-4 py-2 text-sm rounded border cursor-pointer transition-colors" style={{ borderColor: colors.border, color: colors.textSecondary }}>
             Go Home
           </button>
@@ -1266,7 +1266,7 @@ export default function ArtistSheet() {
             onClick={() => updateField('visibility', customData.visibility === 'public' ? 'private' : 'public')}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded border cursor-pointer transition-colors"
             style={{ color: customData.visibility === 'public' ? '#7BAF73' : (sidebarOpen ? '#9B9590' : colors.textSecondary), borderColor: sidebarOpen ? '#2C2B28' : colors.border }}
-            title={customData.visibility === 'public' ? 'Sheet is public — click to make private' : 'Sheet is private — click to make public'}
+            title={customData.visibility === 'public' ? 'Page is public — click to make private' : 'Page is private — click to make public'}
           >
             {customData.visibility === 'public' ? <Globe size={12} /> : <Lock size={12} />}
             {customData.visibility === 'public' ? 'Public' : 'Private'}

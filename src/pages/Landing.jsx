@@ -151,7 +151,7 @@ const SHEET_CAPABILITIES = [
   { icon: Download, label: 'PDF Export', desc: 'One-click export to a polished, print-ready PDF' },
   { icon: Link2, label: 'Shareable Links', desc: 'Generate a public link anyone can view — no login needed' },
   { icon: Eye, label: 'Toggle Blocks', desc: 'Show or hide any section — overview, charts, tracks, geography' },
-  { icon: Music, label: 'Spotify Embed', desc: 'Embed any Spotify artist, album, or track directly in the sheet' },
+  { icon: Music, label: 'Spotify Embed', desc: 'Embed any Spotify artist, album, or track directly in the page' },
 ];
 
 function MockArtistSheet() {
@@ -177,7 +177,7 @@ function MockArtistSheet() {
           </div>
         </div>
 
-        {/* Sheet content */}
+        {/* Page content */}
         <div className="relative">
           {/* Toolbar strip */}
           <div className="flex items-center gap-3 px-5 py-2.5 border-b border-white/[0.04] bg-[#0D0C0B]/50">
@@ -444,7 +444,7 @@ export default function Landing() {
             transition={{ duration: 0.6, delay: 0.7 }}
             className="text-lg sm:text-xl text-[#9B9590] max-w-2xl mx-auto leading-relaxed mb-12"
           >
-            Branded artist sheets, real-time analytics, and AI-powered insights and marketing — built for artists, A&R teams, managers, and label executives.
+            Branded artist pages, real-time analytics, and AI-powered insights and marketing — built for artists, A&R teams, managers, and label executives.
           </motion.p>
 
           {/* CTAs */}
@@ -495,7 +495,7 @@ export default function Landing() {
       {/* ── Live ticker ── */}
       <Ticker />
 
-      {/* ── Artist Sheets showcase ── */}
+      {/* ── Artist Pages showcase ── */}
       <section className="py-20 relative">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-[#9B7ED8]/[0.03] rounded-full blur-[100px] pointer-events-none" />
         <div className="max-w-5xl mx-auto px-6 lg:px-10">
@@ -505,7 +505,7 @@ export default function Landing() {
             viewport={{ once: true }}
             className="text-center mb-4"
           >
-            <span className="text-[10px] font-mono text-[#9B7ED8] uppercase tracking-widest">Artist Sheets</span>
+            <span className="text-[10px] font-mono text-[#9B7ED8] uppercase tracking-widest">Artist Pages</span>
           </motion.div>
           <motion.div
             initial={{ opacity: 0, y: 16 }}
@@ -516,7 +516,7 @@ export default function Landing() {
           >
             <h2 className="font-display text-3xl sm:text-4xl font-light tracking-tight mb-3">Beautiful artist pages, built instantly</h2>
             <p className="text-sm text-[#9B9590] max-w-lg mx-auto leading-relaxed">
-              Every artist gets a branded sheet with live data, editable copy, and one-click export. Customize colors, toggle sections, and share a link — no design tools needed.
+              Every artist gets a branded page with live data, editable copy, and one-click export. Customize colors, toggle sections, and share a link — no design tools needed.
             </p>
           </motion.div>
         </div>
@@ -578,7 +578,7 @@ export default function Landing() {
         <div className="max-w-5xl mx-auto px-6 lg:px-10">
           <div className="space-y-0 divide-y divide-white/[0.04]">
             {[
-              { icon: Sheet, accent: '#9B7ED8', title: 'Artist Sheets', body: 'Branded one-pagers for every artist on your roster. Drag blocks, pick colors, edit any field inline, embed Spotify players, and export to PDF — or share a live link with anyone.' },
+              { icon: Sheet, accent: '#9B7ED8', title: 'Artist Pages', body: 'Branded one-pagers for every artist on your roster. Drag blocks, pick colors, edit any field inline, embed Spotify players, and export to PDF — or share a live link with anyone.' },
               { icon: MessageSquare, accent: '#DA7756', title: 'AI Chat', body: 'Ask anything about your roster in plain English. MusicSpace answers with live data, renders charts inline, and can build full reports from a single prompt.' },
               { icon: BarChart3, accent: '#7BAF73', title: 'Analytics', body: 'Streaming trends, social growth, playlist intelligence, audience geography, and revenue estimates across Spotify, Apple Music, TikTok, YouTube, Instagram, and Shazam.' },
               { icon: FileText, accent: '#4A90D9', title: 'Reports', body: 'Compose reports from 8 widget types. Drag to reorder, select artists, and export. Reports auto-save and can be shared via link.' },

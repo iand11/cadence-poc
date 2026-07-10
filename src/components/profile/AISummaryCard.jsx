@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router';
 import { motion } from 'motion/react';
 import { Sparkles } from 'lucide-react';
 
 export default function AISummaryCard({ summary }) {
+  const navigate = useNavigate();
   const [displayedText, setDisplayedText] = useState('');
   const [done, setDone] = useState(false);
 
@@ -60,7 +62,14 @@ export default function AISummaryCard({ summary }) {
       {summary.suggestions && done && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-wrap gap-2">
           {summary.suggestions.map((s) => (
-            <span key={s} className="text-xs text-[#9B9590] border border-[#2C2B28] rounded px-3 py-1.5 hover:border-[#3D3B37] hover:text-[#F5F0E8] transition-colors cursor-pointer">{s}</span>
+            <button
+              key={s.label}
+              type="button"
+              onClick={() => navigate('/app', { state: { prompt: s.prompt } })}
+              className="text-xs text-[#9B9590] border border-[#2C2B28] rounded px-3 py-1.5 hover:border-[#3D3B37] hover:text-[#F5F0E8] transition-colors cursor-pointer"
+            >
+              {s.label}
+            </button>
           ))}
         </motion.div>
       )}

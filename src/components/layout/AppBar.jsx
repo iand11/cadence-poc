@@ -216,7 +216,7 @@ export default function AppBar() {
               }`}
             >
               <Sheet size={14} />
-              <span className="hidden md:inline">Sheets</span>
+              <span className="hidden md:inline">Pages</span>
             </Link>
 
             {/* Notifications */}

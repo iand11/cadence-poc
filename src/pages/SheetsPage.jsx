@@ -111,9 +111,9 @@ export default function SheetsPage() {
       {/* Header */}
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-light text-[#F5F0E8]">Artist Sheets</h1>
+          <h1 className="text-2xl font-light text-[#F5F0E8]">Artist Pages</h1>
           <p className="text-xs text-[#9B9590] mt-1">
-            {sheets.length} saved sheet{sheets.length !== 1 ? 's' : ''}
+            {sheets.length} saved page{sheets.length !== 1 ? 's' : ''}
           </p>
         </div>
         <button
@@ -121,7 +121,7 @@ export default function SheetsPage() {
           className="flex items-center gap-2 px-4 py-2 bg-[#DA7756]/10 text-[#DA7756] rounded text-sm hover:bg-[#DA7756]/20 transition-colors cursor-pointer border border-[#DA7756]/20"
         >
           <Plus size={14} />
-          New Sheet
+          New Page
         </button>
       </motion.div>
 
@@ -208,13 +208,13 @@ export default function SheetsPage() {
           className="text-center py-24"
         >
           <Sheet size={40} className="mx-auto mb-3 text-[#6B6560] opacity-50" />
-          <p className="text-sm text-[#9B9590] mb-4">No artist sheets yet</p>
+          <p className="text-sm text-[#9B9590] mb-4">No artist pages yet</p>
           <button
             onClick={openSearch}
             className="inline-flex items-center gap-2 px-4 py-2 bg-[#DA7756]/10 text-[#DA7756] rounded text-sm hover:bg-[#DA7756]/20 transition-colors cursor-pointer border border-[#DA7756]/20"
           >
             <Plus size={14} />
-            Create your first sheet
+            Create your first page
           </button>
         </motion.div>
       ) : (
@@ -287,7 +287,7 @@ export default function SheetsPage() {
                     {/* Delete Confirmation */}
                     {isConfirming && (
                       <div className="absolute inset-0 bg-[#171614]/95 backdrop-blur-sm rounded flex items-center justify-center gap-3 z-10">
-                        <span className="text-xs text-[#9B9590]">Delete this sheet?</span>
+                        <span className="text-xs text-[#9B9590]">Delete this page?</span>
                         <button
                           onClick={handleCancelDelete}
                           className="px-2.5 py-1 text-[10px] rounded border border-[#2C2B28] text-[#9B9590] hover:text-[#F5F0E8] transition-colors cursor-pointer"
