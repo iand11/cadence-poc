@@ -156,9 +156,9 @@ export default function ActionSelector({ isOpen, onClose, allActions, alreadySel
       setChecked(new Set());
       setStep('artist');
     } else if (step === 'artist' && dimension !== 'artist') {
+      // Return to the platform/data-type list, keeping the chosen dimension
       setFilterValue(null);
       setStep('dimension');
-      setDimension(null);
     } else {
       setStep('dimension');
       setDimension(null);
@@ -214,19 +214,19 @@ export default function ActionSelector({ isOpen, onClose, allActions, alreadySel
       >
         {/* Header */}
         <div className="flex items-center gap-3 px-5 py-4 border-b border-[#2C2B28] shrink-0">
-          {step !== 'dimension' && (
+          {!(step === 'dimension' && !dimension) && (
             <button onClick={handleBack} className="p-1 text-[#9B9590] hover:text-[#F5F0E8] transition-colors cursor-pointer">
               <ArrowLeft size={16} />
             </button>
           )}
           <div className="flex-1 min-w-0">
             <h3 className="text-sm font-medium text-[#F5F0E8]">
-              {step === 'dimension' && 'Add Actions'}
+              {step === 'dimension' && (dimension === 'platform' ? 'Select Platform' : dimension === 'dataType' ? 'Select Data Type' : 'Add Actions')}
               {step === 'artist' && (dimension === 'artist' ? 'Select Artist' : `Select Artist — ${dimension === 'platform' ? PLATFORM_LABELS[filterValue] || filterValue : DATA_TYPE_LABELS[filterValue] || filterValue}`)}
               {step === 'actions' && (selectedArtist?.name || artistSlug)}
             </h3>
             <p className="text-[10px] text-[#6B6560]">
-              {step === 'dimension' && 'Choose how to browse actions'}
+              {step === 'dimension' && (dimension === 'platform' ? `${platformIndex.length} platforms` : dimension === 'dataType' ? `${dataTypeIndex.length} data types` : 'Choose how to browse actions')}
               {step === 'artist' && `${dimension === 'artist' ? artistIndex.length : artistsForFilter.length} artists available`}
               {step === 'actions' && `${artistActions.length} actions · ${checked.size} selected`}
             </p>
@@ -260,10 +260,10 @@ export default function ActionSelector({ isOpen, onClose, allActions, alreadySel
         {/* Content */}
         <div className="flex-1 overflow-y-auto px-5 py-3">
           {/* Step: Choose Dimension */}
-          {step === 'dimension' && !dimension && (
+          {step === 'dimension' && (
             <div className="space-y-2">
               {/* Dimension buttons */}
-              {!search && (
+              {!search && !dimension && (
                 <div className="grid grid-cols-3 gap-2 mb-4">
                   <button
                     onClick={() => handleDimensionPick('artist')}
