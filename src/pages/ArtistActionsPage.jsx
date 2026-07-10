@@ -5,15 +5,7 @@ import { ArrowLeft, Plus, History, Music } from 'lucide-react';
 import ActionItem from '../components/actions/ActionItem';
 import ActionSelector from '../components/actions/ActionSelector';
 import { useActions } from '../hooks/useActions';
-import { DATA_TYPE_LABELS, PLATFORM_LABELS } from '../data/actions';
-import { PLATFORM_COLORS } from '../constants/colors';
-
-const SEVERITY_OPTIONS = [
-  { key: 'all', label: 'All' },
-  { key: 'warning', label: 'Warnings' },
-  { key: 'info', label: 'Info' },
-  { key: 'success', label: 'Opportunities' },
-];
+import { PRIORITY_LABELS, PRIORITY_COLORS, PRIORITY_ORDER, getPriorityLevel } from '../data/actions';
 
 function FilterPills({ options, value, onChange, label }) {
   return (
@@ -50,24 +42,12 @@ function FilterPills({ options, value, onChange, label }) {
   );
 }
 
-function getFilterOptions(items, dimension) {
-  const seen = new Map();
-  for (const item of items) {
-    let key, label, color;
-    if (dimension === 'platform') {
-      key = item.platform;
-      label = PLATFORM_LABELS[item.platform] || item.platform;
-      color = PLATFORM_COLORS[item.platform] || null;
-    } else if (dimension === 'dataType') {
-      key = item.dataType;
-      label = DATA_TYPE_LABELS[item.dataType] || item.dataType;
-    }
-    if (!seen.has(key)) {
-      seen.set(key, { key, label, color, count: 0 });
-    }
-    seen.get(key).count++;
-  }
-  return Array.from(seen.values()).sort((a, b) => b.count - a.count);
+function getPriorityOptions(items) {
+  const counts = { high: 0, medium: 0, low: 0 };
+  for (const item of items) counts[getPriorityLevel(item)]++;
+  return PRIORITY_ORDER
+    .filter(level => counts[level] > 0)
+    .map(level => ({ key: level, label: PRIORITY_LABELS[level], color: PRIORITY_COLORS[level], count: counts[level] }));
 }
 
 export default function ArtistActionsPage() {
@@ -81,9 +61,7 @@ export default function ArtistActionsPage() {
 
   const [selectorOpen, setSelectorOpen] = useState(false);
   const [showArchive, setShowArchive] = useState(false);
-  const [filterPlatform, setFilterPlatform] = useState(null);
-  const [filterDataType, setFilterDataType] = useState(null);
-  const [filterSeverity, setFilterSeverity] = useState(null);
+  const [filterPriority, setFilterPriority] = useState(null);
 
   // This artist's selected actions
   const artistActions = useMemo(
@@ -98,18 +76,15 @@ export default function ArtistActionsPage() {
   }, [actions, artistSlug]);
 
   // Filter options
-  const platformOptions = useMemo(() => getFilterOptions(artistActions, 'platform'), [artistActions]);
-  const dataTypeOptions = useMemo(() => getFilterOptions(artistActions, 'dataType'), [artistActions]);
+  const priorityOptions = useMemo(() => getPriorityOptions(artistActions), [artistActions]);
 
-  const hasFilters = filterPlatform || filterDataType || filterSeverity;
+  const hasFilters = !!filterPriority;
 
   const filteredActions = useMemo(() => {
     let items = artistActions;
-    if (filterPlatform) items = items.filter(a => a.platform === filterPlatform);
-    if (filterDataType) items = items.filter(a => a.dataType === filterDataType);
-    if (filterSeverity) items = items.filter(a => a.insightType === filterSeverity);
+    if (filterPriority) items = items.filter(a => getPriorityLevel(a) === filterPriority);
     return items;
-  }, [artistActions, filterPlatform, filterDataType, filterSeverity]);
+  }, [artistActions, filterPriority]);
 
   // Archived actions for this artist
   const archivedItems = useMemo(() => {
@@ -127,9 +102,7 @@ export default function ArtistActionsPage() {
   }, [selectedActions, artistSlug]);
 
   const resetFilters = () => {
-    setFilterPlatform(null);
-    setFilterDataType(null);
-    setFilterSeverity(null);
+    setFilterPriority(null);
   };
 
   return (
@@ -182,30 +155,9 @@ export default function ArtistActionsPage() {
       </div>
 
       {/* Filters */}
-      {artistActions.length > 0 && (
+      {artistActions.length > 0 && priorityOptions.length > 1 && (
         <div className="space-y-2 mb-4 p-3 rounded bg-[#171614] border border-[#2C2B28]">
-          {platformOptions.length > 1 && (
-            <FilterPills options={platformOptions} value={filterPlatform} onChange={setFilterPlatform} label="Platform" />
-          )}
-          {dataTypeOptions.length > 1 && (
-            <FilterPills options={dataTypeOptions} value={filterDataType} onChange={setFilterDataType} label="Type" />
-          )}
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[9px] font-mono uppercase tracking-wider text-[#6B6560] shrink-0">Severity</span>
-            {SEVERITY_OPTIONS.map(opt => (
-              <button
-                key={opt.key}
-                onClick={() => setFilterSeverity(opt.key === 'all' ? null : (filterSeverity === opt.key ? null : opt.key))}
-                className={`text-[10px] font-mono px-2 py-1 rounded-full border transition-colors cursor-pointer ${
-                  (opt.key === 'all' && !filterSeverity) || filterSeverity === opt.key
-                    ? 'text-[#DA7756] border-[#DA7756]/30 bg-[#DA7756]/10'
-                    : 'text-[#6B6560] border-[#2C2B28] hover:text-[#9B9590] hover:border-[#3D3B37]'
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
+          <FilterPills options={priorityOptions} value={filterPriority} onChange={setFilterPriority} label="Priority" />
           {hasFilters && (
             <button onClick={resetFilters} className="text-[10px] font-mono text-[#DA7756] hover:text-[#F5F0E8] transition-colors cursor-pointer">
               Clear filters

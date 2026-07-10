@@ -3,8 +3,7 @@ import { Link } from 'react-router';
 import { AnimatePresence, motion } from 'motion/react';
 import { ListChecks, ChevronRight, Plus, Music } from 'lucide-react';
 import ActionItem from './ActionItem';
-import { PLATFORM_LABELS } from '../../data/actions';
-import { PLATFORM_COLORS } from '../../constants/colors';
+import { PRIORITY_LABELS, PRIORITY_COLORS, PRIORITY_ORDER, getPriorityLevel } from '../../data/actions';
 
 export default function ActionCenter({
   selectedActions,
@@ -87,10 +86,12 @@ export default function ActionCenter({
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <AnimatePresence mode="popLayout">
             {artistGroups.map((group, index) => {
-              const warningCount = group.actions.filter(a => a.insightType === 'warning' || a.insightType === 'danger').length;
+              const priorityCounts = { high: 0, medium: 0, low: 0 };
+              group.actions.forEach(a => priorityCounts[getPriorityLevel(a)]++);
+              const highCount = priorityCounts.high;
               const completedStepCount = group.actions.reduce((s, a) => s + (a.steps || []).filter(st => st.completed).length, 0);
               const totalStepCount = group.actions.reduce((s, a) => s + (a.steps || []).length, 0);
-              const platforms = [...new Set(group.actions.map(a => a.platform))].filter(p => p !== 'general' && p !== 'revenue');
+              const priorityTags = PRIORITY_ORDER.filter(level => priorityCounts[level] > 0);
 
               return (
                 <motion.div
@@ -125,11 +126,11 @@ export default function ActionCenter({
                         {group.actions.length} action{group.actions.length !== 1 ? 's' : ''}
                       </div>
 
-                      {/* Warning badge */}
-                      {warningCount > 0 && (
-                        <div className="absolute top-2 left-2 flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-mono bg-black/50 backdrop-blur-sm text-[#DA7756]">
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#DA7756]" />
-                          {warningCount} warning{warningCount !== 1 ? 's' : ''}
+                      {/* High-priority badge */}
+                      {highCount > 0 && (
+                        <div className="absolute top-2 left-2 flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-mono bg-black/50 backdrop-blur-sm" style={{ color: PRIORITY_COLORS.high }}>
+                          <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: PRIORITY_COLORS.high }} />
+                          {highCount} high
                         </div>
                       )}
                     </div>
@@ -140,21 +141,18 @@ export default function ActionCenter({
                         {group.name}
                       </h3>
 
-                      {/* Platform tags */}
-                      {platforms.length > 0 && (
+                      {/* Priority breakdown tags */}
+                      {priorityTags.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-2">
-                          {platforms.slice(0, 4).map(p => (
+                          {priorityTags.map(level => (
                             <span
-                              key={p}
+                              key={level}
                               className="flex items-center gap-1 text-[9px] font-mono bg-[#2C2B28] text-[#9B9590] rounded px-1.5 py-0.5"
                             >
-                              <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: PLATFORM_COLORS[p] || '#9B9590' }} />
-                              {PLATFORM_LABELS[p] || p}
+                              <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: PRIORITY_COLORS[level] }} />
+                              {priorityCounts[level]} {PRIORITY_LABELS[level]}
                             </span>
                           ))}
-                          {platforms.length > 4 && (
-                            <span className="text-[9px] font-mono text-[#6B6560]">+{platforms.length - 4}</span>
-                          )}
                         </div>
                       )}
 

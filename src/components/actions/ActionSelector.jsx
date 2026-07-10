@@ -1,15 +1,20 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { motion } from 'motion/react';
-import { X, Search, ArrowLeft, Check, Users, Monitor, BarChart3, Plus } from 'lucide-react';
+import { X, Search, ArrowLeft, Check, Users, Plus } from 'lucide-react';
 import Badge from '../shared/Badge';
-import { DATA_TYPE_LABELS, PLATFORM_LABELS } from '../../data/actions';
-import { PLATFORM_COLORS } from '../../constants/colors';
+import { PRIORITY_LABELS, getPriorityLevel } from '../../data/actions';
 
 const TYPE_DOTS = {
   warning: '#DA7756',
   danger: '#C75F4F',
   success: '#7BAF73',
   info: '#D4A574',
+};
+
+const PRIORITY_BADGE_VARIANT = {
+  high: 'danger',
+  medium: 'info',
+  low: 'success',
 };
 
 function buildArtistIndex(actions) {
@@ -23,33 +28,9 @@ function buildArtistIndex(actions) {
   return Array.from(map.values()).sort((a, b) => b.count - a.count);
 }
 
-function buildPlatformIndex(actions) {
-  const map = new Map();
-  for (const a of actions) {
-    if (!map.has(a.platform)) {
-      map.set(a.platform, { key: a.platform, label: PLATFORM_LABELS[a.platform] || a.platform, color: PLATFORM_COLORS[a.platform] || null, count: 0 });
-    }
-    map.get(a.platform).count++;
-  }
-  return Array.from(map.values()).sort((a, b) => b.count - a.count);
-}
-
-function buildDataTypeIndex(actions) {
-  const map = new Map();
-  for (const a of actions) {
-    if (!map.has(a.dataType)) {
-      map.set(a.dataType, { key: a.dataType, label: DATA_TYPE_LABELS[a.dataType] || a.dataType, count: 0 });
-    }
-    map.get(a.dataType).count++;
-  }
-  return Array.from(map.values()).sort((a, b) => b.count - a.count);
-}
-
 export default function ActionSelector({ isOpen, onClose, allActions, alreadySelected, onSelect, onCreateCustom, initialArtistSlug }) {
   const hasInitialArtist = !!initialArtistSlug;
-  const [step, setStep] = useState(hasInitialArtist ? 'actions' : 'dimension');
-  const [dimension, setDimension] = useState(hasInitialArtist ? 'artist' : null);
-  const [filterValue, setFilterValue] = useState(null);
+  const [step, setStep] = useState(hasInitialArtist ? 'actions' : 'artist');
   const [artistSlug, setArtistSlug] = useState(initialArtistSlug || null);
   const [search, setSearch] = useState('');
   const [checked, setChecked] = useState(new Set());
@@ -57,18 +38,16 @@ export default function ActionSelector({ isOpen, onClose, allActions, alreadySel
   const [showCustom, setShowCustom] = useState(false);
   const searchRef = useRef(null);
 
-  // Focus search on step changes
+  // Focus search on the artist step
   useEffect(() => {
-    if (isOpen && step !== 'actions') {
+    if (isOpen && step === 'artist') {
       setTimeout(() => searchRef.current?.focus(), 100);
     }
   }, [step, isOpen]);
 
   const resetAndClose = useCallback(() => {
     onClose();
-    setStep(initialArtistSlug ? 'actions' : 'dimension');
-    setDimension(initialArtistSlug ? 'artist' : null);
-    setFilterValue(null);
+    setStep(initialArtistSlug ? 'actions' : 'artist');
     setArtistSlug(initialArtistSlug || null);
     setSearch('');
     setChecked(new Set());
@@ -82,62 +61,20 @@ export default function ActionSelector({ isOpen, onClose, allActions, alreadySel
   const pool = useMemo(() => allActions.filter(a => a.status === 'active' && !alreadySelectedSet.has(a.id)), [allActions, alreadySelectedSet]);
 
   const artistIndex = useMemo(() => buildArtistIndex(pool), [pool]);
-  const platformIndex = useMemo(() => buildPlatformIndex(pool), [pool]);
-  const dataTypeIndex = useMemo(() => buildDataTypeIndex(pool), [pool]);
 
-  // Filtered lists for search
   const searchLower = search.toLowerCase();
-
   const filteredArtists = useMemo(() => {
     if (!search) return artistIndex;
     return artistIndex.filter(a => a.name.toLowerCase().includes(searchLower));
   }, [artistIndex, searchLower, search]);
 
-  const filteredPlatforms = useMemo(() => {
-    if (!search) return platformIndex;
-    return platformIndex.filter(p => p.label.toLowerCase().includes(searchLower));
-  }, [platformIndex, searchLower, search]);
-
-  const filteredDataTypes = useMemo(() => {
-    if (!search) return dataTypeIndex;
-    return dataTypeIndex.filter(d => d.label.toLowerCase().includes(searchLower));
-  }, [dataTypeIndex, searchLower, search]);
-
-  // Actions for the selected artist (filtered by platform/dataType if applicable)
+  // Actions for the selected artist, ordered by priority (high first)
   const artistActions = useMemo(() => {
     if (!artistSlug) return [];
-    let items = pool.filter(a => a.artistSlug === artistSlug);
-    if (dimension === 'platform' && filterValue) items = items.filter(a => a.platform === filterValue);
-    if (dimension === 'dataType' && filterValue) items = items.filter(a => a.dataType === filterValue);
-    return items;
-  }, [pool, artistSlug, dimension, filterValue]);
-
-  // Artists filtered for step 2 (when platform or dataType selected)
-  const artistsForFilter = useMemo(() => {
-    if (!filterValue) return [];
-    const filtered = dimension === 'platform'
-      ? pool.filter(a => a.platform === filterValue)
-      : pool.filter(a => a.dataType === filterValue);
-    return buildArtistIndex(filtered);
-  }, [pool, filterValue, dimension]);
+    return pool.filter(a => a.artistSlug === artistSlug);
+  }, [pool, artistSlug]);
 
   const selectedArtist = artistIndex.find(a => a.slug === artistSlug);
-
-  const handleDimensionPick = (dim) => {
-    setDimension(dim);
-    setSearch('');
-    if (dim === 'artist') {
-      setStep('artist');
-    } else {
-      setStep('dimension');
-    }
-  };
-
-  const handleFilterPick = (key) => {
-    setFilterValue(key);
-    setSearch('');
-    setStep('artist');
-  };
 
   const handleArtistPick = (slug) => {
     setArtistSlug(slug);
@@ -155,13 +92,6 @@ export default function ActionSelector({ isOpen, onClose, allActions, alreadySel
       setArtistSlug(null);
       setChecked(new Set());
       setStep('artist');
-    } else if (step === 'artist' && dimension !== 'artist') {
-      // Return to the platform/data-type list, keeping the chosen dimension
-      setFilterValue(null);
-      setStep('dimension');
-    } else {
-      setStep('dimension');
-      setDimension(null);
     }
     setSearch('');
   };
@@ -214,20 +144,18 @@ export default function ActionSelector({ isOpen, onClose, allActions, alreadySel
       >
         {/* Header */}
         <div className="flex items-center gap-3 px-5 py-4 border-b border-[#2C2B28] shrink-0">
-          {!(step === 'dimension' && !dimension) && (
+          {step === 'actions' && (
             <button onClick={handleBack} className="p-1 text-[#9B9590] hover:text-[#F5F0E8] transition-colors cursor-pointer">
               <ArrowLeft size={16} />
             </button>
           )}
           <div className="flex-1 min-w-0">
             <h3 className="text-sm font-medium text-[#F5F0E8]">
-              {step === 'dimension' && (dimension === 'platform' ? 'Select Platform' : dimension === 'dataType' ? 'Select Data Type' : 'Add Actions')}
-              {step === 'artist' && (dimension === 'artist' ? 'Select Artist' : `Select Artist — ${dimension === 'platform' ? PLATFORM_LABELS[filterValue] || filterValue : DATA_TYPE_LABELS[filterValue] || filterValue}`)}
+              {step === 'artist' && 'Add Actions'}
               {step === 'actions' && (selectedArtist?.name || artistSlug)}
             </h3>
             <p className="text-[10px] text-[#6B6560]">
-              {step === 'dimension' && (dimension === 'platform' ? `${platformIndex.length} platforms` : dimension === 'dataType' ? `${dataTypeIndex.length} data types` : 'Choose how to browse actions')}
-              {step === 'artist' && `${dimension === 'artist' ? artistIndex.length : artistsForFilter.length} artists available`}
+              {step === 'artist' && `Select an artist · ${artistIndex.length} available`}
               {step === 'actions' && `${artistActions.length} actions · ${checked.size} selected`}
             </p>
           </div>
@@ -236,8 +164,8 @@ export default function ActionSelector({ isOpen, onClose, allActions, alreadySel
           </button>
         </div>
 
-        {/* Search (shown in dimension and artist steps) */}
-        {step !== 'actions' && (
+        {/* Search (artist step only) */}
+        {step === 'artist' && (
           <div className="px-5 py-3 border-b border-[#2C2B28] shrink-0">
             <div className="flex items-center gap-2 bg-[#0D0C0B] border border-[#2C2B28] rounded px-3 py-2">
               <Search size={14} className="text-[#6B6560] shrink-0" />
@@ -245,7 +173,7 @@ export default function ActionSelector({ isOpen, onClose, allActions, alreadySel
                 ref={searchRef}
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                placeholder={step === 'dimension' ? 'Search artists, platforms, data types...' : 'Search artists...'}
+                placeholder="Search artists..."
                 className="flex-1 bg-transparent text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none"
               />
               {search && (
@@ -259,141 +187,10 @@ export default function ActionSelector({ isOpen, onClose, allActions, alreadySel
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto px-5 py-3">
-          {/* Step: Choose Dimension */}
-          {step === 'dimension' && (
-            <div className="space-y-2">
-              {/* Dimension buttons */}
-              {!search && !dimension && (
-                <div className="grid grid-cols-3 gap-2 mb-4">
-                  <button
-                    onClick={() => handleDimensionPick('artist')}
-                    className="flex flex-col items-center gap-2 px-3 py-4 rounded border border-[#2C2B28] hover:border-[#DA7756]/30 hover:bg-[#1C1B18] transition-colors cursor-pointer"
-                  >
-                    <Users size={18} className="text-[#DA7756]" />
-                    <span className="text-[10px] font-mono text-[#F5F0E8]">By Artist</span>
-                    <span className="text-[9px] text-[#6B6560]">{artistIndex.length} artists</span>
-                  </button>
-                  <button
-                    onClick={() => { setDimension('platform'); }}
-                    className="flex flex-col items-center gap-2 px-3 py-4 rounded border border-[#2C2B28] hover:border-[#DA7756]/30 hover:bg-[#1C1B18] transition-colors cursor-pointer"
-                  >
-                    <Monitor size={18} className="text-[#DA7756]" />
-                    <span className="text-[10px] font-mono text-[#F5F0E8]">By Platform</span>
-                    <span className="text-[9px] text-[#6B6560]">{platformIndex.length} platforms</span>
-                  </button>
-                  <button
-                    onClick={() => { setDimension('dataType'); }}
-                    className="flex flex-col items-center gap-2 px-3 py-4 rounded border border-[#2C2B28] hover:border-[#DA7756]/30 hover:bg-[#1C1B18] transition-colors cursor-pointer"
-                  >
-                    <BarChart3 size={18} className="text-[#DA7756]" />
-                    <span className="text-[10px] font-mono text-[#F5F0E8]">By Data Type</span>
-                    <span className="text-[9px] text-[#6B6560]">{dataTypeIndex.length} types</span>
-                  </button>
-                </div>
-              )}
-
-              {/* Search results across all dimensions */}
-              {search && (
-                <>
-                  {filteredArtists.length > 0 && (
-                    <div>
-                      <p className="text-[9px] font-mono uppercase tracking-wider text-[#6B6560] mb-1.5">Artists</p>
-                      {filteredArtists.slice(0, 6).map(a => (
-                        <button
-                          key={a.slug}
-                          onClick={() => { setDimension('artist'); handleArtistPick(a.slug); }}
-                          className="w-full flex items-center gap-3 px-3 py-2 rounded hover:bg-[#1C1B18] transition-colors cursor-pointer text-left"
-                        >
-                          {a.imageUrl ? (
-                            <img src={a.imageUrl} alt="" className="w-7 h-7 rounded object-cover shrink-0" />
-                          ) : (
-                            <div className="w-7 h-7 rounded bg-[#2C2B28] flex items-center justify-center shrink-0">
-                              <Users size={11} className="text-[#6B6560]" />
-                            </div>
-                          )}
-                          <span className="text-xs text-[#F5F0E8] flex-1 truncate">{a.name}</span>
-                          <span className="text-[10px] font-mono text-[#6B6560]">{a.count}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  {filteredPlatforms.length > 0 && (
-                    <div>
-                      <p className="text-[9px] font-mono uppercase tracking-wider text-[#6B6560] mb-1.5 mt-3">Platforms</p>
-                      {filteredPlatforms.map(p => (
-                        <button
-                          key={p.key}
-                          onClick={() => { setDimension('platform'); handleFilterPick(p.key); }}
-                          className="w-full flex items-center gap-3 px-3 py-2 rounded hover:bg-[#1C1B18] transition-colors cursor-pointer text-left"
-                        >
-                          {p.color && <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: p.color }} />}
-                          <span className="text-xs text-[#F5F0E8] flex-1">{p.label}</span>
-                          <span className="text-[10px] font-mono text-[#6B6560]">{p.count}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  {filteredDataTypes.length > 0 && (
-                    <div>
-                      <p className="text-[9px] font-mono uppercase tracking-wider text-[#6B6560] mb-1.5 mt-3">Data Types</p>
-                      {filteredDataTypes.map(d => (
-                        <button
-                          key={d.key}
-                          onClick={() => { setDimension('dataType'); handleFilterPick(d.key); }}
-                          className="w-full flex items-center gap-3 px-3 py-2 rounded hover:bg-[#1C1B18] transition-colors cursor-pointer text-left"
-                        >
-                          <span className="text-xs text-[#F5F0E8] flex-1">{d.label}</span>
-                          <span className="text-[10px] font-mono text-[#6B6560]">{d.count}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  {filteredArtists.length === 0 && filteredPlatforms.length === 0 && filteredDataTypes.length === 0 && (
-                    <p className="text-xs text-[#6B6560] text-center py-8">No results for "{search}"</p>
-                  )}
-                </>
-              )}
-
-              {/* Show platform/dataType list when dimension is selected but no filter yet */}
-              {!search && dimension === 'platform' && (
-                <div>
-                  <p className="text-[9px] font-mono uppercase tracking-wider text-[#6B6560] mb-2">Select a platform</p>
-                  {platformIndex.map(p => (
-                    <button
-                      key={p.key}
-                      onClick={() => handleFilterPick(p.key)}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded hover:bg-[#1C1B18] transition-colors cursor-pointer text-left"
-                    >
-                      {p.color && <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: p.color }} />}
-                      <span className="text-xs text-[#F5F0E8] flex-1">{p.label}</span>
-                      <span className="text-[10px] font-mono text-[#6B6560]">{p.count} actions</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {!search && dimension === 'dataType' && (
-                <div>
-                  <p className="text-[9px] font-mono uppercase tracking-wider text-[#6B6560] mb-2">Select a data type</p>
-                  {dataTypeIndex.map(d => (
-                    <button
-                      key={d.key}
-                      onClick={() => handleFilterPick(d.key)}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded hover:bg-[#1C1B18] transition-colors cursor-pointer text-left"
-                    >
-                      <span className="text-xs text-[#F5F0E8] flex-1">{d.label}</span>
-                      <span className="text-[10px] font-mono text-[#6B6560]">{d.count} actions</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
           {/* Step: Select Artist */}
           {step === 'artist' && (
             <div className="space-y-0.5">
-              {(dimension === 'artist' ? filteredArtists : (search ? artistsForFilter.filter(a => a.name.toLowerCase().includes(searchLower)) : artistsForFilter)).map(a => (
+              {filteredArtists.map(a => (
                 <button
                   key={a.slug}
                   onClick={() => handleArtistPick(a.slug)}
@@ -412,7 +209,7 @@ export default function ActionSelector({ isOpen, onClose, allActions, alreadySel
                   <span className="text-[10px] font-mono text-[#6B6560] shrink-0">{a.count} actions</span>
                 </button>
               ))}
-              {dimension === 'artist' && filteredArtists.length === 0 && (
+              {filteredArtists.length === 0 && (
                 <p className="text-xs text-[#6B6560] text-center py-8">No artists found</p>
               )}
             </div>
@@ -434,42 +231,40 @@ export default function ActionSelector({ isOpen, onClose, allActions, alreadySel
               </div>
 
               {/* Action checkboxes */}
-              {artistActions.map(action => (
-                <button
-                  key={action.id}
-                  onClick={() => toggleCheck(action.id)}
-                  className={`w-full flex items-start gap-3 px-3 py-2.5 rounded border text-left transition-colors cursor-pointer ${
-                    checked.has(action.id)
-                      ? 'border-[#DA7756]/30 bg-[#DA7756]/5'
-                      : 'border-[#2C2B28] hover:border-[#3D3B37]'
-                  }`}
-                >
-                  <div className={`w-4 h-4 mt-0.5 rounded border shrink-0 flex items-center justify-center transition-colors ${
-                    checked.has(action.id)
-                      ? 'bg-[#DA7756] border-[#DA7756]'
-                      : 'border-[#3D3B37]'
-                  }`}>
-                    {checked.has(action.id) && <Check size={10} className="text-[#0D0C0B]" />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: TYPE_DOTS[action.insightType] || TYPE_DOTS.info }} />
-                      <Badge variant={action.insightType === 'warning' ? 'warning' : action.insightType === 'success' ? 'success' : 'info'}>
-                        {DATA_TYPE_LABELS[action.dataType] || action.dataType}
-                      </Badge>
-                      {action.platform !== 'general' && action.platform !== 'revenue' && (
-                        <span className="text-[9px] font-mono text-[#6B6560]">
-                          {PLATFORM_LABELS[action.platform] || action.platform}
-                        </span>
+              {artistActions.map(action => {
+                const level = getPriorityLevel(action);
+                return (
+                  <button
+                    key={action.id}
+                    onClick={() => toggleCheck(action.id)}
+                    className={`w-full flex items-start gap-3 px-3 py-2.5 rounded border text-left transition-colors cursor-pointer ${
+                      checked.has(action.id)
+                        ? 'border-[#DA7756]/30 bg-[#DA7756]/5'
+                        : 'border-[#2C2B28] hover:border-[#3D3B37]'
+                    }`}
+                  >
+                    <div className={`w-4 h-4 mt-0.5 rounded border shrink-0 flex items-center justify-center transition-colors ${
+                      checked.has(action.id)
+                        ? 'bg-[#DA7756] border-[#DA7756]'
+                        : 'border-[#3D3B37]'
+                    }`}>
+                      {checked.has(action.id) && <Check size={10} className="text-[#0D0C0B]" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: TYPE_DOTS[action.insightType] || TYPE_DOTS.info }} />
+                        <Badge variant={PRIORITY_BADGE_VARIANT[level]}>
+                          {PRIORITY_LABELS[level]} priority
+                        </Badge>
+                      </div>
+                      <p className="text-[11px] text-[#F5F0E8] leading-relaxed">{action.action}</p>
+                      {action.text && (
+                        <p className="text-[10px] text-[#6B6560] leading-relaxed mt-0.5 line-clamp-1">{action.text}</p>
                       )}
                     </div>
-                    <p className="text-[11px] text-[#F5F0E8] leading-relaxed">{action.action}</p>
-                    {action.text && (
-                      <p className="text-[10px] text-[#6B6560] leading-relaxed mt-0.5 line-clamp-1">{action.text}</p>
-                    )}
-                  </div>
-                </button>
-              ))}
+                  </button>
+                );
+              })}
 
               {artistActions.length === 0 && (
                 <p className="text-xs text-[#6B6560] text-center py-8">No available actions for this artist</p>

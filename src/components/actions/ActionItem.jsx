@@ -2,9 +2,14 @@ import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Check, X, RotateCcw, ChevronRight, Sparkles, Pencil, Plus, Trash2, BookmarkMinus, Calendar } from 'lucide-react';
 import Badge from '../shared/Badge';
-import { DATA_TYPE_LABELS, PLATFORM_LABELS } from '../../data/actions';
-import { PLATFORM_COLORS } from '../../constants/colors';
+import { PRIORITY_LABELS, getPriorityLevel } from '../../data/actions';
 import { STEP_CATEGORY_LABELS, STEP_CATEGORY_COLORS } from '../../data/actionSteps';
+
+const PRIORITY_BADGE_VARIANT = {
+  high: 'danger',
+  medium: 'info',
+  low: 'success',
+};
 
 const TYPE_BORDERS = {
   success: '#7BAF73',
@@ -88,7 +93,7 @@ export default function ActionItem({ item, onComplete, onIgnore, onRestore, onDe
 
   const borderColor = TYPE_BORDERS[item.insightType] || TYPE_BORDERS.info;
   const bgColor = TYPE_BGS[item.insightType] || TYPE_BGS.info;
-  const platformColor = PLATFORM_COLORS[item.platform] || '#9B9590';
+  const priorityLevel = getPriorityLevel(item);
 
   const steps = item.steps || [];
   const completedCount = steps.filter(s => s.completed).length;
@@ -140,15 +145,9 @@ export default function ActionItem({ item, onComplete, onIgnore, onRestore, onDe
                 {item.artistName}
               </span>
             )}
-            <Badge variant={item.insightType === 'warning' ? 'warning' : item.insightType === 'success' ? 'success' : 'info'}>
-              {DATA_TYPE_LABELS[item.dataType] || item.dataType}
+            <Badge variant={PRIORITY_BADGE_VARIANT[priorityLevel]}>
+              {PRIORITY_LABELS[priorityLevel]} priority
             </Badge>
-            {item.platform !== 'general' && item.platform !== 'revenue' && (
-              <span className="flex items-center gap-1 text-[10px] font-mono text-[#9B9590]">
-                <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ backgroundColor: platformColor }} />
-                {PLATFORM_LABELS[item.platform] || item.platform}
-              </span>
-            )}
             {item.source === 'ai' && (
               <span className="text-[10px] font-mono text-[#DA7756]">AI</span>
             )}
