@@ -482,13 +482,13 @@ function PitchContent({ data }) {
                 <Mail size={15} />
                 {PITCH.contact.email}
               </a>
-              <Link
+              {/* <Link
                 to="/app"
                 className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl border border-white/[0.1] text-sm text-[#F5F0E8] hover:bg-white/[0.03] transition-colors"
               >
                 Explore the live app
                 <ArrowUpRight size={15} />
-              </Link>
+              </Link> */}
             </div>
           </motion.div>
         </div>
