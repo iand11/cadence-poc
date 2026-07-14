@@ -294,8 +294,25 @@ function campaignGeneratePlugin() {
   };
 }
 
+function pitchAuthPlugin() {
+  return {
+    name: 'pitch-auth-proxy',
+    configureServer(server) {
+      server.middlewares.use('/api/pitch', async (req, res) => {
+        if (req.method === 'POST') {
+          let body = '';
+          for await (const chunk of req) body += chunk;
+          try { req.body = JSON.parse(body || '{}'); } catch { req.body = {}; }
+        }
+        const handler = (await import('./api/pitch.js')).default;
+        await handler(req, res);
+      });
+    },
+  };
+}
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   Object.assign(process.env, env);
-  return { plugins: [react(), tailwindcss(), sheetProxyPlugin(), claudeApiPlugin(), campaignGeneratePlugin()] };
+  return { plugins: [react(), tailwindcss(), sheetProxyPlugin(), claudeApiPlugin(), campaignGeneratePlugin(), pitchAuthPlugin()] };
 });
