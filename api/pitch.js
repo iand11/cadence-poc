@@ -138,7 +138,7 @@ const PITCH_DATA = {
 
 const COOKIE_NAME = 'ms_pitch';
 const MAX_AGE_SECONDS = 60 * 60 * 12; // 12 hours
-const SESSION_SECRET = process.env.PITCH_SESSION_SECRET || 'dev-insecure-secret-change-me';
+const SESSION_SECRET = process.env.PITCH_SESSION_SECRET || 'dev-change-me';
 
 function sign(payload) {
   const data = Buffer.from(JSON.stringify(payload)).toString('base64url');
