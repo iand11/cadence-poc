@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router';
 import { motion } from 'motion/react';
 import {
-  Play, ArrowRight, ArrowUpRight, Sparkles, Megaphone, Target, Mail, Lock,
+  Play, ArrowRight, Sparkles, Megaphone, Target, Mail, Lock,
   BarChart3, MessageSquare, Sheet, ListChecks, FileText, TrendingUp, Zap, Globe,
   ClipboardList, Rocket, Activity, Shuffle,
 } from 'lucide-react';
