@@ -99,7 +99,7 @@ export default function AppGate({ children }) {
       <div className="w-12 h-12 rounded-full bg-[#171614] border border-white/[0.06] flex items-center justify-center mx-auto mb-5">
         <Lock size={18} className="text-[#DA7756]" />
       </div>
-      <h1 className="font-display text-2xl font-light tracking-tight mb-2">Private prototype</h1>
+      {/* <h1 className="font-display text-2xl font-light tracking-tight mb-2">Private prototype</h1> */}
       <p className="text-[13px] text-[#9B9590] mb-7">Enter the access password to continue.</p>
 
       <form onSubmit={submit} className="space-y-3">
