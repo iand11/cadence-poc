@@ -37,11 +37,11 @@ const PITCH_DATA = {
   },
 
   problem: {
-    heading: 'Music teams fly blind across a dozen dashboards',
+    heading: 'Navigating the Global Music Ecosystem is Diverse, Dynamic, and Hyper-Complex',
     points: [
-      { title: 'Data is scattered', body: 'Spotify, Apple Music, TikTok, YouTube, Instagram, Shazam — every platform is its own login, export, and spreadsheet. Nobody has one view of the roster.' },
-      { title: 'Insight is manual', body: 'Analysts stitch CSVs together by hand. By the time a breakout or a churn signal surfaces, the moment to act on it has usually passed.' },
-      { title: 'Action is disconnected', body: 'The tools that hold the data can’t launch a campaign, brief a manager, or produce a shareable one-pager. Strategy lives in decks and DMs.' },
+      { title: 'A Borderless Market', body: 'Music is inherently global. Today, location is irrelevant; artists must approach their careers and growth with a worldwide perspective because audiences can be cultivated anywhere.' },
+      { title: 'Hyper-Competitive Reality', body: 'With over 100,000 new tracks released daily—a number that continues to climb—simply putting music out is just the starting point. The real challenge lies in cutting through the noise to build an audience and drive meaningful engagement.' },
+      { title: 'Overwhelming Variables', body: 'The modern music ecosystem involves too many moving parts. Gaining a comprehensive, data-driven understanding of your catalog is increasingly complex, and translating those insights into actionable strategies remains a major hurdle.' },
     ],
   },
 
@@ -75,7 +75,7 @@ const PITCH_DATA = {
   whyNow: {
     heading: 'Why now',
     points: [
-      { icon: 'TrendingUp', title: 'Independent is the majority', body: 'Self-releasing and independent artists are the fastest-growing segment of recorded music — and they have no incumbent tooling.' },
+      { icon: 'TrendingUp', title: 'Everyone faces the same challenge', body: 'From self-releasing artists to indie labels to the majors, every tier is drowning in fragmented data and lacks tooling that turns it into action. Independents are the fastest-growing segment — but the pain runs all the way up.' },
       { icon: 'Zap', title: 'AI makes analysis a commodity', body: 'What required a data team a year ago is now a prompt. The winners will be whoever owns the workflow, not just the model.' },
       { icon: 'Globe', title: 'Data has never been more open', body: 'Platform APIs and third-party feeds make a true cross-platform view finally buildable at startup scale.' },
     ],
@@ -102,8 +102,8 @@ const PITCH_DATA = {
   model: {
     heading: 'How we make money',
     tiers: [
-      { name: 'Pro', price: '$40 / mo', body: 'Per-seat for managers and independent artists. Full analytics, AI copilot, and artist pages.' },
-      { name: 'Team', price: '$100 / mo', body: 'Multi-seat for labels and management companies. Shared roster, reports, and campaign tooling.' },
+      { name: 'Pro', price: '$25 / mo', body: 'Per-seat for managers and independent artists. Full analytics, AI copilot, and artist pages.' },
+      { name: 'Team', price: '$50 / mo', body: 'Multi-seat for labels and management companies. Shared roster, reports, and campaign tooling.' },
       { name: 'Enterprise', price: 'Custom', body: 'Distributors and majors. Custom data feeds, SSO, and volume seating.' },
     ],
   },
@@ -122,8 +122,8 @@ const PITCH_DATA = {
     heading: 'Team',
     members: [
       { name: 'Andreas Katsambas', role: 'Co-founder & CEO', image: '/team/andreas.jpg', bio: 'President & COO at Chartmetric · founder of The End Records (acq. BMG)' },
-      { name: 'Ian Driscoll', role: 'Co-founder & CTO', image: '/team/ian.jpg', bio: 'Staff Software Engineer · Multi Platnum Producer | Engineer' },
-      { name: 'Tom Windish', role: 'Co-founder & CPO', image: '/team/tom.jpg', bio: 'EVP at THE•TEAM · 3× Pollstar Agent of the Year nominee' },
+      { name: 'Ian Driscoll', role: 'Co-founder & CTO', image: '/team/ian.jpg', bio: 'Staff Software Engineer · Multi Platinum Producer | Engineer' },
+      { name: 'Tom Windish', role: 'Co-founder & CMO', image: '/team/tom.jpg', bio: 'EVP at THE•TEAM · 3× Pollstar Agent of the Year nominee' },
     ],
   },
 

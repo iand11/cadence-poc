@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Routes, Route } from 'react-router';
 import './index.css';
 import App from './App.jsx';
+import AppGate from './components/AppGate';
 import Landing from './pages/Landing';
 import Pitch from './pages/Pitch';
 import Control from './pages/Control';
@@ -27,6 +28,7 @@ import CampaignDetail from './pages/CampaignDetail';
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrowserRouter>
+      <AppGate>
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/pitch" element={<Pitch />} />
@@ -51,6 +53,7 @@ createRoot(document.getElementById('root')).render(
           <Route path="reports/:id" element={<ReportCenter />} />
         </Route>
       </Routes>
+      </AppGate>
     </BrowserRouter>
   </StrictMode>
 );
