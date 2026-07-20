@@ -109,12 +109,16 @@ export const api = {
     return Promise.resolve();
   },
 
-  getContentFeed({ platform, type, sort = 'recent', artist, limit = 20, offset = 0 } = {}) {
+  getContentFeed({ platform, type, sort = 'recent', artist, artists, limit = 20, offset = 0 } = {}) {
     let items = buildFeed();
 
     if (platform) items = items.filter(i => i.platform === platform);
     if (type) items = items.filter(i => i.contentType === type);
     if (artist) items = items.filter(i => i.artistSlug === artist);
+    else if (artists && artists.length) {
+      const set = new Set(artists);
+      items = items.filter(i => set.has(i.artistSlug));
+    }
 
     if (sort === 'engagement') {
       items = [...items].sort((a, b) =>

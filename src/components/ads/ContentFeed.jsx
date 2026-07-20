@@ -4,6 +4,7 @@ import { Loader2, ChevronLeft, ChevronRight, Zap, Search, X } from 'lucide-react
 import ContentFeedItem from './ContentFeedItem';
 import { api } from '../../data/api';
 import { allArtists } from '../../data/artists';
+import { useFavorites } from '../../hooks/useFavorites';
 import { analyzeBoostPotential, generateBoostRecommendations } from '../../utils/boostDetection';
 import { PLATFORM_COLORS } from '../../constants/colors';
 import LoadingState from '../shared/LoadingState';
@@ -38,6 +39,7 @@ const ADS_PLATFORM_MAP = {
 };
 
 export default function ContentFeed({ onBoost }) {
+  const { favorites } = useFavorites();
   const [items, setItems] = useState([]);
   const [artistAverages, setArtistAverages] = useState({});
   const [total, setTotal] = useState(0);
@@ -46,6 +48,7 @@ export default function ContentFeed({ onBoost }) {
   const [type, setType] = useState(null);
   const [sort, setSort] = useState('recent');
   const [offset, setOffset] = useState(0);
+  const [scope, setScope] = useState('favorites'); // 'favorites' | 'all'
   const [artistFilter, setArtistFilter] = useState(null);
   const [artistQuery, setArtistQuery] = useState('');
   const [artistDropdownOpen, setArtistDropdownOpen] = useState(false);
@@ -65,6 +68,7 @@ export default function ContentFeed({ onBoost }) {
     if (platform) params.platform = platform;
     if (type) params.type = type;
     if (artistFilter) params.artist = artistFilter;
+    else if (scope === 'favorites') params.artists = favorites;
 
     api.getContentFeed(params)
       .then(data => {
@@ -82,12 +86,12 @@ export default function ContentFeed({ onBoost }) {
       });
 
     return () => { cancelled = true; };
-  }, [platform, type, sort, offset, artistFilter]);
+  }, [platform, type, sort, offset, artistFilter, scope, favorites]);
 
   // Reset offset when filters change
   useEffect(() => {
     setOffset(0);
-  }, [platform, type, sort, artistFilter]);
+  }, [platform, type, sort, artistFilter, scope]);
 
   // Boost analysis per item
   const boostMap = useMemo(() => {
@@ -175,6 +179,29 @@ export default function ContentFeed({ onBoost }) {
 
       {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-3">
+        {/* Scope: favorites vs all artists */}
+        <div className="flex items-center gap-0.5 p-0.5 rounded bg-[#0D0C0B] border border-[#2C2B28]">
+          {[
+            { key: 'favorites', label: 'Favorites' },
+            { key: 'all', label: 'All artists' },
+          ].map(s => (
+            <button
+              key={s.key}
+              onClick={() => setScope(s.key)}
+              className={`text-[10px] font-mono px-2.5 py-1 rounded transition-colors cursor-pointer ${
+                scope === s.key
+                  ? 'bg-[#DA7756]/15 text-[#DA7756]'
+                  : 'text-[#6B6560] hover:text-[#9B9590]'
+              }`}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Divider */}
+        <div className="w-px h-4 bg-[#2C2B28]" />
+
         {/* Artist search */}
         <div className="relative">
           {artistFilter ? (
@@ -302,7 +329,11 @@ export default function ContentFeed({ onBoost }) {
       ) : items.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <p className="text-sm text-[#9B9590] mb-1">No content found</p>
-          <p className="text-[11px] text-[#6B6560]">Try adjusting your filters</p>
+          <p className="text-[11px] text-[#6B6560]">
+            {scope === 'favorites' && !artistFilter
+              ? 'No content from your favorite artists — switch to All artists to see more'
+              : 'Try adjusting your filters'}
+          </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
