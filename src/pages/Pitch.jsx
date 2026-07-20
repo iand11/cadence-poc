@@ -66,7 +66,7 @@ function DemoVideo({ video }) {
               controls
               playsInline
               preload="metadata"
-              onLoadedMetadata={(e) => { e.currentTarget.playbackRate = 1.5; }}
+              onLoadedMetadata={(e) => { e.currentTarget.playbackRate = 1.10; }}
               onError={() => setFailed(true)}
             />
           ) : (
@@ -80,7 +80,7 @@ function DemoVideo({ video }) {
               </motion.div>
               <p className="text-sm text-[#F5F0E8] mb-1">Demo video goes here</p>
               <p className="text-[11px] text-[#6B6560] max-w-sm leading-relaxed">
-                Drop a file at <span className="font-mono text-[#9B9590]">/public/demo.mp4</span> (optional poster at{' '}
+                Drop a file at <span className="font-mono text-[#9B9590]">/public/ElevenLabs_demo.mp4</span> (optional poster at{' '}
                 <span className="font-mono text-[#9B9590]">/public/demo-poster.jpg</span>), or point{' '}
                 <span className="font-mono text-[#9B9590]">video.src</span> at a hosted URL.
               </p>
@@ -180,7 +180,7 @@ function PitchContent({ data }) {
         <div className="max-w-5xl mx-auto px-6 lg:px-10">
           <motion.div {...fade} className="text-center mb-8">
             <SectionLabel>See it in action</SectionLabel>
-            <h2 className="font-display text-3xl sm:text-4xl font-light tracking-tight mt-3">The product, in 90 seconds</h2>
+            <h2 className="font-display text-3xl sm:text-4xl font-light tracking-tight mt-3">The product, in 3 minutes</h2>
           </motion.div>
           <motion.div {...fade} transition={{ duration: 0.6, delay: 0.1 }}>
             <DemoVideo video={PITCH.video} />

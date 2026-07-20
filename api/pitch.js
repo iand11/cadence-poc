@@ -31,9 +31,9 @@ const PITCH_DATA = {
   // Demo video — drop a file at /public/demo.mp4 (and optional /public/demo-poster.jpg).
   // Or set `src` to a hosted MP4 URL. Until a file exists, a placeholder is shown.
   video: {
-    src: '/demo.mp4',
+    src: '/ElevenLabs_demo.mp4',
     poster: '/demo-poster.jpg',
-    caption: 'A 90-second walkthrough of MusicSpace in action.',
+    caption: 'A 3-minute walkthrough of MusicSpace in action.',
   },
 
   problem: {
