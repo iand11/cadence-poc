@@ -65,7 +65,7 @@ const DEFAULT_ACCENT = 'DA7756';
 const DEFAULT_BG = '0D0C0B';
 
 const ACCENT_PRESETS = [
-  { hex: 'DA7756', label: 'MusicSpace' }, { hex: '4A90D9', label: 'Ocean' },
+  { hex: 'DA7756', label: 'Prelude' }, { hex: '4A90D9', label: 'Ocean' },
   { hex: '7BAF73', label: 'Sage' },    { hex: 'D4A574', label: 'Sand' },
   { hex: 'C75F4F', label: 'Coral' },   { hex: '9B7ED8', label: 'Violet' },
   { hex: 'E8B960', label: 'Gold' },    { hex: '4ECDC4', label: 'Teal' },
@@ -413,8 +413,8 @@ export default function ArtistSheet() {
         } else { pdf.addImage(dataUrl, 'PNG', m, curY, cw, sh); curY += sh + gap; }
       }
       const np = pdf.getNumberOfPages();
-      for (let i = 1; i <= np; i++) { pdf.setPage(i); pdf.setFontSize(7); pdf.setTextColor(100,100,100); pdf.text('MusicSpace', m, ph - 10); pdf.text(`${i} / ${np}`, pw - m, ph - 10, { align: 'right' }); }
-      pdf.save(`MusicSpace-${artist.name.replace(/\s+/g, '_')}-${new Date().toISOString().split('T')[0]}.pdf`);
+      for (let i = 1; i <= np; i++) { pdf.setPage(i); pdf.setFontSize(7); pdf.setTextColor(100,100,100); pdf.text('Prelude', m, ph - 10); pdf.text(`${i} / ${np}`, pw - m, ph - 10, { align: 'right' }); }
+      pdf.save(`Prelude-${artist.name.replace(/\s+/g, '_')}-${new Date().toISOString().split('T')[0]}.pdf`);
     } catch (err) { console.error('PDF export failed:', err); }
     finally {
       for (const { el, origSrc, hidden } of imgSaved) { if (hidden) { el.style.visibility = el.dataset.pdfHidden || ''; delete el.dataset.pdfHidden; } el.src = origSrc; }

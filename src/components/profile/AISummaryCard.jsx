@@ -34,7 +34,7 @@ export default function AISummaryCard({ summary }) {
         <div className="w-7 h-7 rounded bg-[#DA7756]/10 flex items-center justify-center">
           <Sparkles size={14} className="text-[#DA7756]" />
         </div>
-        <span className="text-xs font-medium text-[#DA7756]">MusicSpace Analysis</span>
+        <span className="text-xs font-medium text-[#DA7756]">Prelude Analysis</span>
       </div>
 
       {/* Summary Text */}

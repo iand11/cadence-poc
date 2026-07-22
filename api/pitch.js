@@ -15,12 +15,12 @@ import crypto from 'node:crypto';
    Set these in `.env` for local dev and in Vercel project settings for prod.
    ────────────────────────────────────────────────────────────────────────── */
 const PITCH_DATA = {
-  company: 'MusicSpace',
+  company: 'Prelude',
 
   eyebrow: 'Investor Overview · Confidential',
   headline: ['The intelligence layer', 'for the music industry'],
   subhead:
-    'MusicSpace unifies streaming, social, and revenue data into one workspace — with AI that turns it into decisions, branded artist pages, and ad campaigns teams actually ship.',
+    'Prelude unifies streaming, social, and revenue data into one workspace — with AI that turns it into decisions, branded artist pages, and ad campaigns teams actually ship.',
 
   raise: {
     stage: 'Seed',
@@ -33,7 +33,7 @@ const PITCH_DATA = {
   video: {
     src: '/ElevenLabs_demo.mp4',
     poster: '/demo-poster.jpg',
-    caption: 'A 3-minute walkthrough of MusicSpace in action.',
+    caption: 'A 3-minute walkthrough of Prelude in action.',
   },
 
   problem: {
@@ -50,7 +50,7 @@ const PITCH_DATA = {
     eyebrow: 'The core IP',
     heading: 'From marketing plan to live campaigns — and back',
     subhead:
-      'Our defensible IP is a closed-loop advertising engine. MusicSpace builds a cross-platform marketing plan, launches it on real ad networks, monitors performance in one place, and reallocates budget toward what’s working — turning data into spend that compounds.',
+      'Our defensible IP is a closed-loop advertising engine. Prelude builds a cross-platform marketing plan, launches it on real ad networks, monitors performance in one place, and reallocates budget toward what’s working — turning data into spend that compounds.',
     steps: [
       { icon: 'ClipboardList', title: 'Plan', body: 'AI turns roster signals into a concrete marketing plan — objective, audience, budget, and creative — tuned for each platform.' },
       { icon: 'Rocket', title: 'Launch', body: 'Push campaigns live across platforms through native ad APIs, with the right objective and creative format per channel.' },
@@ -123,14 +123,14 @@ const PITCH_DATA = {
     members: [
       { name: 'Andreas Katsambas', role: 'Co-founder & CEO', image: '/team/andreas.jpg', bio: 'President & COO at Chartmetric · founder of The End Records (acq. BMG)' },
       { name: 'Ian Driscoll', role: 'Co-founder & CTO', image: '/team/ian.jpg', bio: 'Staff Software Engineer · Multi Platinum Producer | Engineer' },
-      { name: 'Tom Windish', role: 'Co-founder & CMO', image: '/team/tom.jpg', bio: 'EVP at THE•TEAM · 3× Pollstar Agent of the Year nominee' },
+      { name: 'Tom Windish', role: 'Co-founder & CSO', image: '/team/tom.jpg', bio: 'EVP at THE•TEAM · 3× Pollstar Agent of the Year nominee' },
     ],
   },
 
   contact: {
     heading: 'Let’s talk',
     body: 'We’re raising to turn a working product into the default workspace for music teams. If that’s a bet you make, we’d love to walk you through it.',
-    email: 'founders@musicspace.ai', // EDIT
+    email: 'founders@preludemusic.ai', // EDIT
   },
 };
 

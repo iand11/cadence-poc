@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router';
 import { motion } from 'motion/react';
 import {
   Play, ArrowRight, Sparkles, Megaphone, Target, Mail, Lock,
@@ -51,7 +50,7 @@ function DemoVideo({ video }) {
           </div>
           <div className="flex-1 flex justify-center">
             <div className="px-12 py-1 rounded bg-[#0D0C0B] border border-white/[0.04] text-[9px] font-mono text-[#6B6560]">
-              musicspace.ai
+              preludemusic.ai
             </div>
           </div>
         </div>
@@ -102,7 +101,7 @@ function PitchContent({ data }) {
         <div className="max-w-6xl mx-auto px-6 lg:px-10 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded bg-[#DA7756]/15 flex items-center justify-center">
-              <span className="font-mono text-sm font-bold text-[#DA7756]">M</span>
+              <span className="font-mono text-sm font-bold text-[#DA7756]">P</span>
             </div>
             <span className="font-['Epilogue'] text-sm font-medium">{PITCH.company}</span>
           </div>
@@ -498,7 +497,7 @@ function PitchContent({ data }) {
       <footer className="border-t border-white/[0.04] py-8">
         <div className="max-w-6xl mx-auto px-6 lg:px-10 flex flex-col sm:flex-row items-center justify-between gap-3">
           <span className="text-[11px] text-[#6B6560]">© {PITCH.company} · Confidential — for discussion purposes only</span>
-          <span className="text-[11px] text-[#6B6560] font-mono">musicspace.ai</span>
+          <span className="text-[11px] text-[#6B6560] font-mono">preludemusic.ai</span>
         </div>
       </footer>
     </div>
@@ -517,9 +516,9 @@ function GateFrame({ children }) {
       >
         <div className="inline-flex items-center gap-2 mb-8">
           <div className="w-8 h-8 rounded bg-[#DA7756]/15 flex items-center justify-center">
-            <span className="font-mono text-sm font-bold text-[#DA7756]">M</span>
+            <span className="font-mono text-sm font-bold text-[#DA7756]">P</span>
           </div>
-          <span className="font-['Epilogue'] text-sm font-medium">MusicSpace</span>
+          <span className="font-['Epilogue'] text-sm font-medium">Prelude</span>
         </div>
         {children}
       </motion.div>

@@ -1013,7 +1013,7 @@ export default function Dashboard() {
                 <div className="flex items-center justify-between py-2">
                   <div className="flex items-center gap-2">
                     <Sparkles size={12} className="text-[#DA7756]" />
-                    <span className="text-[10px] font-medium text-[#9B9590] uppercase tracking-wider">MusicSpace</span>
+                    <span className="text-[10px] font-medium text-[#9B9590] uppercase tracking-wider">Prelude</span>
                   </div>
                   <button onClick={() => setChatOpen(false)} className="p-1 text-[#6B6560] hover:text-[#9B9590] cursor-pointer">
                     <X size={14} />
@@ -1061,7 +1061,7 @@ export default function Dashboard() {
                 value={chatQuery}
                 onChange={(e) => setChatQuery(e.target.value)}
                 onFocus={() => setChatOpen(true)}
-                placeholder="Ask MusicSpace anything..."
+                placeholder="Ask Prelude anything..."
                 className="flex-1 bg-transparent text-sm text-[#F5F0E8] placeholder-[#6B6560] outline-none"
                 disabled={chatState !== 'idle'}
               />

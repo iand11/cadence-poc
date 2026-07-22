@@ -33,7 +33,7 @@ export default function ChatInterface() {
           M
         </div>
         <div>
-          <h3 className="font-mono text-sm font-medium text-[#F5F0E8]">MusicSpace</h3>
+          <h3 className="font-mono text-sm font-medium text-[#F5F0E8]">Prelude</h3>
           <p className="font-mono text-[10px] text-[#9B9590] uppercase tracking-wider">intelligence layer</p>
         </div>
         <div className="ml-auto flex items-center gap-1.5">

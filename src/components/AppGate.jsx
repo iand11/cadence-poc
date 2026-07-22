@@ -22,9 +22,9 @@ function GateFrame({ children }) {
       >
         <div className="inline-flex items-center gap-2 mb-8">
           <div className="w-8 h-8 rounded bg-[#DA7756]/15 flex items-center justify-center">
-            <span className="font-mono text-sm font-bold text-[#DA7756]">M</span>
+            <span className="font-mono text-sm font-bold text-[#DA7756]">P</span>
           </div>
-          <span className="font-['Epilogue'] text-sm font-medium">MusicSpace</span>
+          <span className="font-['Epilogue'] text-sm font-medium">Prelude</span>
         </div>
         {children}
       </motion.div>

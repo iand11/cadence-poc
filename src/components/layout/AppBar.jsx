@@ -40,10 +40,10 @@ export default function AppBar() {
           {/* Logo */}
           <Link to="/app" className="flex items-center gap-2 shrink-0">
             <div className="w-7 h-7 rounded bg-[#DA7756]/15 flex items-center justify-center">
-              <span className="font-mono text-sm font-bold text-[#DA7756]">M</span>
+              <span className="font-mono text-sm font-bold text-[#DA7756]">P</span>
             </div>
             <span className="font-['Epilogue'] text-sm font-medium text-[#F5F0E8] hidden sm:block">
-              MusicSpace
+              Prelude
             </span>
           </Link>
 

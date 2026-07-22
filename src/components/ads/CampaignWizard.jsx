@@ -1061,7 +1061,7 @@ function Step3({ suggestion, selectedArtist, totalBudget, setTotalBudget, enable
                   allocation ? `Allocation: ${allocation.allocations.map(a => `${PLATFORM_LABELS[a.platform]}: ${formatDollar(a.amount)} (${a.percentage}%)`).join(', ')}` : '',
                   forecast ? `Forecast: ${forecast.totals.impressions} impressions, ${forecast.totals.clicks} clicks, ${forecast.totals.results} results` : '',
                 ].filter(Boolean).join('\n')}
-                welcomeMessage={`I'm MusicSpace. I can help you refine this ${PLATFORM_LABELS[suggestion.platform] || suggestion.platform} campaign for ${selectedArtist?.name || 'your artist'}. Ask me about budget allocation, targeting, creative strategy, or expected performance.`}
+                welcomeMessage={`I'm Prelude. I can help you refine this ${PLATFORM_LABELS[suggestion.platform] || suggestion.platform} campaign for ${selectedArtist?.name || 'your artist'}. Ask me about budget allocation, targeting, creative strategy, or expected performance.`}
                 suggestions={[
                   'Is this budget allocation optimal?',
                   'What audience should I target?',
