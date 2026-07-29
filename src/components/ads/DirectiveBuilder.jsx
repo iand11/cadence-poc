@@ -421,7 +421,7 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
         <div className="flex items-center justify-between px-5 py-4 border-b border-[#2C2B28] shrink-0">
           <div>
             <h3 className="text-sm font-medium text-[#F5F0E8]">
-              {launchMode ? `Configure ${PLATFORM_LABELS[platform]} Campaign` : editing ? 'Edit Campaign' : 'New Ad Campaign'}
+              {launchMode ? `Configure ${PLATFORM_LABELS[platform]} Campaign` : editing ? 'Edit Campaign' : 'New Campaign'}
             </h3>
             {launchMode && launchProgress ? (
               <div className="flex items-center gap-2 mt-1">

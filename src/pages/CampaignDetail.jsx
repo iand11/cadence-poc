@@ -132,7 +132,7 @@ export default function CampaignDetail() {
       <div className="flex flex-col items-center justify-center py-20 text-center">
         <Megaphone size={24} className="text-[#6B6560] mb-3" />
         <p className="text-sm text-[#F5F0E8] mb-1">Campaign not found</p>
-        <Link to="/app/ads" className="text-[10px] font-mono text-[#DA7756] hover:underline mt-2">
+        <Link to="/app/campaigns" className="text-[10px] font-mono text-[#DA7756] hover:underline mt-2">
           Back to campaigns
         </Link>
       </div>
@@ -167,7 +167,7 @@ export default function CampaignDetail() {
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       {/* Back link */}
       <Link
-        to="/app/ads"
+        to="/app/campaigns"
         className="inline-flex items-center gap-1.5 text-[10px] font-mono text-[#6B6560] hover:text-[#9B9590] transition-colors mb-4"
       >
         <ArrowLeft size={11} />

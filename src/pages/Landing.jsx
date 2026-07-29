@@ -1,7 +1,7 @@
 import { useRef } from 'react';
 import { Link } from 'react-router';
 import { motion, useScroll, useTransform } from 'motion/react';
-import { Sparkles, Sheet, ArrowRight, Music, Play, ChevronDown, Palette, Download, Edit3, Link2, Eye, BarChart3, FileText, MessageSquare } from 'lucide-react';
+import { Sparkles, Sheet, ArrowRight, Music, Play, ChevronDown, Palette, Download, Edit3, Link2, Eye, BarChart3, FileText, MessageSquare, ListChecks, Megaphone, Rocket, Activity, Target } from 'lucide-react';
 
 // ── Static data ──────────────────────────────────────────────────────────────
 
@@ -153,6 +153,30 @@ const SHEET_CAPABILITIES = [
   { icon: Eye, label: 'Toggle Blocks', desc: 'Show or hide any section — overview, charts, tracks, geography' },
   { icon: Music, label: 'Spotify Embed', desc: 'Embed any Spotify artist, album, or track directly in the page' },
 ];
+
+// Prioritized action items surfaced by Prelude (mock)
+const ACTION_ITEMS = [
+  { artist: 'Billie Eilish', text: 'Editorial playlist momentum stalling — refresh the pitch on the new single', priority: 'high' },
+  { artist: 'SZA', text: 'TikTok creations up 31% — seed the next track to 50–100 mid-tier creators', priority: 'medium' },
+  { artist: 'The Weeknd', text: 'Strong Shazam-to-stream conversion in LATAM — plan geo-targeted ads', priority: 'medium' },
+  { artist: 'Doja Cat', text: 'Superfan loyalty spike — launch a pre-save + exclusive content push', priority: 'low' },
+];
+
+const PRIORITY_META = {
+  high: { color: '#C75F4F', label: 'High' },
+  medium: { color: '#D4A574', label: 'Medium' },
+  low: { color: '#7BAF73', label: 'Low' },
+};
+
+// The closed-loop ad engine (mirrors the pitch deck flagship)
+const AD_ENGINE_STEPS = [
+  { icon: ListChecks, title: 'Surface', body: 'Prelude scans roster momentum and surfaces prioritized action items — what to promote, where, and why.' },
+  { icon: Sparkles, title: 'Generate', body: 'Turn any action into a full campaign — objective, budget split, audience, and platform-native creative, drafted for you.' },
+  { icon: Rocket, title: 'Launch', body: 'Approve once. Prelude launches natively across every major ad platform from a single directive.' },
+  { icon: Activity, title: 'Optimize', body: 'Live results flow back in, reallocating budget to what works and feeding the next round of actions.' },
+];
+
+const AD_PLATFORMS = ['Spotify', 'Meta / Instagram', 'Google', 'YouTube', 'TikTok', 'X'];
 
 function MockArtistSheet() {
   return (
@@ -346,7 +370,7 @@ export default function Landing() {
               to="/app"
               className="group flex items-center gap-2 px-5 py-2.5 rounded-lg bg-gradient-to-r from-[#DA7756] to-[#C75F4F] text-white text-xs font-semibold tracking-wide uppercase hover:shadow-lg hover:shadow-[#DA7756]/25 transition-all duration-300 hover:scale-[1.02]"
             >
-              Launch App
+              Enter Prelude
               <ArrowRight size={13} className="group-hover:translate-x-0.5 transition-transform" />
             </Link>
           </motion.div>
@@ -469,7 +493,7 @@ export default function Landing() {
               />
               <span className="relative flex items-center gap-2.5">
                 <Play size={15} className="fill-current" />
-                Get Started Free
+                Enter Prelude
                 <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
               </span>
             </Link>
@@ -582,6 +606,8 @@ export default function Landing() {
               { icon: MessageSquare, accent: '#DA7756', title: 'AI Chat', body: 'Ask anything about your roster in plain English. Prelude answers with live data, renders charts inline, and can build full reports from a single prompt.' },
               { icon: BarChart3, accent: '#7BAF73', title: 'Analytics', body: 'Streaming trends, social growth, playlist intelligence, audience geography, and revenue estimates across Spotify, Apple Music, TikTok, YouTube, Instagram, and Shazam.' },
               { icon: FileText, accent: '#4A90D9', title: 'Reports', body: 'Compose reports from 8 widget types. Drag to reorder, select artists, and export. Reports auto-save and can be shared via link.' },
+              { icon: ListChecks, accent: '#D4A574', title: 'Action Items', body: 'Prelude turns every signal into prioritized, per-artist next steps — ranked high to low with guided, checkable playbooks so nothing slips.' },
+              { icon: Megaphone, accent: '#DA7756', title: 'Marketing', body: 'Launch ad campaigns natively across Spotify, Meta, Google, YouTube, TikTok, and X. Prelude drafts the objective, budget split, audience, and creative — you approve.' },
             ].map((f, i) => (
               <motion.div
                 key={f.title}
@@ -597,6 +623,142 @@ export default function Landing() {
               </motion.div>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* ── Actions & Marketing showcase ── */}
+      <section className="py-20 relative overflow-hidden border-t border-[#DA7756]/10">
+        <div className="absolute inset-0 bg-gradient-to-b from-[#DA7756]/[0.04] to-transparent pointer-events-none" />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[400px] bg-[#DA7756]/[0.06] rounded-full blur-[120px] pointer-events-none" />
+        <div className="max-w-5xl mx-auto px-6 lg:px-10 relative">
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mb-4"
+          >
+            <span className="text-[10px] font-mono text-[#DA7756] uppercase tracking-widest">Actions &amp; Marketing</span>
+          </motion.div>
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay: 0.1 }}
+            className="text-center mb-12"
+          >
+            <h2 className="font-display text-3xl sm:text-4xl font-light tracking-tight mb-3">From signal to campaign, on autopilot</h2>
+            <p className="text-sm text-[#9B9590] max-w-lg mx-auto leading-relaxed">
+              Prelude turns roster data into prioritized action items, then into live ad campaigns — a closed loop that gets smarter with every result.
+            </p>
+          </motion.div>
+
+          {/* Action items preview */}
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.7, delay: 0.15 }}
+            className="rounded-xl border border-white/[0.06] bg-gradient-to-b from-[#171614] to-[#0D0C0B] p-1 shadow-2xl shadow-black/50 mb-16"
+          >
+            {/* Browser chrome */}
+            <div className="flex items-center gap-2 px-4 py-2.5 border-b border-white/[0.04]">
+              <div className="flex gap-1.5">
+                <div className="w-2.5 h-2.5 rounded-full bg-[#C75F4F]/60" />
+                <div className="w-2.5 h-2.5 rounded-full bg-[#DA7756]/40" />
+                <div className="w-2.5 h-2.5 rounded-full bg-[#7BAF73]/40" />
+              </div>
+              <div className="flex-1 flex justify-center">
+                <div className="px-12 py-1 rounded bg-[#0D0C0B] border border-white/[0.04] text-[9px] font-mono text-[#6B6560]">preludemusic.ai/actions</div>
+              </div>
+            </div>
+            <div className="p-5">
+              {/* Header */}
+              <div className="flex items-center gap-2.5 mb-4">
+                <div className="w-8 h-8 rounded bg-[#DA7756]/15 border border-[#DA7756]/30 flex items-center justify-center">
+                  <ListChecks size={15} className="text-[#DA7756]" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-[#F5F0E8]">Action Center</p>
+                  <p className="text-[9px] font-mono text-[#6B6560]">{ACTION_ITEMS.length} selected · 4 artists</p>
+                </div>
+              </div>
+              {/* Action rows */}
+              <div className="space-y-2">
+                {ACTION_ITEMS.map((a, i) => {
+                  const p = PRIORITY_META[a.priority];
+                  return (
+                    <motion.div
+                      key={a.text}
+                      initial={{ opacity: 0, x: -12 }}
+                      whileInView={{ opacity: 1, x: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ delay: 0.2 + i * 0.08 }}
+                      className="flex items-center gap-3 p-3 rounded-lg bg-[#1D1C19] border border-[#2C2B28]"
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: p.color }} />
+                      <span className="text-[11px] font-medium text-[#F5F0E8] w-28 shrink-0 truncate">{a.artist}</span>
+                      <span className="flex-1 text-[11px] text-[#9B9590] leading-snug">{a.text}</span>
+                      <span className="text-[9px] font-mono px-2 py-0.5 rounded shrink-0" style={{ color: p.color, backgroundColor: p.color + '1A' }}>{p.label}</span>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            </div>
+          </motion.div>
+
+          {/* The ad engine loop */}
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            {AD_ENGINE_STEPS.map((s, i) => (
+              <motion.div
+                key={s.title}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: i * 0.08 }}
+                className="relative p-6 rounded-2xl border border-[#DA7756]/20 bg-[#171614]/70"
+              >
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="font-mono text-[11px] text-[#6B6560]">0{i + 1}</span>
+                  <div className="w-9 h-9 rounded-xl bg-[#DA7756]/[0.12] border border-[#DA7756]/30 flex items-center justify-center">
+                    <s.icon size={16} className="text-[#DA7756]" />
+                  </div>
+                </div>
+                <p className="text-sm font-medium text-[#F5F0E8] mb-1.5">{s.title}</p>
+                <p className="text-[12.5px] text-[#9B9590] leading-relaxed">{s.body}</p>
+                {i < AD_ENGINE_STEPS.length - 1 && (
+                  <div className="hidden lg:flex absolute top-1/2 -right-3 -translate-y-1/2 z-10 w-6 h-6 rounded-full bg-[#0D0C0B] border border-[#DA7756]/25 items-center justify-center">
+                    <ArrowRight size={11} className="text-[#DA7756]" />
+                  </div>
+                )}
+              </motion.div>
+            ))}
+          </div>
+
+          {/* Platforms + moat */}
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5, delay: 0.1 }}
+            className="grid lg:grid-cols-[1fr_auto] gap-6 items-center p-6 rounded-2xl border border-white/[0.06] bg-[#0D0C0B]/60"
+          >
+            <div>
+              <p className="text-[10px] font-mono uppercase tracking-widest text-[#6B6560] mb-3">Launches natively across</p>
+              <div className="flex flex-wrap gap-2">
+                {AD_PLATFORMS.map((p) => (
+                  <span key={p} className="text-[12px] font-medium text-[#F5F0E8] px-3 py-1.5 rounded-lg bg-[#171614] border border-white/[0.06]">
+                    {p}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <div className="lg:max-w-xs lg:border-l lg:border-white/[0.06] lg:pl-6">
+              <div className="flex items-start gap-2">
+                <Target size={14} className="text-[#7BAF73] mt-0.5 shrink-0" />
+                <p className="text-[12.5px] text-[#9B9590] leading-relaxed">Every campaign result sharpens the next recommendation — a compounding data loop.</p>
+              </div>
+            </div>
+          </motion.div>
         </div>
       </section>
 

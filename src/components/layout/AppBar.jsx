@@ -195,15 +195,15 @@ export default function AppBar() {
               <span className="hidden md:inline">Actions</span>
             </Link>
             <Link
-              to="/app/ads"
+              to="/app/campaigns"
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs transition-colors ${
-                location.pathname.startsWith('/app/ads')
+                location.pathname.startsWith('/app/campaigns')
                   ? 'text-[#F5F0E8] bg-[#171614]'
                   : 'text-[#9B9590] hover:text-[#F5F0E8]'
               }`}
             >
               <Megaphone size={14} />
-              <span className="hidden md:inline">Ads</span>
+              <span className="hidden md:inline">Campaigns</span>
             </Link>
             <Link
               to="/app/sheets"

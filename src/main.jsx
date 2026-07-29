@@ -22,7 +22,7 @@ import ArtistSheet from './pages/ArtistSheet';
 import SheetsPage from './pages/SheetsPage';
 import ActionsPage from './pages/ActionsPage';
 import ArtistActionsPage from './pages/ArtistActionsPage';
-import AdsPage from './pages/AdsPage';
+import CampaignsPage from './pages/CampaignsPage';
 import CampaignDetail from './pages/CampaignDetail';
 
 createRoot(document.getElementById('root')).render(
@@ -47,8 +47,8 @@ createRoot(document.getElementById('root')).render(
           <Route path="artists" element={<ArtistsPage />} />
           <Route path="chart/:id" element={<ChartProfile />} />
           <Route path="sheets" element={<SheetsPage />} />
-          <Route path="ads" element={<AdsPage />} />
-          <Route path="ads/:id" element={<CampaignDetail />} />
+          <Route path="campaigns" element={<CampaignsPage />} />
+          <Route path="campaigns/:id" element={<CampaignDetail />} />
           <Route path="reports" element={<ReportsList />} />
           <Route path="reports/:id" element={<ReportCenter />} />
         </Route>

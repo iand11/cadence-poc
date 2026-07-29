@@ -4,7 +4,7 @@ export default function TypingIndicator() {
   return (
     <div className="flex items-center gap-3 px-4 py-3">
       <div className="w-6 h-6 rounded bg-[#DA7756]/20 flex items-center justify-center text-[#DA7756] font-mono text-[10px] font-bold shrink-0">
-        M
+        P
       </div>
       <div className="border-l-2 border-[#DA7756]/40 pl-4 flex items-center gap-1.5">
         {[0, 1, 2].map(i => (

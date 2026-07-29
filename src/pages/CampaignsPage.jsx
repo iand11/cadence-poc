@@ -30,7 +30,7 @@ const TABS = [
   { key: 'all', label: 'All' },
 ];
 
-export default function AdsPage() {
+export default function CampaignsPage() {
   const {
     directives, connectedPlatforms, counts,
     createDirective, updateDirective, deleteDirective,
@@ -209,7 +209,7 @@ export default function AdsPage() {
             <Megaphone size={15} className="text-[#DA7756]" />
           </div>
           <div>
-            <h2 className="text-sm font-medium text-[#F5F0E8]">Ad Campaigns</h2>
+            <h2 className="text-sm font-medium text-[#F5F0E8]">Campaigns</h2>
             <p className="text-[10px] font-mono text-[#6B6560]">
               {counts.total} campaign{counts.total !== 1 ? 's' : ''} · {counts.active} active
             </p>
@@ -275,9 +275,9 @@ export default function AdsPage() {
                       onEdit={handleEdit}
                       onApprove={approveDirective}
                       onReject={rejectDirective}
-                      onExecute={(id) => { updateDirective(id, { status: 'active' }); navigate(`/app/ads/${id}`); }}
+                      onExecute={(id) => { updateDirective(id, { status: 'active' }); navigate(`/app/campaigns/${id}`); }}
                       onDelete={deleteDirective}
-                      onClick={() => navigate(`/app/ads/${d.id}`)}
+                      onClick={() => navigate(`/app/campaigns/${d.id}`)}
                     />
                   </motion.div>
                 ))}
