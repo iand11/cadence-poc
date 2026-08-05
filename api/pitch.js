@@ -126,6 +126,7 @@ const PITCH_DATA = {
       { name: 'Tom Windish', role: 'Co-founder', image: '/team/tom.jpg', bio: 'EVP at THE•TEAM · 3× Pollstar Agent of the Year nominee' },
     ],
   },
+  
 
   contact: {
     heading: 'Let’s talk',
