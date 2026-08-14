@@ -7,7 +7,7 @@ import { useActions } from '../hooks/useActions';
 export default function ActionsPage() {
   const {
     actions, selectedActions, completedActions, ignoredActions,
-    counts, restore, selectActions, addCustomAction,
+    counts, restore, setOwner, selectActions, addCustomAction,
   } = useActions();
 
   const [selectorOpen, setSelectorOpen] = useState(false);
@@ -25,6 +25,7 @@ export default function ActionsPage() {
         ignoredActions={ignoredActions}
         counts={counts}
         restore={restore}
+        setOwner={setOwner}
         onOpenSelector={() => setSelectorOpen(true)}
       />
       <ActionSelector

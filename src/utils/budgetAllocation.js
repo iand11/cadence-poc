@@ -13,6 +13,14 @@ const OBJECTIVE_WEIGHTS = {
   conversions: { spotify: 0.08, meta: 0.30, google: 0.22, youtube: 0.10, tiktok: 0.25, x: 0.05 },
 };
 
+// How the end goal steers the whole plan — the strategy behind the weight profile above
+const OBJECTIVE_STRATEGY = {
+  streams: 'Because the goal is to drive streams, Spotify leads — it’s the only channel where a click becomes a play — with TikTok and YouTube funding discovery. Pure social prospecting (Meta, X) is trimmed back.',
+  awareness: 'Because the goal is brand awareness, budget skews to the cheapest-reach channels — Meta, TikTok and YouTube — to maximize new impressions. Spotify is de-emphasized since it mostly re-touches existing fans.',
+  engagement: 'Because the goal is engagement, TikTok and Meta lead — duets, comments and shares compound reach there. Search and Spotify play minor supporting roles.',
+  conversions: 'Because the goal is conversions, spend concentrates on Meta and Google — the pixel- and intent-driven channels that close ticket and merch sales — while discovery channels stay lean.',
+};
+
 // Artist social platform mapping for strength scoring
 const PLATFORM_METRIC_MAP = {
   spotify: 'spFollowers',
@@ -50,10 +58,12 @@ export function recommendBudgetAllocation(artist, objective, totalBudget, connec
       summary: connectedPlatforms?.length === 1
         ? 'Single platform — full budget allocated.'
         : 'Connect at least 2 platforms for allocation recommendations.',
+      strategy: '',
     };
   }
 
   const objWeights = OBJECTIVE_WEIGHTS[objective] || OBJECTIVE_WEIGHTS.awareness;
+  const strategy = OBJECTIVE_STRATEGY[objective] || OBJECTIVE_STRATEGY.awareness;
 
   // Compute artist strength per platform (normalized 0-1)
   const metrics = {};
@@ -119,19 +129,34 @@ export function recommendBudgetAllocation(artist, objective, totalBudget, connec
     allocations[0].percentage += 100 - roundedTotal;
   }
 
+  // Rank platforms by raw audience size (1 = largest) for evidence in reasons
+  const audienceRank = {};
+  [...connectedPlatforms]
+    .sort((p1, p2) => (metrics[p2] || 0) - (metrics[p1] || 0))
+    .forEach((p, i) => { audienceRank[p] = i + 1; });
+
   // Sort by percentage descending, compute amounts and reasons
   allocations = allocations
     .sort((a, b) => b.percentage - a.percentage)
     .map(a => {
       const amount = Math.round((a.percentage / 100) * totalBudget * 100) / 100;
-      const reason = generateReason(a.platform, objective, a.percentage, strengthScores[a.platform]);
+      const reason = generateReason({
+        platform: a.platform,
+        objective,
+        pct: a.percentage,
+        amount,
+        strength: strengthScores[a.platform],
+        metricValue: metrics[a.platform] || 0,
+        rank: audienceRank[a.platform],
+        platformCount: connectedPlatforms.length,
+      });
       return { platform: a.platform, percentage: a.percentage, amount, reason };
     });
 
   const topPlatform = allocations[0];
   const summary = `Recommended: ${topPlatform.percentage}% to ${platformLabel(topPlatform.platform)} based on ${objective} objective and artist audience strength.`;
 
-  return { allocations, summary };
+  return { allocations, summary, strategy };
 }
 
 function platformLabel(p) {
@@ -139,20 +164,105 @@ function platformLabel(p) {
   return labels[p] || p;
 }
 
-function generateReason(platform, objective, pct, strength) {
-  const label = platformLabel(platform);
+// Audience metric each platform's spend is anchored to (Google has no follower graph)
+const AUDIENCE_LABELS = {
+  spotify: 'Spotify followers',
+  meta: 'Instagram followers',
+  youtube: 'YouTube subscribers',
+  tiktok: 'TikTok followers',
+  x: 'X followers',
+};
 
-  if (pct >= 35) {
-    if (objective === 'streams' && platform === 'spotify') return `Primary channel for driving streams`;
-    if (strength > 0.7) return `Strong audience presence on ${label} + aligned with ${objective} goal`;
-    return `Best fit for ${objective} campaigns`;
+// Why a platform matters for a given objective — the strategic role that justifies its weight
+const PLATFORM_ROLES = {
+  streams: {
+    spotify: 'is the shortest path to streams — impressions convert directly into plays, saves and algorithmic playlist adds',
+    meta: 'feeds streams by pushing Reels and short-form clips straight to the release link',
+    google: 'captures high-intent search ("artist + track name") and routes it to the streaming link',
+    youtube: 'turns music-video and Shorts viewers into repeat streamers',
+    tiktok: 'is the #1 discovery engine — sound adoption is what actually moves stream counts',
+    x: 'keeps core fans active through the release cycle',
+  },
+  awareness: {
+    spotify: 'reinforces an existing streaming footprint more than it finds net-new fans',
+    meta: 'is the workhorse for awareness — the most precise demo/interest targeting at the lowest cost per reach',
+    google: 'extends reach across Display and the wider web',
+    youtube: 'buys cheap, skippable video impressions to build recognition at scale',
+    tiktok: 'delivers organic-style reach that introduces the artist to new audiences fast',
+    x: 'adds conversational reach around cultural moments',
+  },
+  engagement: {
+    spotify: 'is a light engagement lever — mostly saves and follows',
+    meta: 'drives comments, shares and saves through interactive creative',
+    google: 'plays a minor role here — search rarely produces social engagement',
+    youtube: 'earns watch-time and subscribers, the stickiest engagement signal',
+    tiktok: 'is the strongest engagement engine — duets, stitches and comments compound reach',
+    x: 'sparks replies and reposts in real time',
+  },
+  conversions: {
+    spotify: 'converts to follows and pre-saves but carries limited purchase intent',
+    meta: 'is the primary conversion driver — pixel-optimized for ticket and merch sales',
+    google: 'captures bottom-funnel search intent that is ready to act',
+    youtube: 'retargets warm viewers toward the conversion',
+    tiktok: 'drives impulse conversions through shoppable short-form',
+    x: 'has a narrow conversion role, best for announcements',
+  },
+};
+
+function fmtNum(n) {
+  if (!n) return '0';
+  if (n >= 1e9) return (n / 1e9).toFixed(1).replace(/\.0$/, '') + 'B';
+  if (n >= 1e6) return (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'M';
+  if (n >= 1e3) return (n / 1e3).toFixed(1).replace(/\.0$/, '') + 'K';
+  return String(Math.round(n));
+}
+
+function fmtMoney(n) {
+  return '$' + Math.round(n || 0).toLocaleString('en-US');
+}
+
+/**
+ * Build a substantive, evidence-backed rationale for a platform's allocation:
+ * strategic role for the objective + the artist's actual audience there + the concrete spend.
+ */
+function generateReason({ platform, objective, pct, amount, strength, metricValue, rank, platformCount }) {
+  const label = platformLabel(platform);
+  const obj = PLATFORM_ROLES[objective] ? objective : 'awareness';
+  const role = PLATFORM_ROLES[obj][platform] || `contributes to the ${obj} goal`;
+
+  // Audience evidence — the data behind the weight
+  let evidence;
+  if (platform === 'google') {
+    evidence = 'Search demand scales with total fanbase size, so it earns budget alongside the social channels.';
+  } else if (metricValue > 0) {
+    const rankNote = rank === 1
+      ? ' — the largest of your connected audiences'
+      : rank === platformCount
+        ? ' — the smallest of your connected audiences'
+        : '';
+    const quality = rank === 1
+      ? 'the deepest warm audience to retarget'
+      : strength > 0.5
+        ? 'a strong warm audience to retarget'
+        : strength > 0.25
+          ? 'a solid audience to build on'
+          : 'a smaller but usable audience';
+    evidence = `At ${fmtNum(metricValue)} ${AUDIENCE_LABELS[platform]}${rankNote}, it gives ${quality}.`;
+  } else {
+    evidence = 'There’s no connected audience signal here yet, so this spend is exploratory.';
   }
-  if (pct >= 20) {
-    if (strength > 0.5) return `Good audience base on ${label}`;
-    return `Supports ${objective} with broad reach`;
+
+  // Spend justification — ties role + evidence to the dollars
+  let spend;
+  if (pct >= 30) {
+    spend = `That makes it the lead channel: ${fmtMoney(amount)} (${pct}%).`;
+  } else if (pct >= 15) {
+    spend = `Funded as a core channel at ${fmtMoney(amount)} (${pct}%).`;
+  } else if (pct >= 8) {
+    spend = `Funded as a support channel at ${fmtMoney(amount)} (${pct}%).`;
+  } else {
+    spend = `Held at the ${pct}% floor (${fmtMoney(amount)}) as a test cell — prove it out before scaling.`;
   }
-  if (pct >= 10) {
-    return `Supplementary reach on ${label}`;
-  }
-  return `Minimum allocation for testing on ${label}`;
+
+  return `${label} ${role}. ${evidence} ${spend}`;
 }

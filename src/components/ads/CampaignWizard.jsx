@@ -882,6 +882,15 @@ function Step3({ suggestion, selectedArtist, totalBudget, setTotalBudget, enable
             </div>
           </div>
         </div>
+        <div className="flex items-start gap-1.5 mb-2 rounded border border-[#2C2B28] bg-[#171614] px-2 py-1.5">
+          <Info size={11} className="text-[#DA7756] mt-0.5 shrink-0" />
+          <p className="text-[9px] text-[#9B9590] leading-relaxed">
+            <span className="text-[#F5F0E8]">{OBJECTIVE_LABELS[suggestion.objective] || suggestion.objective} goal.</span>{' '}
+            {allocation?.strategy}
+            {' '}Those weights are then adjusted for {selectedArtist?.name || 'the artist'}&rsquo;s audience size on each platform (5% minimum for testing).
+            Per-platform rationale is shown below each slider.
+          </p>
+        </div>
         <p className="text-[9px] text-[#6B6560] mb-3">Edit dollar amounts to customize. Other platforms auto-rebalance.</p>
 
         {allocation && allocation.allocations.length > 0 && (
@@ -895,10 +904,11 @@ function Step3({ suggestion, selectedArtist, totalBudget, setTotalBudget, enable
               return (
                 <div
                   key={platform}
-                  className={`flex items-center gap-3 py-2 px-3 rounded border transition-colors ${
+                  className={`rounded border transition-colors ${
                     enabled ? (isOverridden ? 'border-[#DA7756]/30 bg-[#171614]' : 'border-[#2C2B28] bg-[#171614]') : 'border-[#2C2B28]/50 bg-transparent opacity-40'
                   }`}
                 >
+                  <div className="flex items-center gap-3 py-2 px-3">
                   {/* Toggle */}
                   <input
                     type="checkbox"
@@ -944,6 +954,14 @@ function Step3({ suggestion, selectedArtist, totalBudget, setTotalBudget, enable
                     </>
                   ) : (
                     <span className="text-[9px] text-[#6B6560] italic">Disabled</span>
+                  )}
+                  </div>
+                  {enabled && alloc && (
+                    <p className="text-[9px] text-[#6B6560] leading-relaxed px-3 pb-2 pl-9">
+                      {isOverridden
+                        ? 'Custom amount — overrides the recommended level.'
+                        : alloc.reason}
+                    </p>
                   )}
                 </div>
               );

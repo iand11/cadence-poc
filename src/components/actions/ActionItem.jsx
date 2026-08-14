@@ -1,8 +1,10 @@
 import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Check, X, RotateCcw, ChevronRight, Sparkles, Pencil, Plus, Trash2, BookmarkMinus, Calendar } from 'lucide-react';
+import { Check, X, RotateCcw, ChevronRight, Sparkles, Plus, Trash2, BookmarkMinus, Calendar, Users } from 'lucide-react';
 import Badge from '../shared/Badge';
+import InlineEdit from './InlineEdit';
 import { PRIORITY_LABELS, getPriorityLevel } from '../../data/actions';
+import { OWNERS } from '../../hooks/useActions';
 import { STEP_CATEGORY_LABELS, STEP_CATEGORY_COLORS } from '../../data/actionSteps';
 
 const PRIORITY_BADGE_VARIANT = {
@@ -25,67 +27,7 @@ const TYPE_BGS = {
   info: 'rgba(212, 165, 116, 0.04)',
 };
 
-function InlineEdit({ value, onSave, className = '', multiline = false }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(value);
-  const inputRef = useRef(null);
-
-  const startEdit = (e) => {
-    e.stopPropagation();
-    setDraft(value);
-    setEditing(true);
-    setTimeout(() => inputRef.current?.focus(), 0);
-  };
-
-  const save = () => {
-    const trimmed = draft.trim();
-    if (trimmed && trimmed !== value) {
-      onSave(trimmed);
-    }
-    setEditing(false);
-  };
-
-  const cancel = () => {
-    setDraft(value);
-    setEditing(false);
-  };
-
-  if (!editing) {
-    return (
-      <span className={`group/edit inline ${className}`}>
-        <span>{value}</span>
-        <button
-          onClick={startEdit}
-          className="inline-flex ml-1.5 opacity-0 group-hover/edit:opacity-100 text-[#6B6560] hover:text-[#DA7756] transition-all cursor-pointer align-middle"
-          title="Edit"
-        >
-          <Pencil size={9} />
-        </button>
-      </span>
-    );
-  }
-
-  const Tag = multiline ? 'textarea' : 'input';
-  return (
-    <span className="inline-flex items-center gap-1 w-full" onClick={e => e.stopPropagation()}>
-      <Tag
-        ref={inputRef}
-        value={draft}
-        onChange={e => setDraft(e.target.value)}
-        onKeyDown={e => {
-          if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); save(); }
-          if (e.key === 'Escape') cancel();
-        }}
-        onBlur={save}
-        rows={multiline ? 2 : undefined}
-        className={`flex-1 bg-[#0D0C0B] border border-[#DA7756]/40 rounded px-2 py-1 outline-none text-[#F5F0E8] ${className}`}
-        style={{ fontSize: 'inherit', fontFamily: 'inherit', lineHeight: 'inherit' }}
-      />
-    </span>
-  );
-}
-
-export default function ActionItem({ item, onComplete, onIgnore, onRestore, onDelete, onDeselect, onToggleStep, onEditAction, onEditStep, onAddStep, onRemoveStep, onAskAI, showArtist = true, archived = false }) {
+export default function ActionItem({ item, onComplete, onIgnore, onRestore, onDelete, onDeselect, onToggleStep, onEditAction, onSetOwner, onEditStep, onAddStep, onRemoveStep, onAskAI, showArtist = true, archived = false }) {
   const [expanded, setExpanded] = useState(false);
   const [addingStep, setAddingStep] = useState(false);
   const [newStepText, setNewStepText] = useState('');
@@ -150,6 +92,12 @@ export default function ActionItem({ item, onComplete, onIgnore, onRestore, onDe
             </Badge>
             {item.source === 'ai' && (
               <span className="text-[10px] font-mono text-[#DA7756]">AI</span>
+            )}
+            {item.owner && (
+              <span className="flex items-center gap-1 text-[9px] font-mono text-[#9B9590] bg-[#2C2B28] rounded px-1.5 py-0.5">
+                <Users size={8} />
+                {item.owner}
+              </span>
             )}
             {item.dueDate && !archived && (
               <span className={`flex items-center gap-0.5 text-[9px] font-mono ml-auto ${
@@ -258,6 +206,23 @@ export default function ActionItem({ item, onComplete, onIgnore, onRestore, onDe
                   ) : (
                     <p>{item.text}</p>
                   )}
+                </div>
+              )}
+
+              {/* Owner */}
+              {onSetOwner && (
+                <div className="flex items-center gap-2 mb-3">
+                  <Users size={10} className="text-[#6B6560]" />
+                  <label className="text-[9px] font-mono text-[#6B6560]">Owner</label>
+                  <select
+                    value={item.owner || ''}
+                    onChange={e => onSetOwner(item.id, e.target.value || null)}
+                    onClick={e => e.stopPropagation()}
+                    className="bg-[#0D0C0B] border border-[#2C2B28] rounded px-2 py-0.5 text-[10px] font-mono text-[#F5F0E8] outline-none focus:border-[#DA7756]/40 transition-colors cursor-pointer"
+                  >
+                    <option value="">Unassigned</option>
+                    {OWNERS.map(o => <option key={o} value={o}>{o}</option>)}
+                  </select>
                 </div>
               )}
 

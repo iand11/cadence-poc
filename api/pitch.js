@@ -121,12 +121,12 @@ const PITCH_DATA = {
   team: {
     heading: 'Team',
     members: [
-      { name: 'Andreas Katsambas', role: 'Co-founder', image: '/team/andreas.jpg', bio: 'President & COO at Chartmetric · founder of The End Records (acq. BMG)' },
-      { name: 'Ian Driscoll', role: 'Co-founder', image: '/team/ian.jpg', bio: 'Staff Software Engineer · Multi Platinum Producer | Engineer' },
-      { name: 'Tom Windish', role: 'Co-founder', image: '/team/tom.jpg', bio: 'EVP at THE•TEAM · 3× Pollstar Agent of the Year nominee' },
+      { name: 'Andreas Katsambas', role: '', image: '/team/andreas.jpg', bio: 'President & COO at Chartmetric · founder of The End Records (acq. BMG)' },
+      { name: 'Ian Driscoll', role: '', image: '/team/ian.jpg', bio: 'Staff Software Engineer · Multi Platinum Producer | Engineer' },
+      { name: 'Tom Windish', role: '', image: '/team/tom.jpg', bio: 'EVP at THE•TEAM · 3× Pollstar Agent of the Year nominee' },
     ],
   },
-  
+
 
   contact: {
     heading: 'Let’s talk',
