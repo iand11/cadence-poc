@@ -123,7 +123,7 @@ const PITCH_DATA = {
     members: [
       { name: 'Andreas Katsambas', role: '', image: '/team/andreas.jpg', bio: 'President & COO at Chartmetric · founder of The End Records (acq. BMG)' },
       { name: 'Ian Driscoll', role: '', image: '/team/ian.jpg', bio: 'Staff Software Engineer · Multi Platinum Producer | Engineer' },
-      { name: 'Tom Windish', role: '', image: '/team/tom.jpg', bio: 'EVP at THE•TEAM · 3× Pollstar Agent of the Year nominee' },
+      // { name: 'Tom Windish', role: '', image: '/team/tom.jpg', bio: 'EVP at THE•TEAM · 3× Pollstar Agent of the Year nominee' },
     ],
   },
 

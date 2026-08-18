@@ -1,12 +1,27 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { motion } from 'motion/react';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, Plus, Check } from 'lucide-react';
+import { useActions } from '../../hooks/useActions';
 
 export default function AISummaryCard({ summary }) {
   const navigate = useNavigate();
+  const { addCustomAction } = useActions();
   const [displayedText, setDisplayedText] = useState('');
   const [done, setDone] = useState(false);
+  const [added, setAdded] = useState({});
+
+  const createAction = (s) => {
+    if (added[s.label]) return;
+    addCustomAction({
+      artistSlug: summary.artistSlug,
+      platform: s.platform,
+      dataType: s.dataType,
+      action: s.action,
+      text: `Suggested from ${summary.artistName || 'artist'} Prelude Analysis.`,
+    });
+    setAdded((prev) => ({ ...prev, [s.label]: true }));
+  };
 
   useEffect(() => {
     let i = 0;
@@ -60,17 +75,35 @@ export default function AISummaryCard({ summary }) {
 
       {/* Suggestions */}
       {summary.suggestions && done && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-wrap gap-2">
-          {summary.suggestions.map((s) => (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-wrap items-center gap-2">
+          {summary.suggestions.map((s) => {
+            const isAdded = !!added[s.label];
+            return (
+              <button
+                key={s.label}
+                type="button"
+                onClick={() => createAction(s)}
+                disabled={isAdded}
+                className={`inline-flex items-center gap-1.5 text-xs border rounded px-3 py-1.5 transition-colors ${
+                  isAdded
+                    ? 'text-[#7BAF73] border-[#7BAF73]/30 bg-[#7BAF73]/10 cursor-default'
+                    : 'text-[#9B9590] border-[#2C2B28] hover:border-[#3D3B37] hover:text-[#F5F0E8] cursor-pointer'
+                }`}
+              >
+                {isAdded ? <Check size={12} /> : <Plus size={12} />}
+                {isAdded ? 'Added to actions' : s.label}
+              </button>
+            );
+          })}
+          {summary.artistSlug && Object.keys(added).length > 0 && (
             <button
-              key={s.label}
               type="button"
-              onClick={() => navigate('/app', { state: { prompt: s.prompt } })}
-              className="text-xs text-[#9B9590] border border-[#2C2B28] rounded px-3 py-1.5 hover:border-[#3D3B37] hover:text-[#F5F0E8] transition-colors cursor-pointer"
+              onClick={() => navigate(`/app/actions/${summary.artistSlug}`)}
+              className="text-xs text-[#DA7756] hover:underline cursor-pointer px-1"
             >
-              {s.label}
+              View actions →
             </button>
-          ))}
+          )}
         </motion.div>
       )}
     </motion.div>

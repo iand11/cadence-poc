@@ -445,21 +445,21 @@ function PitchContent({ data }) {
             <SectionLabel>Team</SectionLabel>
             <h2 className="font-display text-3xl sm:text-4xl font-light tracking-tight mt-3">{PITCH.team.heading}</h2>
           </motion.div>
-          <div className="grid md:grid-cols-3 gap-5">
+          <div className="grid sm:grid-cols-2 gap-5 max-w-3xl">
             {PITCH.team.members.map((m, i) => (
-              <motion.div key={i} {...fade} transition={{ duration: 0.5, delay: i * 0.08 }} className="p-6 rounded-2xl border border-white/[0.05] bg-[#171614]/50">
+              <motion.div key={i} {...fade} transition={{ duration: 0.5, delay: i * 0.08 }} className="p-7 rounded-2xl border border-white/[0.05] bg-[#171614]/50">
                 {m.image ? (
                   <img
                     src={m.image}
                     alt={m.name}
-                    className="w-14 h-14 rounded-full object-cover object-[center_5%] border border-white/[0.06] mb-4"
+                    className="w-16 h-16 rounded-full object-cover object-[center_5%] border border-white/[0.06] mb-4"
                   />
                 ) : (
-                  <div className="w-14 h-14 rounded-full bg-[#2C2B28] border border-white/[0.06] mb-4" />
+                  <div className="w-16 h-16 rounded-full bg-[#2C2B28] border border-white/[0.06] mb-4" />
                 )}
-                <p className="text-sm font-medium text-[#F5F0E8]">{m.name}</p>
-                <p className="text-[11px] font-mono text-[#DA7756] mb-2">{m.role}</p>
-                <p className="text-[12px] text-[#9B9590] leading-relaxed">{m.bio}</p>
+                <p className="text-[15px] font-medium text-[#F5F0E8]">{m.name}</p>
+                {m.role && <p className="text-[11px] font-mono text-[#DA7756] mb-2">{m.role}</p>}
+                <p className="text-[13px] text-[#9B9590] leading-relaxed mt-1.5">{m.bio}</p>
               </motion.div>
             ))}
           </div>

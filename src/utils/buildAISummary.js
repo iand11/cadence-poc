@@ -116,10 +116,10 @@ export function buildAISummary(artist) {
   ];
 
   const suggestions = [
-    { label: 'Compare to similar artists', prompt: `Compare ${a.name} to similar artists` },
-    { label: 'Identify playlist growth opportunities', prompt: `Identify playlist growth opportunities for ${a.name}` },
-    { label: 'Analyze social engagement gaps', prompt: `Analyze social engagement gaps for ${a.name}` },
+    { label: 'Compare to similar artists', action: `Compare ${a.name} to similar artists`, dataType: 'benchmarks', platform: 'general' },
+    { label: 'Identify playlist growth opportunities', action: `Identify playlist growth opportunities for ${a.name}`, dataType: 'playlists', platform: 'spotify' },
+    { label: 'Analyze social engagement gaps', action: `Analyze social engagement gaps for ${a.name}`, dataType: 'social', platform: 'social' },
   ];
 
-  return { text, keyMetrics, suggestions };
+  return { text, keyMetrics, suggestions, artistSlug: a.slug, artistName: a.name };
 }
