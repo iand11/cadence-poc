@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
@@ -28,6 +28,7 @@ const PLATFORM_COLOR_MAP = {
 export default function CampaignDashboard({ directives, updateDirective }) {
   const agg = useMemo(() => aggregateCampaignMetrics(directives), [directives]);
   const { dismissedIds, applyOptimization, dismissOptimization } = useOptimizations();
+  const [alignByDay, setAlignByDay] = useState(true);
 
   // Detect optimization opportunities
   const optimizations = useMemo(() => {
@@ -51,7 +52,13 @@ export default function CampaignDashboard({ directives, updateDirective }) {
     );
   }
 
-  const { totals, dailyTotal, platformBreakdown, campaigns } = agg;
+  const { totals, dailyTotal, dayAlignedTotal, platformBreakdown, campaigns } = agg;
+
+  // Timeline data: either by calendar date or aligned to each campaign's Day 1.
+  const timelineData = alignByDay ? dayAlignedTotal : dailyTotal;
+  const timelineKey = alignByDay ? 'day' : 'date';
+  const timelineTickFormatter = alignByDay ? (v) => `Day ${v}` : formatDate;
+  const timelineLabelFormatter = alignByDay ? (v) => `Day ${v}` : formatDate;
 
   // Budget allocation donut data
   const budgetAllocation = platformBreakdown.map(p => ({
@@ -123,10 +130,32 @@ export default function CampaignDashboard({ directives, updateDirective }) {
       )}
 
       {/* Spend Timeline */}
-      {dailyTotal.length > 0 && (
-        <ChartCard title="Spend Timeline" subtitle="Daily spend across all campaigns" className="mb-4">
+      {timelineData.length > 0 && (
+        <ChartCard
+          title="Spend Timeline"
+          subtitle={alignByDay ? 'Daily spend aligned to each campaign’s Day 1' : 'Daily spend across all campaigns'}
+          className="mb-4"
+          action={
+            <div className="flex items-center gap-0.5 rounded-md border border-[#2A2724] bg-[#0D0C0B] p-0.5">
+              <button
+                type="button"
+                onClick={() => setAlignByDay(false)}
+                className={`px-2 py-1 text-[10px] rounded transition-colors ${!alignByDay ? 'bg-[#DA7756] text-[#0D0C0B] font-medium' : 'text-[#9B9590] hover:text-[#F5F0E8]'}`}
+              >
+                Calendar date
+              </button>
+              <button
+                type="button"
+                onClick={() => setAlignByDay(true)}
+                className={`px-2 py-1 text-[10px] rounded transition-colors ${alignByDay ? 'bg-[#DA7756] text-[#0D0C0B] font-medium' : 'text-[#9B9590] hover:text-[#F5F0E8]'}`}
+              >
+                Day 1 aligned
+              </button>
+            </div>
+          }
+        >
           <ResponsiveContainer width="100%" height={300}>
-            <AreaChart data={dailyTotal} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
+            <AreaChart data={timelineData} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
               <defs>
                 {campaignEntries.map(c => (
                   <linearGradient key={c.id} id={`grad-${c.id}`} x1="0" y1="0" x2="0" y2="1">
@@ -136,7 +165,7 @@ export default function CampaignDashboard({ directives, updateDirective }) {
                 ))}
               </defs>
               <CartesianGrid {...GRID_STYLE} />
-              <XAxis dataKey="date" {...AXIS_STYLE} tickFormatter={formatDate} interval={Math.max(0, Math.floor(dailyTotal.length / 7))} />
+              <XAxis dataKey={timelineKey} {...AXIS_STYLE} tickFormatter={timelineTickFormatter} interval={Math.max(0, Math.floor(timelineData.length / 7))} />
               <YAxis {...AXIS_STYLE} tickFormatter={(v) => `$${v}`} width={50} />
               <Tooltip
                 {...TOOLTIP_STYLE}
@@ -144,7 +173,7 @@ export default function CampaignDashboard({ directives, updateDirective }) {
                   const entry = campaignEntries.find(c => c.id === name);
                   return [`$${Number(value).toFixed(2)}`, entry?.name || 'Total'];
                 }}
-                labelFormatter={formatDate}
+                labelFormatter={timelineLabelFormatter}
               />
               <Legend
                 wrapperStyle={{ fontSize: 10, color: '#9B9590' }}

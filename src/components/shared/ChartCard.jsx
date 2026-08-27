@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion } from 'motion/react';
 import { cn } from '../../utils/cn';
 
-export default function ChartCard({ title, subtitle, children, className, filters, colors: c }) {
+export default function ChartCard({ title, subtitle, children, className, filters, action, colors: c }) {
   const [activeFilter, setActiveFilter] = useState(
     filters ? filters.findIndex((f) => f.active) : -1
   );
@@ -23,6 +23,7 @@ export default function ChartCard({ title, subtitle, children, className, filter
           <h3 className="text-sm font-medium" style={{ color: c?.textPrimary || '#F5F0E8' }}>{title}</h3>
           {subtitle && <p className="text-xs mt-0.5" style={{ color: c?.textSecondary || '#9B9590' }}>{subtitle}</p>}
         </div>
+        {action}
         {filters && filters.length > 0 && (
           <div className="flex items-center gap-1">
             {filters.map((filter, i) => (

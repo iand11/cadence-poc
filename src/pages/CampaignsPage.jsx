@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
-import { Megaphone, Plus, BarChart3, Rss } from 'lucide-react';
+import { Megaphone, Plus, BarChart3, Rss, ChevronDown } from 'lucide-react';
 import DirectiveCard from '../components/ads/DirectiveCard';
 import DirectiveBuilder from '../components/ads/DirectiveBuilder';
 import CampaignWizard from '../components/ads/CampaignWizard';
@@ -21,13 +21,16 @@ const PLATFORM_COLOR_MAP = {
   x: PLATFORM_COLORS.twitter,
 };
 
-const TABS = [
+const VIEW_TABS = [
   { key: 'dashboard', label: 'Dashboard', icon: BarChart3 },
   { key: 'content', label: 'Content', icon: Rss },
+];
+
+const STATUS_OPTIONS = [
+  { key: 'all', label: 'All' },
   { key: 'active', label: 'Active' },
   { key: 'drafts', label: 'Drafts' },
   { key: 'completed', label: 'Completed' },
-  { key: 'all', label: 'All' },
 ];
 
 export default function CampaignsPage() {
@@ -41,6 +44,7 @@ export default function CampaignsPage() {
   const location = useLocation();
   const hasTrackingData = directives.some(d => ['active', 'completed', 'executing'].includes(d.status));
   const [tab, setTab] = useState(hasTrackingData ? 'dashboard' : 'all');
+  const [statusMenuOpen, setStatusMenuOpen] = useState(false);
   const [builderOpen, setBuilderOpen] = useState(false);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [wizardArtistSlug, setWizardArtistSlug] = useState(null);
@@ -229,7 +233,7 @@ export default function CampaignsPage() {
 
       {/* Tabs */}
       <div className="flex items-center gap-1 mb-4">
-        {TABS.map(t => (
+        {VIEW_TABS.map(t => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
@@ -240,14 +244,59 @@ export default function CampaignsPage() {
             }`}
           >
             {t.label}
-            {t.key === 'active' && counts.active > 0 && (
-              <span className="ml-1 text-[#DA7756]">{counts.active}</span>
-            )}
-            {t.key === 'drafts' && counts.drafts > 0 && (
-              <span className="ml-1 text-[#6B6560]">{counts.drafts}</span>
-            )}
           </button>
         ))}
+
+        {/* Campaigns status dropdown */}
+        <div className="relative">
+          <button
+            onClick={() => setStatusMenuOpen(o => !o)}
+            onBlur={() => setTimeout(() => setStatusMenuOpen(false), 200)}
+            className={`flex items-center gap-1.5 text-[10px] font-mono px-3 py-1.5 rounded transition-colors cursor-pointer ${
+              STATUS_OPTIONS.some(o => o.key === tab)
+                ? 'text-[#F5F0E8] bg-[#171614] border border-[#2C2B28]'
+                : 'text-[#6B6560] hover:text-[#9B9590]'
+            }`}
+          >
+            Campaigns
+            <span className="text-[#DA7756]">
+              {STATUS_OPTIONS.find(o => o.key === tab)?.label || ''}
+            </span>
+            <ChevronDown size={10} className={`transition-transform ${statusMenuOpen ? 'rotate-180' : ''}`} />
+          </button>
+
+          <AnimatePresence>
+            {statusMenuOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.15 }}
+                className="absolute top-full left-0 mt-1.5 bg-[#171614] border border-[#2C2B28] rounded shadow-2xl z-50 overflow-hidden min-w-[130px]"
+              >
+                {STATUS_OPTIONS.map(o => (
+                  <button
+                    key={o.key}
+                    onMouseDown={() => { setTab(o.key); setStatusMenuOpen(false); }}
+                    className={`flex items-center justify-between w-full text-[10px] font-mono px-3.5 py-2.5 transition-colors cursor-pointer ${
+                      tab === o.key
+                        ? 'text-[#DA7756] bg-[#1C1B18]'
+                        : 'text-[#9B9590] hover:text-[#F5F0E8] hover:bg-[#1C1B18]'
+                    }`}
+                  >
+                    {o.label}
+                    {o.key === 'active' && counts.active > 0 && (
+                      <span className="text-[#DA7756]">{counts.active}</span>
+                    )}
+                    {o.key === 'drafts' && counts.drafts > 0 && (
+                      <span className="text-[#6B6560]">{counts.drafts}</span>
+                    )}
+                  </button>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
 
       {/* Dashboard view */}

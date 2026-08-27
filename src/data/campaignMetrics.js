@@ -220,6 +220,22 @@ export function aggregateCampaignMetrics(directives) {
   }
   const dailyTotal = Object.values(dateMap).sort((a, b) => a.date.localeCompare(b.date));
 
+  // Day-aligned timeline: index each campaign's spend by its own day number
+  // (Day 1 = campaign start), so campaigns starting on different dates line up.
+  const dayMap = {};
+  for (const { directive, metrics } of campaigns) {
+    metrics.daily.forEach((day, i) => {
+      const dayNum = i + 1;
+      if (!dayMap[dayNum]) {
+        dayMap[dayNum] = { day: dayNum, label: `Day ${dayNum}`, totalSpend: 0 };
+      }
+      dayMap[dayNum].totalSpend += day.spend;
+      const key = directive.id;
+      dayMap[dayNum][key] = (dayMap[dayNum][key] || 0) + day.spend;
+    });
+  }
+  const dayAlignedTotal = Object.values(dayMap).sort((a, b) => a.day - b.day);
+
   // Platform breakdown
   const platformMap = {};
   for (const { directive, metrics } of campaigns) {
@@ -259,6 +275,7 @@ export function aggregateCampaignMetrics(directives) {
   return {
     campaigns,
     dailyTotal,
+    dayAlignedTotal,
     platformBreakdown,
     totals: {
       spend: Math.round(totalSpend * 100) / 100,
