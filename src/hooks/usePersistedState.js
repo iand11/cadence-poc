@@ -1,75 +1,75 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import * as api from '../data/userData';
+import { useAuth } from './useAuth';
 
 /**
  * Hook that persists state to the user_data DB table, with localStorage fallback.
- * On first load: tries API, falls back to localStorage, migrates localStorage data to API.
+ *
+ * Scoped to the signed-in Firebase user: nothing is read or written until auth
+ * has resolved to a user (otherwise the request would go out without a token
+ * and hit the wrong — or no — account), and the value reloads from the server
+ * whenever the user changes. Signed out, the value resets to the default.
+ *
+ * On load: tries API, falls back to localStorage, migrates localStorage data to API.
  *
  * @param {string} key - Storage key (e.g. 'musicspace-favorites')
  * @param {*} defaultValue - Default value if nothing is stored
  * @returns {[value, setValue, { loaded }]}
  */
 export function usePersistedState(key, defaultValue) {
-  const [value, setValueRaw] = useState(defaultValue);
-  const [loaded, setLoaded] = useState(false);
-  const saveTimer = useRef(null);
-  const latestValue = useRef(value);
+  const { user, loading: authLoading } = useAuth();
+  const uid = user?.uid ?? null;
 
-  // Load from API on mount, fall back to localStorage
+  // Value + the uid it was loaded for; `loaded` is derived so a user switch
+  // immediately reads as not-loaded (no setState in the effect body).
+  const [state, setState] = useState({ uid: undefined, value: defaultValue });
+  // First-render default, stable across renders (callers pass fresh [] / {} literals)
+  const [initialDefault] = useState(defaultValue);
+
+  const loaded = !authLoading && state.uid === uid;
+  const value = loaded ? state.value : initialDefault;
+
   useEffect(() => {
+    if (authLoading) return;
     let cancelled = false;
+
+    const settle = (v) => {
+      if (!cancelled) setState({ uid, value: v });
+    };
+
+    if (!uid) {
+      settle(initialDefault);
+      return () => { cancelled = true; };
+    }
 
     api.getUserData(key)
       .then(data => {
-        if (cancelled) return;
-        if (data !== null && data !== undefined) {
-          setValueRaw(data);
-          latestValue.current = data;
-          setLoaded(true);
-        } else {
-          // No API data — check localStorage and migrate
-          const local = loadLocal(key);
-          if (local !== null) {
-            setValueRaw(local);
-            latestValue.current = local;
-            // Migrate to API in background
-            api.setUserData(key, local).catch(() => {});
-          }
-          setLoaded(true);
-        }
+        if (data !== null && data !== undefined) return settle(data);
+        // No API data — check localStorage and migrate
+        const local = loadLocal(key);
+        if (local !== null) api.setUserData(key, local).catch(() => {});
+        settle(local ?? initialDefault);
       })
       .catch(() => {
-        if (cancelled) return;
         // API unavailable — use localStorage
-        const local = loadLocal(key);
-        if (local !== null) {
-          setValueRaw(local);
-          latestValue.current = local;
-        }
-        setLoaded(true);
+        settle(loadLocal(key) ?? initialDefault);
       });
 
     return () => { cancelled = true; };
-  }, [key]);
+  }, [key, uid, authLoading, initialDefault]);
 
-  // Debounced save to API + localStorage
+  // Save to localStorage now + debounced API save (flushed on sign-out).
+  // Ignored until loaded, so a write can never clobber the server copy with
+  // a not-yet-loaded default.
   const setValue = useCallback((updater) => {
-    setValueRaw(prev => {
-      const next = typeof updater === 'function' ? updater(prev) : updater;
-      latestValue.current = next;
-
-      // Save to localStorage immediately (fast, offline-safe)
+    if (!loaded) return;
+    setState(prev => {
+      const next = typeof updater === 'function' ? updater(prev.value) : updater;
       saveLocal(key, next);
-
-      // Debounce API save (300ms)
-      if (saveTimer.current) clearTimeout(saveTimer.current);
-      saveTimer.current = setTimeout(() => {
-        api.setUserData(key, latestValue.current).catch(() => {});
-      }, 300);
-
-      return next;
+      api.queueUserData(key, next);
+      return { ...prev, value: next };
     });
-  }, [key]);
+  }, [key, loaded]);
 
   return [value, setValue, { loaded }];
 }
