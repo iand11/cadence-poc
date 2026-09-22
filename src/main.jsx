@@ -1,6 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { BrowserRouter, Routes, Route } from 'react-router';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
 import './index.css';
 import App from './App.jsx';
 import AppGate from './components/AppGate';
@@ -44,7 +44,8 @@ createRoot(document.getElementById('root')).render(
         <Route path="/login" element={<LoginPage />} />
         <Route element={<ProtectedRoute />}>
         <Route path="app" element={<App />}>
-          <Route index element={<Control />} />
+          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route path="chat" element={<Control />} />
           <Route path="actions" element={<ActionsPage />} />
           <Route path="actions/:artistSlug" element={<ArtistActionsPage />} />
           <Route path="dashboard" element={<Dashboard />} />
