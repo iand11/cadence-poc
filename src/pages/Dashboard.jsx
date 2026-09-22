@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   Star, Sparkles, ArrowUp, Music, GripVertical,
   RotateCcw, MessageSquare, X, TrendingUp,
-  Plus, LayoutGrid, Check, ListMusic, ListChecks, Users,
+  Plus, LayoutGrid, Check, ListMusic, ListChecks, Users, ArrowRight,
 } from 'lucide-react';
 import KpiCard from '../components/shared/KpiCard';
 import DataTable from '../components/shared/DataTable';
@@ -512,34 +512,45 @@ function TrackIntelligenceWidget({ dragProps, trackedSlugs }) {
 
 function EmptyState({ tracked, count, onToggle, onDone }) {
   return (
-    <div className="max-w-4xl mx-auto py-8">
-      <div className="text-center mb-6">
-        <div className="w-12 h-12 rounded-full bg-[#DA7756]/10 flex items-center justify-center mx-auto mb-4">
-          <Users size={20} className="text-[#DA7756]" />
-        </div>
-        <h1 className="text-2xl font-light text-[#F5F0E8]">Choose the artists you want to track</h1>
-        <p className="text-sm text-[#9B9590] mt-2 max-w-lg mx-auto">
-          Your dashboard is built around the artists you follow. Pick a few to get started —
-          you can always add or remove them later.
+    <div className="max-w-2xl mx-auto pt-12 sm:pt-20 pb-32">
+      <div className="mb-8">
+        <p className="text-[11px] uppercase tracking-[0.2em] text-[#DA7756] mb-3">Get started</p>
+        <h1 className="text-3xl sm:text-4xl font-light text-[#F5F0E8] tracking-tight">
+          Who are you tracking?
+        </h1>
+        <p className="text-sm text-[#9B9590] mt-3 leading-relaxed">
+          Your dashboard is built around the artists you follow. Add a few to get started —
+          you can change them any time.
         </p>
       </div>
 
-      <div className="bg-[#171614] border border-[#2C2B28] rounded p-4">
-        <div className="flex items-center justify-between mb-4">
-          <span className="text-xs font-medium text-[#9B9590]">
-            {count > 0 ? `${count} artist${count === 1 ? '' : 's'} selected` : 'No artists selected yet'}
-          </span>
-          <button
-            onClick={onDone}
-            disabled={count === 0}
-            className="flex items-center gap-1.5 px-4 py-2 text-xs rounded transition-colors cursor-pointer bg-[#DA7756] text-[#0D0C0B] font-semibold hover:bg-[#DA7756]/90 disabled:opacity-40 disabled:cursor-not-allowed"
+      <TrackedArtistPicker tracked={tracked} onToggle={onToggle} size="lg" />
+
+      {/* Sticky continue bar — appears once something is selected */}
+      <AnimatePresence>
+        {count > 0 && (
+          <motion.div
+            initial={{ y: 24, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 24, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed bottom-6 left-0 right-0 z-30 px-4 pointer-events-none"
           >
-            <Check size={12} />
-            Go to dashboard
-          </button>
-        </div>
-        <TrackedArtistPicker tracked={tracked} onToggle={onToggle} />
-      </div>
+            <div className="max-w-2xl mx-auto flex items-center justify-between gap-4 pl-5 pr-2 py-2 rounded-lg bg-[#171614] border border-[#2C2B28] shadow-2xl shadow-black/60 pointer-events-auto">
+              <span className="text-sm text-[#9B9590]">
+                <span className="text-[#F5F0E8] font-medium">{count}</span> artist{count === 1 ? '' : 's'} selected
+              </span>
+              <button
+                onClick={onDone}
+                className="flex items-center gap-2 px-4 py-2 text-sm rounded-md bg-[#DA7756] text-[#0D0C0B] font-semibold hover:bg-[#DA7756]/90 transition-colors cursor-pointer"
+              >
+                Continue to dashboard
+                <ArrowRight size={14} />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

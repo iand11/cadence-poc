@@ -14,7 +14,7 @@ const SEARCH_LIMIT = 24;
  * When a search comes up short, the user can submit a request for the artist
  * to be added (an outside service fulfills artist_requests rows).
  */
-export default function TrackedArtistPicker({ tracked, onToggle }) {
+export default function TrackedArtistPicker({ tracked, onToggle, size = 'md' }) {
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   // Last search response; `searching` is derived by comparing its key to the
@@ -71,6 +71,108 @@ export default function TrackedArtistPicker({ tracked, onToggle }) {
 
   const showRequestFlow = hasQuery && !searching;
   const noResults = showRequestFlow && results.length === 0;
+
+  if (size === 'lg') {
+    const selected = rosterArtists.filter((a) => trackedSet.has(a.slug));
+    // Seed the chip from the search result so it shows instantly instead of
+    // waiting on the fetchArtistsBySlugs round trip.
+    const toggleFromResult = (artist) => {
+      setRosterArtists((prev) => (prev.some((a) => a.slug === artist.slug) ? prev : [...prev, artist]));
+      onToggle(artist.slug);
+    };
+    return (
+      <div className="space-y-5">
+        {/* Search */}
+        <div className="flex items-center gap-3 h-14 px-4 rounded-lg bg-[#171614] border border-[#2C2B28] focus-within:border-[#DA7756]/50 focus-within:ring-4 focus-within:ring-[#DA7756]/10 transition-all">
+          {searching
+            ? <Loader2 size={18} className="text-[#9B9590] shrink-0 animate-spin" />
+            : <Search size={18} className="text-[#9B9590] shrink-0" />}
+          <input
+            ref={inputRef}
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search artists by name"
+            autoFocus
+            className="flex-1 bg-transparent text-base text-[#F5F0E8] placeholder-[#6B6560] outline-none"
+          />
+          {hasQuery && !searching && (
+            <span className="text-xs text-[#6B6560] shrink-0">
+              {total.toLocaleString()} match{total === 1 ? '' : 'es'}
+            </span>
+          )}
+          {query && (
+            <button
+              onClick={() => { setQuery(''); inputRef.current?.focus(); }}
+              className="p-1 -mr-1 rounded hover:bg-[#2C2B28] cursor-pointer"
+              aria-label="Clear search"
+            >
+              <X size={14} className="text-[#9B9590]" />
+            </button>
+          )}
+        </div>
+
+        {/* Selected chips */}
+        {selected.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {selected.map((artist) => (
+              <span
+                key={artist.slug}
+                className="inline-flex items-center gap-2 pl-1 pr-1.5 py-1 rounded-full bg-[#DA7756]/10 border border-[#DA7756]/30"
+              >
+                <Avatar artist={artist} className="w-6 h-6" />
+                <span className="text-xs text-[#F5F0E8]">{artist.name}</span>
+                <button
+                  onClick={() => onToggle(artist.slug)}
+                  className="p-0.5 rounded-full text-[#DA7756] hover:bg-[#DA7756]/20 cursor-pointer"
+                  aria-label={`Remove ${artist.name}`}
+                >
+                  <X size={12} />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+
+        {hasQuery ? (
+          <>
+            {searching && results.length === 0 ? (
+              <div className="rounded-lg border border-[#2C2B28] divide-y divide-[#2C2B28] overflow-hidden">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-3 px-4 py-3 animate-pulse">
+                    <div className="w-10 h-10 rounded-full bg-[#2C2B28] shrink-0" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-3 w-32 rounded bg-[#2C2B28]" />
+                      <div className="h-2.5 w-20 rounded bg-[#2C2B28]/60" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : results.length > 0 && (
+              <div className={`rounded-lg border border-[#2C2B28] bg-[#131211] divide-y divide-[#2C2B28] overflow-hidden transition-opacity duration-200 ${searching ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
+                {results.map((artist) => (
+                  <ArtistRow
+                    key={artist.slug}
+                    artist={artist}
+                    isTracked={trackedSet.has(artist.slug)}
+                    onToggle={() => toggleFromResult(artist)}
+                  />
+                ))}
+              </div>
+            )}
+            {showRequestFlow && (
+              <RequestArtistFlow key={debouncedQuery} query={debouncedQuery} prominent={noResults} />
+            )}
+          </>
+        ) : selected.length === 0 && (
+          <p className="text-sm text-[#6B6560] flex items-center gap-2">
+            <Music size={14} className="text-[#3D3B37]" />
+            Start typing to search the catalog.
+          </p>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -163,6 +265,40 @@ export default function TrackedArtistPicker({ tracked, onToggle }) {
         </div>
       )}
     </div>
+  );
+}
+
+function Avatar({ artist, className }) {
+  return artist.imageUrl ? (
+    <img src={artist.imageUrl} alt="" className={`${className} rounded-full object-cover shrink-0`} />
+  ) : (
+    <div className={`${className} rounded-full bg-[#2C2B28] flex items-center justify-center shrink-0`}>
+      <Music size={12} className="text-[#6B6560]" />
+    </div>
+  );
+}
+
+function ArtistRow({ artist, isTracked, onToggle }) {
+  return (
+    <button
+      onClick={onToggle}
+      className="group w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-[#1C1A18] transition-colors cursor-pointer"
+    >
+      <Avatar artist={artist} className="w-10 h-10" />
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-[#F5F0E8] truncate">{artist.name}</p>
+        <p className="text-xs text-[#6B6560] truncate mt-0.5">
+          {artist.genres?.primary?.name || 'Artist'} · {formatNumber(artist.spotify.monthlyListeners)} monthly listeners
+        </p>
+      </div>
+      <span className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-medium shrink-0 transition-colors ${
+        isTracked
+          ? 'bg-[#DA7756] text-[#0D0C0B]'
+          : 'border border-[#2C2B28] text-[#9B9590] group-hover:border-[#DA7756]/50 group-hover:text-[#DA7756]'
+      }`}>
+        {isTracked ? <><Check size={12} /> Added</> : <><Plus size={12} /> Add</>}
+      </span>
+    </button>
   );
 }
 
