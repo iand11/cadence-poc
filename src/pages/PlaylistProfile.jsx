@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useParams, Link } from 'react-router';
 import { Music, TrendingUp, Users, ListMusic, BarChart3, Disc3 } from 'lucide-react';
 import ProfileLayout from '../components/profile/ProfileLayout';
@@ -6,6 +7,7 @@ import ChartCard from '../components/shared/ChartCard';
 import KpiCard from '../components/shared/KpiCard';
 import Badge from '../components/shared/Badge';
 import { getPlaylist } from '../data/playlistData';
+import { useTrackedArtists } from '../hooks/useTrackedArtists';
 import { formatNumber, formatDelta } from '../utils/formatters';
 
 function PlatformBadge({ platform }) {
@@ -38,7 +40,23 @@ function TypeBadge({ type }) {
 
 export default function PlaylistProfile() {
   const { id } = useParams();
-  const profile = getPlaylist(id);
+  const { trackedArtists, loading: rosterLoading } = useTrackedArtists();
+  // Placements derive from the tracked roster — recompute when it arrives/changes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- trackedArtists invalidates playlistData's module-level cache
+  const profile = useMemo(() => getPlaylist(id), [id, trackedArtists]);
+
+  // Roster loaded but empty — no placements to attribute to this playlist.
+  if (!rosterLoading && trackedArtists.length === 0) {
+    return (
+      <div className="text-center py-20">
+        <ListMusic size={32} className="mx-auto text-[#2C2B28] mb-3" />
+        <p className="text-sm text-[#9B9590]">Track artists to see playlist placements</p>
+        <Link to="/app/dashboard" className="inline-block mt-4 text-xs text-[#DA7756] hover:underline">
+          Choose artists to track
+        </Link>
+      </div>
+    );
+  }
 
   if (!profile) {
     return (

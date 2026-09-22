@@ -6,6 +6,7 @@ import ChartCard from '../components/shared/ChartCard';
 import Pagination from '../components/shared/Pagination';
 import FilterBar from '../components/shared/FilterBar';
 import { getAllPlaylists, getPlaylistComparison, getRosterPlaylistStats } from '../data/playlistData';
+import { useTrackedArtists } from '../hooks/useTrackedArtists';
 import { formatNumber } from '../utils/formatters';
 
 const COLORS = ['#DA7756', '#7BAF73', '#C75F4F', '#D4A574'];
@@ -23,8 +24,12 @@ const TYPE_BADGE = {
 };
 
 export default function PlaylistsPage() {
-  const rosterStats = useMemo(() => getRosterPlaylistStats(), []);
-  const allPlaylists = useMemo(() => getAllPlaylists(), []);
+  const { trackedArtists, loading: rosterLoading } = useTrackedArtists();
+  // Placements derive from the tracked roster — recompute when it arrives/changes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- trackedArtists invalidates playlistData's module-level cache
+  const rosterStats = useMemo(() => getRosterPlaylistStats(), [trackedArtists]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- trackedArtists invalidates playlistData's module-level cache
+  const allPlaylists = useMemo(() => getAllPlaylists(), [trackedArtists]);
 
   const [query, setQuery] = useState('');
   const [sortKey, setSortKey] = useState('streams');
@@ -131,7 +136,8 @@ export default function PlaylistsPage() {
     }
   };
 
-  const comparisons = useMemo(() => getPlaylistComparison(selectedIds), [selectedIds]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- trackedArtists invalidates playlistData's module-level cache
+  const comparisons = useMemo(() => getPlaylistComparison(selectedIds), [selectedIds, trackedArtists]);
 
   const overlap = useMemo(() => {
     if (comparisons.length < 2) return [];
@@ -162,6 +168,30 @@ export default function PlaylistsPage() {
       <ArrowUpDown size={10} className={sortKey === sortField ? 'opacity-100' : 'opacity-30'} />
     </button>
   );
+
+  // Roster loaded but empty — nothing to derive placements from.
+  if (!rosterLoading && trackedArtists.length === 0) {
+    return (
+      <div className="space-y-6">
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }}>
+          <div className="flex items-center gap-3 mb-1">
+            <span className="text-[10px] uppercase tracking-wider border rounded px-2 py-0.5 bg-[#7BAF73]/10 text-[#7BAF73] border-[#7BAF73]/20">
+              playlists
+            </span>
+          </div>
+          <h1 className="text-3xl font-light text-[#F5F0E8] mt-2">Playlists</h1>
+          <p className="text-sm text-[#9B9590] mt-1">Browse, search, and compare roster playlist placements</p>
+        </motion.div>
+        <div className="text-center py-20">
+          <ListMusic size={32} className="mx-auto text-[#2C2B28] mb-3" />
+          <p className="text-sm text-[#9B9590]">Track artists to see playlist placements</p>
+          <Link to="/app/dashboard" className="inline-block mt-4 text-xs text-[#DA7756] hover:underline">
+            Choose artists to track
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

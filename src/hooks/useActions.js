@@ -1,12 +1,18 @@
 import { useState, useMemo, useCallback } from 'react';
 import { generateAllActions } from '../data/actions';
+import { useTrackedArtists } from './useTrackedArtists';
 
-const STORAGE_KEY = 'cadence-actions-v1';
+const STORAGE_KEY = 'musicspace-actions-v1';
+
+// Roster of teams an action can be assigned to.
+export const OWNERS = ['A&R', 'Marketing', 'Digital', 'Radio', 'Sync', 'Management'];
+
+const EMPTY = { statuses: {}, customActions: [], completedSteps: {}, edits: {}, stepEdits: {}, extraSteps: {}, selected: {}, owners: {} };
 
 function load() {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (!stored) return { statuses: {}, customActions: [], completedSteps: {}, edits: {}, stepEdits: {}, extraSteps: {}, selected: {} };
+    if (!stored) return { ...EMPTY };
     const parsed = JSON.parse(stored);
     return {
       statuses: parsed.statuses || {},
@@ -16,9 +22,10 @@ function load() {
       stepEdits: parsed.stepEdits || {},   // { [stepId]: string }
       extraSteps: parsed.extraSteps || {}, // { [actionId]: [{ id, text, category }] }
       selected: parsed.selected || {},     // { [actionId]: true }
+      owners: parsed.owners || {},         // { [actionId]: string }
     };
   } catch {
-    return { statuses: {}, customActions: [], completedSteps: {}, edits: {}, stepEdits: {}, extraSteps: {}, selected: {} };
+    return { ...EMPTY };
   }
 }
 
@@ -30,8 +37,12 @@ const SEVERITY_ORDER = { danger: 0, warning: 1, info: 2, success: 3 };
 
 export function useActions() {
   const [stored, setStored] = useState(load);
+  const { trackedArtists } = useTrackedArtists();
 
-  const systemActions = useMemo(() => generateAllActions(), []);
+  // Regenerate when the tracked roster arrives/changes (actions.js caches
+  // internally and invalidates itself on roster change)
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- roster change must retrigger the module-level generator
+  const systemActions = useMemo(() => generateAllActions(), [trackedArtists]);
 
   const actions = useMemo(() => {
     const applyStepState = (a) => {
@@ -45,6 +56,8 @@ export function useActions() {
         ...a,
         action: actionEdits.action ?? a.action,
         text: actionEdits.text ?? a.text,
+        dueDate: actionEdits.dueDate ?? a.dueDate ?? null,
+        owner: stored.owners[a.id] ?? a.owner ?? null,
         status: stored.statuses[a.id] || 'active',
         selected: !!stored.selected[a.id],
         steps: [
@@ -149,6 +162,20 @@ export function useActions() {
         ...prev,
         edits: { ...prev.edits, [actionId]: { ...existing, [field]: value } },
       };
+      save(next);
+      return next;
+    });
+  }, []);
+
+  const setOwner = useCallback((actionId, owner) => {
+    setStored(prev => {
+      const nextOwners = { ...prev.owners };
+      if (owner) {
+        nextOwners[actionId] = owner;
+      } else {
+        delete nextOwners[actionId];
+      }
+      const next = { ...prev, owners: nextOwners };
       save(next);
       return next;
     });
@@ -291,6 +318,7 @@ export function useActions() {
     restore,
     toggleStep,
     editAction,
+    setOwner,
     editStep,
     addStep,
     removeStep,

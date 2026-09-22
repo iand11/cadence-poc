@@ -8,6 +8,7 @@ import Pagination from '../components/shared/Pagination';
 import FilterBar from '../components/shared/FilterBar';
 import { getArtist } from '../data/artists';
 import { getTrackComparison, getRosterTrackStats, loadAllRosterTracks } from '../data/trackData';
+import { useTrackedArtists } from '../hooks/useTrackedArtists';
 import { formatNumber } from '../utils/formatters';
 
 const COLORS = ['#DA7756', '#7BAF73', '#C75F4F', '#D4A574'];
@@ -73,16 +74,29 @@ function MultiTrackTrendChart({ data, keys, colors }) {
 }
 
 export default function TracksPage() {
-  const stats = useMemo(() => getRosterTrackStats(), []);
-  const [allTracks, setAllTracks] = useState(stats.topTracks);
+  const { trackedArtists, loading: rosterLoading } = useTrackedArtists();
+  const [stats, setStats] = useState(null);
+  const [allTracks, setAllTracks] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadAllRosterTracks(5).then(tracks => {
-      setAllTracks(tracks);
-      setLoading(false);
-    });
-  }, []);
+    if (rosterLoading) return;
+    let cancelled = false;
+    // Seed the table with the roster's top tracks, then replace with the full list
+    getRosterTrackStats()
+      .then(s => {
+        if (cancelled) return null;
+        setStats(s);
+        setAllTracks(s.topTracks);
+        return loadAllRosterTracks();
+      })
+      .then(tracks => {
+        if (cancelled || !tracks) return;
+        setAllTracks(tracks);
+        setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [rosterLoading, trackedArtists]);
 
   const [query, setQuery] = useState('');
   const [sortKey, setSortKey] = useState('streams');
@@ -113,7 +127,7 @@ export default function TracksPage() {
     if (query.length >= 2) {
       const q = query.toLowerCase();
       list = list.filter(t => {
-        const artistName = getArtist(t.artistSlug)?.name || '';
+        const artistName = getArtist(t.artistSlug)?.name ?? t.artistNames?.[0] ?? '';
         return t.name.toLowerCase().includes(q) || artistName.toLowerCase().includes(q);
       });
     }
@@ -211,6 +225,28 @@ export default function TracksPage() {
     </button>
   );
 
+  // --- Wait for the tracked roster before deciding what to render ---
+  if (rosterLoading) {
+    return (
+      <div className="flex items-center justify-center py-32">
+        <div className="w-8 h-8 rounded-full border-2 border-[#2C2B28] border-t-[#DA7756] animate-spin" />
+      </div>
+    );
+  }
+
+  if (trackedArtists.length === 0) {
+    return (
+      <div className="text-center py-20">
+        <Music size={32} className="mx-auto text-[#2C2B28] mb-3" />
+        <p className="text-sm text-[#9B9590]">No artists tracked yet</p>
+        <p className="text-[11px] text-[#6B6560] mt-1">Track artists from the dashboard to see their tracks here</p>
+        <Link to="/app/dashboard" className="inline-block mt-4 text-xs text-[#DA7756] hover:underline">
+          Go to Dashboard
+        </Link>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header + KPIs */}
@@ -226,19 +262,19 @@ export default function TracksPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-5">
           <div className="bg-[#171614] border border-[#2C2B28] rounded p-3">
             <p className="text-[10px] text-[#9B9590] uppercase tracking-wider">Total Streams</p>
-            <p className="text-lg font-mono text-[#F5F0E8] mt-1">{formatNumber(stats.totalStreams)}</p>
+            <p className="text-lg font-mono text-[#F5F0E8] mt-1">{stats ? formatNumber(stats.totalStreams) : '—'}</p>
           </div>
           <div className="bg-[#171614] border border-[#2C2B28] rounded p-3">
             <p className="text-[10px] text-[#9B9590] uppercase tracking-wider">Avg Popularity</p>
-            <p className="text-lg font-mono text-[#F5F0E8] mt-1">{stats.avgPopularity}/100</p>
+            <p className="text-lg font-mono text-[#F5F0E8] mt-1">{stats ? `${stats.avgPopularity}/100` : '—'}</p>
           </div>
           <div className="bg-[#171614] border border-[#2C2B28] rounded p-3">
             <p className="text-[10px] text-[#9B9590] uppercase tracking-wider">Editorial Rate</p>
-            <p className="text-lg font-mono text-[#F5F0E8] mt-1">{stats.editorialRate}%</p>
+            <p className="text-lg font-mono text-[#F5F0E8] mt-1">{stats ? `${stats.editorialRate}%` : '—'}</p>
           </div>
           <div className="bg-[#171614] border border-[#2C2B28] rounded p-3">
             <p className="text-[10px] text-[#9B9590] uppercase tracking-wider">Total Playlists</p>
-            <p className="text-lg font-mono text-[#F5F0E8] mt-1">{formatNumber(stats.totalPlaylists)}</p>
+            <p className="text-lg font-mono text-[#F5F0E8] mt-1">{stats ? formatNumber(stats.totalPlaylists) : '—'}</p>
           </div>
         </div>
       </motion.div>
@@ -292,7 +328,7 @@ export default function TracksPage() {
         {/* Table rows */}
         {paginated.map((track, i) => {
           const globalIdx = (page - 1) * perPage + i;
-          const artist = getArtist(track.artistSlug);
+          const artistName = getArtist(track.artistSlug)?.name ?? track.artistNames?.[0] ?? track.artistSlug;
           const isSelected = selectedIds.includes(track.id);
           const colorIdx = selectedIds.indexOf(track.id);
           return (
@@ -335,13 +371,13 @@ export default function TracksPage() {
                     {isSelected && <span className="inline-block w-1.5 h-1.5 rounded-full mr-1.5" style={{ backgroundColor: COLORS[colorIdx] }} />}
                     {track.name}
                   </p>
-                  <p className="text-[9px] text-[#6B6560] truncate md:hidden">{artist?.name}</p>
+                  <p className="text-[9px] text-[#6B6560] truncate md:hidden">{artistName}</p>
                 </div>
               </Link>
 
               {/* Artist */}
               <Link to={`/app/artist/${track.artistSlug}`} className="text-[11px] text-[#9B9590] hover:text-[#F5F0E8] transition-colors truncate hidden md:block">
-                {artist?.name}
+                {artistName}
               </Link>
 
               {/* Streams */}

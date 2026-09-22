@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 
-const STORAGE_KEY = 'cadence-reports-v1';
+const STORAGE_KEY = 'musicspace-reports-v1';
 
 const DEFAULT_REPORTS = [
   {

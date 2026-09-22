@@ -5,15 +5,15 @@ import { ListMusic, TrendingUp, Users, BarChart3, Search, X, Check, ArrowLeft } 
 import ChartCard from '../components/shared/ChartCard';
 import KpiCard from '../components/shared/KpiCard';
 import { getAllPlaylists, getPlaylistComparison } from '../data/playlistData';
+import { useTrackedArtists } from '../hooks/useTrackedArtists';
 import { formatNumber } from '../utils/formatters';
 
 const COLORS = ['#DA7756', '#7BAF73', '#C75F4F', '#D4A574'];
 
-function PlaylistSelector({ selected, onChange }) {
+function PlaylistSelector({ selected, onChange, allPlaylists }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const ref = useRef(null);
-  const allPlaylists = useMemo(() => getAllPlaylists(), []);
 
   useEffect(() => {
     if (!open) return;
@@ -100,11 +100,23 @@ function PlaylistSelector({ selected, onChange }) {
 }
 
 export default function PlaylistComparison() {
-  const allPlaylists = useMemo(() => getAllPlaylists(), []);
-  // Default: pick top 3 playlists
-  const [selectedIds, setSelectedIds] = useState(() => allPlaylists.slice(0, 3).map(p => p.id));
+  const { trackedArtists, loading: rosterLoading } = useTrackedArtists();
+  // Placements derive from the tracked roster — recompute when it arrives/changes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- trackedArtists invalidates playlistData's module-level cache
+  const allPlaylists = useMemo(() => getAllPlaylists(), [trackedArtists]);
 
-  const playlists = useMemo(() => getPlaylistComparison(selectedIds), [selectedIds]);
+  // Default: top 3 playlists — derived (not locked into state) so an empty
+  // default computed before the roster loads never sticks. Once the user
+  // touches the selection, their choice takes over.
+  const [userSelectedIds, setUserSelectedIds] = useState(null);
+  const defaultIds = useMemo(() => (
+    rosterLoading || trackedArtists.length === 0 ? [] : allPlaylists.slice(0, 3).map(p => p.id)
+  ), [rosterLoading, trackedArtists, allPlaylists]);
+  const selectedIds = userSelectedIds ?? defaultIds;
+  const setSelectedIds = setUserSelectedIds;
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- trackedArtists invalidates playlistData's module-level cache
+  const playlists = useMemo(() => getPlaylistComparison(selectedIds), [selectedIds, trackedArtists]);
 
   // Overlap analysis: artists appearing on multiple selected playlists
   const overlap = useMemo(() => {
@@ -144,7 +156,7 @@ export default function PlaylistComparison() {
 
       {/* Selector */}
       <div className="flex items-center gap-3 flex-wrap">
-        <PlaylistSelector selected={selectedIds} onChange={setSelectedIds} />
+        <PlaylistSelector selected={selectedIds} onChange={setSelectedIds} allPlaylists={allPlaylists} />
         {selectedIds.map((id, i) => {
           const pl = playlists.find(p => p.id === id);
           if (!pl) return null;
@@ -160,7 +172,15 @@ export default function PlaylistComparison() {
         })}
       </div>
 
-      {playlists.length === 0 ? (
+      {!rosterLoading && trackedArtists.length === 0 ? (
+        <div className="text-center py-16">
+          <ListMusic size={32} className="mx-auto text-[#2C2B28] mb-3" />
+          <p className="text-sm text-[#9B9590]">Track artists to see playlist placements</p>
+          <Link to="/app/dashboard" className="inline-block mt-4 text-xs text-[#DA7756] hover:underline">
+            Choose artists to track
+          </Link>
+        </div>
+      ) : playlists.length === 0 ? (
         <div className="text-center py-16">
           <ListMusic size={32} className="mx-auto text-[#2C2B28] mb-3" />
           <p className="text-sm text-[#9B9590]">Select playlists to compare</p>

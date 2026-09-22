@@ -1,8 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { readFileSync } from 'fs';
-import { join } from 'path';
 
-let cached = null;
 
 // In-memory rate limiter (per warm instance)
 const RATE_LIMIT = 20;         // max requests
@@ -20,37 +17,7 @@ function isRateLimited(ip) {
   return entry.count > RATE_LIMIT;
 }
 
-function buildArtistContext() {
-  const indexData = JSON.parse(readFileSync(join(process.cwd(), 'src/data/artists-index.generated.json'), 'utf-8'));
-  const raw = indexData.artists;
-  const fmt = (n) =>
-    n >= 1e9 ? (n / 1e9).toFixed(1) + 'B' :
-    n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' :
-    n >= 1e3 ? (n / 1e3).toFixed(0) + 'K' : String(n);
-
-  const artists = raw
-    .filter((r) => r.ok && r.body?.data)
-    .map((r) => {
-      const d = r.body.data;
-      const s = d.cm_statistics || {};
-      const slug = d.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-      const cities = (s.sp_where_people_listen || []).slice(0, 2).map((c) => c.name).join('/');
-      return {
-        rank: d.cm_artist_rank,
-        line: `#${d.cm_artist_rank} ${d.name} (${slug}) | ${d.genres?.primary?.name || '?'} | pop:${s.sp_popularity || 0} | Sp:${fmt(s.sp_monthly_listeners || 0)}mo ${fmt(s.sp_followers || 0)}fol | IG:${fmt(s.ins_followers || 0)} TT:${fmt(s.tiktok_followers || 0)} YT:${fmt(s.ycs_subscribers || 0)} | PL:${s.num_sp_playlists || 0}(${s.num_sp_editorial_playlists || 0}ed) ${fmt(s.sp_playlist_total_reach || 0)}reach | ${cities}`,
-      };
-    })
-    .sort((a, b) => a.rank - b.rank);
-
-  const totalListeners = raw
-    .filter((r) => r.ok)
-    .reduce((sum, r) => sum + (r.body?.data?.cm_statistics?.sp_monthly_listeners || 0), 0);
-
-  return `ROSTER: ${artists.length} artists | ${fmt(totalListeners)} total monthly listeners\n` +
-    artists.map((a) => a.line).join('\n');
-}
-
-const systemPrompt = (context) => `You are Cadence, a music industry intelligence assistant in the Cadence platform. You help A&R, managers, and label executives make data-driven decisions.
+const systemPrompt = (context) => `You are Prelude, a music industry intelligence assistant in the Prelude platform. You help A&R, managers, and label executives make data-driven decisions.
 
 Real-time roster data:
 ${context}
@@ -60,7 +27,7 @@ Rules:
 - Be concise: 2-3 paragraphs max. Direct and professional.
 - Speak authoritatively — no hedging like "Based on my data".
 - End with one follow-up suggestion.
-- You are Cadence, not Claude.
+- You are Prelude, not Claude.
 - Use markdown formatting: **bold** for artist names and key numbers, bullet lists for comparisons.
 - When asked to show, visualize, or chart data, use the render_chart tool. Construct the data array from the roster stats above. Include brief text analysis alongside the chart.
 - When the user asks to create a task, action item, reminder, or to-do for an artist, use the create_action tool. This adds the item to the Action Center.`;
@@ -173,9 +140,12 @@ export default async function handler(req, res) {
     return res.end();
   }
 
-  if (!cached) cached = buildArtistContext();
-
-  const { messages } = req.body || {};
+  // Roster context now comes from the client, which builds it from the
+  // user's tracked artists (DB-backed) — the static bundle is gone.
+  const { messages, artistContext } = req.body || {};
+  const context = typeof artistContext === 'string' && artistContext.trim()
+    ? artistContext.slice(0, 30_000)
+    : 'No tracked artists yet — the user has not added artists to their roster.';
   const apiKey = process.env.ANTHROPIC_API_KEY;
 
   if (!apiKey) {
@@ -195,7 +165,7 @@ export default async function handler(req, res) {
     const response = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 2048,
-      system: systemPrompt(cached),
+      system: systemPrompt(context),
       messages: messages || [],
       tools,
       stream: true,

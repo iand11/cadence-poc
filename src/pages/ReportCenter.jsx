@@ -17,7 +17,6 @@ import SocialGrowthChart from '../components/charts/SocialGrowthChart';
 import GeographyHeatMap from '../components/charts/GeographyHeatMap';
 import BenchmarkRadarChart from '../components/charts/BenchmarkRadarChart';
 import {
-  getArtist,
   getTopArtists,
   generateStreamingTrend,
   generateSocialTimeline,
@@ -25,6 +24,8 @@ import {
   generateRevenue,
   getBenchmarkComparison,
 } from '../data/artists';
+import { fetchArtistsBySlugs } from '../data/artistsRemote';
+import { useTrackedArtists } from '../hooks/useTrackedArtists';
 import { formatNumber, formatCurrency } from '../utils/formatters';
 
 // --- Column definitions ---
@@ -85,12 +86,52 @@ export default function ReportCenter() {
     return 'Untitled Report';
   });
 
-  const [selectedArtists, setSelectedArtists] = useState(() => {
-    if (existingReport) return existingReport.artists.map(s => getArtist(s)).filter(Boolean);
+  const { trackedArtists, loading: rosterLoading } = useTrackedArtists();
+
+  // Selected artists resolve asynchronously: report slug list / ?artists=
+  // param / default (tracked roster, else top catalog artists)
+  const [selectedArtists, setSelectedArtists] = useState([]);
+  const [artistsReady, setArtistsReady] = useState(false);
+  const resolvedForRef = useRef(null);
+  useEffect(() => {
+    let cancelled = false;
+    // marker records which source resolved, so one-shot sources don't refire
+    // (set at apply time — a cancelled StrictMode dev run must not claim it)
+    const apply = (artists, marker) => {
+      if (cancelled) return;
+      resolvedForRef.current = marker;
+      setSelectedArtists(artists);
+      setArtistsReady(true);
+    };
+
+    if (id) {
+      // Saved report: resolve its slug list once (auto-save owns it after that)
+      if (!existingReport || resolvedForRef.current === id) return;
+      fetchArtistsBySlugs(existingReport.artists)
+        .then((artists) => apply(artists, id))
+        .catch(() => apply([], id));
+      return () => { cancelled = true; };
+    }
+
     const paramSlugs = searchParams.get('artists');
-    if (paramSlugs) return paramSlugs.split(',').map(s => getArtist(s)).filter(Boolean);
-    return getTopArtists(3);
-  });
+    if (paramSlugs) {
+      fetchArtistsBySlugs(paramSlugs.split(','))
+        .then((artists) => apply(artists, 'params'))
+        .catch(() => apply([], 'params'));
+      return () => { cancelled = true; };
+    }
+
+    // Default: first 3 tracked artists, else top catalog artists (once)
+    if (resolvedForRef.current === 'default' || rosterLoading) return;
+    if (trackedArtists.length > 0) {
+      Promise.resolve(trackedArtists.slice(0, 3)).then((artists) => apply(artists, 'default'));
+    } else {
+      getTopArtists(3)
+        .then((artists) => apply(artists, 'default'))
+        .catch(() => apply([], 'default'));
+    }
+    return () => { cancelled = true; };
+  }, [id, existingReport, searchParams, rosterLoading, trackedArtists]);
 
   const [selected, setSelected] = useState(() => {
     if (existingReport) return existingReport.widgets;
@@ -107,7 +148,7 @@ export default function ReportCenter() {
   // Auto-save report changes (debounced)
   const saveTimerRef = useRef(null);
   useEffect(() => {
-    if (!id) return;
+    if (!id || !artistsReady) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
       updateReport(id, {
@@ -117,16 +158,13 @@ export default function ReportCenter() {
       });
     }, 500);
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
-  }, [id, reportName, selectedArtists, selected, updateReport]);
+  }, [id, artistsReady, reportName, selectedArtists, selected, updateReport]);
 
-  // Sync from URL params (for shared links)
+  // Sync widgets/view from URL params (for shared links) — artists are
+  // resolved by the effect above
   useEffect(() => {
     if (id) return; // Skip URL param sync when editing a saved report
-    const paramSlugs = searchParams.get('artists');
     const paramWidgets = searchParams.get('widgets');
-    if (paramSlugs) {
-      setSelectedArtists(paramSlugs.split(',').map(s => getArtist(s)).filter(Boolean));
-    }
     if (paramWidgets) {
       setSelected(paramWidgets.split(','));
     }
@@ -234,13 +272,13 @@ export default function ReportCenter() {
         pdf.setPage(i);
         pdf.setFontSize(7);
         pdf.setTextColor(100, 100, 100);
-        pdf.text('Cadence', margin, pageHeight - 10);
+        pdf.text('Prelude', margin, pageHeight - 10);
         pdf.text(`${i} / ${totalPages}`, pageWidth - margin, pageHeight - 10, { align: 'right' });
       }
 
       const names = selectedArtists.map(a => a.name).join('-').replace(/\s+/g, '_');
       const date = new Date().toISOString().split('T')[0];
-      pdf.save(`Cadence-Report-${names}-${date}.pdf`);
+      pdf.save(`Prelude-Report-${names}-${date}.pdf`);
     } catch (err) {
       console.error('PDF export failed:', err);
     } finally {
@@ -328,7 +366,7 @@ export default function ReportCenter() {
 
   const benchmarkData = useMemo(() => {
     if (selectedArtists.length === 0) return null;
-    return getBenchmarkComparison(selectedArtists[0]);
+    return getBenchmarkComparison(selectedArtists[0], selectedArtists);
   }, [selectedArtists]);
 
   const playlistData = useMemo(() =>
@@ -432,7 +470,7 @@ export default function ReportCenter() {
         <div className="sticky top-0 z-10 bg-[#0D0C0B]/90 backdrop-blur-md border-b border-[#2C2B28]">
           <div className="max-w-[1200px] mx-auto px-8 py-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <span className="text-xs font-mono text-[#DA7756] bg-[#DA7756]/10 px-2 py-0.5 rounded">Cadence</span>
+              <span className="text-xs font-mono text-[#DA7756] bg-[#DA7756]/10 px-2 py-0.5 rounded">Prelude</span>
               <span className="text-sm text-[#9B9590]">Report</span>
             </div>
             <div className="flex items-center gap-2">
@@ -505,7 +543,7 @@ export default function ReportCenter() {
             {/* Title */}
             <div className="text-center mb-6">
               <h1 className="text-xl font-light text-[#F5F0E8]">{reportName}</h1>
-              <p className="text-xs text-[#6B6560] mt-1">{date} — Generated by Cadence</p>
+              <p className="text-xs text-[#6B6560] mt-1">{date} — Generated by Prelude</p>
             </div>
 
             {/* KPI Stats Row */}

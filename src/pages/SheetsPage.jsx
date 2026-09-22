@@ -1,13 +1,14 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
 import { Plus, Sheet, Trash2, Clock, Music, Search, X, Globe, Lock, Eye, Link2, Check } from 'lucide-react';
 import { useSheets } from '../hooks/useSheets';
 import { getArtist, searchArtists } from '../data/artists';
+import { fetchArtistsBySlugs } from '../data/artistsRemote';
 
 function getSheetVisibility(slug) {
   try {
-    const stored = localStorage.getItem('cadence-artist-custom-' + slug);
+    const stored = localStorage.getItem('musicspace-artist-custom-' + slug);
     if (!stored) return 'private';
     const data = JSON.parse(stored);
     return data.visibility || 'private';
@@ -17,7 +18,7 @@ function getSheetVisibility(slug) {
 }
 
 function toggleSheetVisibility(slug) {
-  const key = 'cadence-artist-custom-' + slug;
+  const key = 'musicspace-artist-custom-' + slug;
   try {
     const stored = localStorage.getItem(key);
     const data = stored ? JSON.parse(stored) : {};
@@ -50,9 +51,34 @@ export default function SheetsPage() {
   const [linkCopied, setLinkCopied] = useState(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [, setArtistsResolved] = useState(0);
   const inputRef = useRef(null);
 
-  const results = query.length >= 2 ? searchArtists(query) : [];
+  // Debounced server-side search across the full catalog
+  useEffect(() => {
+    if (query.length < 2) return;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      searchArtists(query)
+        .then((artists) => { if (!cancelled) setSearchResults(artists); })
+        .catch(() => { if (!cancelled) setSearchResults([]); });
+    }, 250);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [query]);
+
+  const results = query.length >= 2 ? searchResults : [];
+
+  // Resolve card artists into the cache so the sync getArtist reads below work
+  useEffect(() => {
+    const slugs = sheets.map((s) => s.artistSlug);
+    if (slugs.length === 0) return;
+    let cancelled = false;
+    fetchArtistsBySlugs(slugs)
+      .then(() => { if (!cancelled) setArtistsResolved((t) => t + 1); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [sheets]);
 
   const handleCreate = (artist) => {
     createSheet(artist.slug);
@@ -111,9 +137,9 @@ export default function SheetsPage() {
       {/* Header */}
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-light text-[#F5F0E8]">Artist Sheets</h1>
+          <h1 className="text-2xl font-light text-[#F5F0E8]">Artist Pages</h1>
           <p className="text-xs text-[#9B9590] mt-1">
-            {sheets.length} saved sheet{sheets.length !== 1 ? 's' : ''}
+            {sheets.length} saved page{sheets.length !== 1 ? 's' : ''}
           </p>
         </div>
         <button
@@ -121,7 +147,7 @@ export default function SheetsPage() {
           className="flex items-center gap-2 px-4 py-2 bg-[#DA7756]/10 text-[#DA7756] rounded text-sm hover:bg-[#DA7756]/20 transition-colors cursor-pointer border border-[#DA7756]/20"
         >
           <Plus size={14} />
-          New Sheet
+          New Page
         </button>
       </motion.div>
 
@@ -208,25 +234,28 @@ export default function SheetsPage() {
           className="text-center py-24"
         >
           <Sheet size={40} className="mx-auto mb-3 text-[#6B6560] opacity-50" />
-          <p className="text-sm text-[#9B9590] mb-4">No artist sheets yet</p>
+          <p className="text-sm text-[#9B9590] mb-4">No artist pages yet</p>
           <button
             onClick={openSearch}
             className="inline-flex items-center gap-2 px-4 py-2 bg-[#DA7756]/10 text-[#DA7756] rounded text-sm hover:bg-[#DA7756]/20 transition-colors cursor-pointer border border-[#DA7756]/20"
           >
             <Plus size={14} />
-            Create your first sheet
+            Create your first page
           </button>
         </motion.div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <AnimatePresence mode="popLayout">
             {sheets.map((sheet, index) => {
+              // Sync cache read — resolved by the fetchArtistsBySlugs effect above.
+              // Falls back to the slug until (or unless) the artist resolves.
               const artist = getArtist(sheet.artistSlug);
-              if (!artist) return null;
+              const artistSlug = artist?.slug || sheet.artistSlug;
+              const artistName = artist?.name || sheet.artistSlug;
               const isConfirming = confirmDelete === sheet.id;
               const visibility = getSheetVisibility(sheet.artistSlug);
-              const primaryGenre = artist.genres?.primary?.name;
-              const secondaryGenres = (artist.genres?.secondary || []).map(g => typeof g === 'string' ? g : g.name);
+              const primaryGenre = artist?.genres?.primary?.name;
+              const secondaryGenres = (artist?.genres?.secondary || []).map(g => typeof g === 'string' ? g : g.name);
               const allGenres = [primaryGenre, ...secondaryGenres].filter(Boolean);
 
               return (
@@ -239,15 +268,15 @@ export default function SheetsPage() {
                   layout
                 >
                   <Link
-                    to={`/app/artist/${artist.slug}/sheet`}
+                    to={`/app/artist/${artistSlug}/sheet`}
                     className="block relative bg-[#171614] border border-[#2C2B28] rounded overflow-hidden hover:border-[#3D3B37] transition-colors group"
                   >
                     {/* Artist Image */}
                     <div className="relative h-40 overflow-hidden">
-                      {artist.imageUrl ? (
+                      {artist?.imageUrl ? (
                         <img
                           src={artist.imageUrl}
-                          alt={artist.name}
+                          alt={artistName}
                           className="w-full h-full object-cover object-[center_20%] group-hover:scale-105 transition-transform duration-500"
                         />
                       ) : (
@@ -287,7 +316,7 @@ export default function SheetsPage() {
                     {/* Delete Confirmation */}
                     {isConfirming && (
                       <div className="absolute inset-0 bg-[#171614]/95 backdrop-blur-sm rounded flex items-center justify-center gap-3 z-10">
-                        <span className="text-xs text-[#9B9590]">Delete this sheet?</span>
+                        <span className="text-xs text-[#9B9590]">Delete this page?</span>
                         <button
                           onClick={handleCancelDelete}
                           className="px-2.5 py-1 text-[10px] rounded border border-[#2C2B28] text-[#9B9590] hover:text-[#F5F0E8] transition-colors cursor-pointer"
@@ -306,7 +335,7 @@ export default function SheetsPage() {
                     {/* Card Body */}
                     <div className="p-4 -mt-2 relative">
                       <h3 className="text-sm font-medium text-[#F5F0E8] group-hover:text-[#DA7756] transition-colors truncate">
-                        {artist.name}
+                        {artistName}
                       </h3>
 
                       {/* Genre Tags */}
@@ -336,7 +365,7 @@ export default function SheetsPage() {
                         </span>
                         <div className="flex items-center gap-1">
                           <button
-                            onClick={(e) => handlePreview(e, artist.slug)}
+                            onClick={(e) => handlePreview(e, artistSlug)}
                             className="flex items-center gap-1 px-2 py-1 rounded text-[10px] text-[#9B9590] hover:text-[#F5F0E8] hover:bg-[#2C2B28] transition-colors cursor-pointer"
                             title="Preview"
                           >
@@ -344,12 +373,12 @@ export default function SheetsPage() {
                             Preview
                           </button>
                           <button
-                            onClick={(e) => handleCopyLink(e, artist.slug)}
+                            onClick={(e) => handleCopyLink(e, artistSlug)}
                             className="flex items-center gap-1 px-2 py-1 rounded text-[10px] text-[#9B9590] hover:text-[#F5F0E8] hover:bg-[#2C2B28] transition-colors cursor-pointer"
                             title="Copy share link"
                           >
-                            {linkCopied === artist.slug ? <Check size={10} className="text-[#7BAF73]" /> : <Link2 size={10} />}
-                            {linkCopied === artist.slug ? 'Copied!' : 'Share'}
+                            {linkCopied === artistSlug ? <Check size={10} className="text-[#7BAF73]" /> : <Link2 size={10} />}
+                            {linkCopied === artistSlug ? 'Copied!' : 'Share'}
                           </button>
                         </div>
                       </div>

@@ -1,4 +1,6 @@
-import { getTopTracksAcrossRoster, getArtist, allArtists, loadArtistDetail } from './artists';
+import { getTopTracksAcrossRoster, getArtist } from './artists';
+import { fetchTracks } from './artistsRemote';
+import { getRoster, subscribeRoster } from './rosterStore';
 import { getArtistPlaylists } from './playlistData';
 
 // --- Seeded random (same pattern as playlistData.js) ---
@@ -51,7 +53,6 @@ export function generateTrackPerformance(track) {
   const seed = hashId(track.id);
   const totalStreams = track.streams || 0;
   const pop = track.popularity || 0;
-  const playlists = track.spotifyPlaylists || 0;
   const reach = track.spotifyPlaylistReach || 0;
 
   const dailyStreams = Math.round(totalStreams / 365);
@@ -85,18 +86,19 @@ export function getTrackComparison(tracks) {
     track,
     performance: generateTrackPerformance(track),
     trend: generateTrackStreamingTrend(track),
-    artist: getArtist(track.artistSlug),
+    artist: getArtist(track.artistSlug), // null when outside the tracked roster
   }));
 }
 
-// --- Roster-wide track stats (for dashboard widget) ---
+// --- Roster-wide track stats (for dashboard widget) — now async, DB-backed ---
 
 let _cachedStats = null;
+subscribeRoster(() => { _cachedStats = null; _allTracksCache = null; });
 
-export function getRosterTrackStats() {
-  if (_cachedStats) return _cachedStats;
+export async function getRosterTrackStats(slugs = null) {
+  if (!slugs && _cachedStats) return _cachedStats;
 
-  const topTracks = getTopTracksAcrossRoster(20);
+  const topTracks = await getTopTracksAcrossRoster(20, slugs);
   let totalStreams = 0;
   let totalPop = 0;
   let totalPlaylists = 0;
@@ -121,7 +123,7 @@ export function getRosterTrackStats() {
   const avgPopularity = topTracks.length > 0 ? Math.round(totalPop / topTracks.length) : 0;
   const editorialRate = totalPlaylists > 0 ? Math.round(totalEditorial / totalPlaylists * 100) : 0;
 
-  _cachedStats = {
+  const stats = {
     totalStreams,
     avgPopularity,
     totalPlaylists,
@@ -129,37 +131,22 @@ export function getRosterTrackStats() {
     topMovers,
     topTracks: withPerf,
   };
-  return _cachedStats;
+  if (!slugs) _cachedStats = stats;
+  return stats;
 }
 
-// --- Load all roster tracks (async, fetches per-artist detail files) ---
+// --- Load all roster tracks (async — one DB query instead of N fetches) ---
 
 let _allTracksCache = null;
 
-export async function loadAllRosterTracks(topPerArtist = 5) {
+export async function loadAllRosterTracks() {
   if (_allTracksCache) return _allTracksCache;
 
-  const BATCH = 20;
-  const allTracks = [];
-  const slugs = allArtists.map(a => a.slug);
+  const slugs = getRoster().map(a => a.slug);
+  if (!slugs.length) return [];
+  const { tracks } = await fetchTracks({ slugs, sort: 'streams', perPage: 200 });
 
-  for (let i = 0; i < slugs.length; i += BATCH) {
-    const batch = slugs.slice(i, i + BATCH);
-    const results = await Promise.all(batch.map(s => loadArtistDetail(s)));
-    for (const detail of results) {
-      const top = detail.tracks.slice(0, topPerArtist);
-      allTracks.push(...top);
-    }
-  }
-
-  // Deduplicate by track id, keep highest-stream version
-  const byId = new Map();
-  for (const t of allTracks) {
-    const existing = byId.get(t.id);
-    if (!existing || t.streams > existing.streams) byId.set(t.id, t);
-  }
-
-  const deduped = [...byId.values()]
+  const deduped = tracks
     .map(t => ({ ...t, perf: generateTrackPerformance(t) }))
     .sort((a, b) => b.streams - a.streams);
 

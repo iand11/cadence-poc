@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   Star, Sparkles, ArrowUp, Music, GripVertical,
   RotateCcw, MessageSquare, X, TrendingUp,
-  Plus, LayoutGrid, Check, ListMusic, ListChecks,
+  Plus, LayoutGrid, Check, ListMusic, ListChecks, Users,
 } from 'lucide-react';
 import KpiCard from '../components/shared/KpiCard';
 import DataTable from '../components/shared/DataTable';
@@ -17,10 +17,8 @@ import BenchmarkRadarChart from '../components/charts/BenchmarkRadarChart';
 import PlatformBreakdownChart from '../components/charts/PlatformBreakdownChart';
 import ChatMessage from '../components/ai/ChatMessage';
 import TypingIndicator from '../components/ai/TypingIndicator';
+import TrackedArtistPicker from '../components/TrackedArtistPicker';
 import {
-  allArtists,
-  getTopArtists,
-  getAggregateStats,
   getArtist,
   generateStreamingTrend,
   generateSocialTimeline,
@@ -35,15 +33,16 @@ import { getRosterTrackStats } from '../data/trackData';
 import { generateInsights } from '../utils/insights';
 import { useChat } from '../hooks/useChat';
 import { useFavorites } from '../hooks/useFavorites';
+import { useTrackedArtists } from '../hooks/useTrackedArtists';
 import { useActions } from '../hooks/useActions';
 import { formatNumber, formatCurrency } from '../utils/formatters';
 
-const STORAGE_KEY = 'cadence-widgets-v3';
-const DEFAULT_ACTIVE = ['action-alerts', 'top-artists', 'streaming', 'revenue', 'social'];
+const STORAGE_KEY = 'musicspace-widgets-v3';
+const DEFAULT_ACTIVE = ['top-artists', 'streaming', 'revenue', 'social'];
 
 const WIDGET_CATALOG = [
   { id: 'top-artists',           title: 'Top Artists',           subtitle: 'by overall rank' },
-  { id: 'top-tracks',             title: 'Top Tracks',            subtitle: 'across the roster' },
+  { id: 'top-tracks',             title: 'Top Tracks',            subtitle: 'across your artists' },
   { id: 'recent-releases',        title: 'Recent Releases',       subtitle: 'latest albums & singles' },
   { id: 'streaming',             title: 'Streaming Trends',      subtitle: '90-day platform streams' },
   { id: 'revenue',               title: 'Revenue Breakdown',     subtitle: 'Estimated revenue split' },
@@ -56,9 +55,8 @@ const WIDGET_CATALOG = [
   { id: 'genre-distribution',    title: 'Genre Distribution',    subtitle: 'Artists across genres' },
   { id: 'leaderboard-listeners', title: 'Top by Listeners',      subtitle: 'Spotify monthly' },
   { id: 'leaderboard-social',    title: 'Top by Social',         subtitle: 'Combined following' },
-  { id: 'playlist-overview',     title: 'Playlist Intelligence', subtitle: 'Roster playlist insights' },
+  { id: 'playlist-overview',     title: 'Playlist Intelligence', subtitle: 'Playlist insights' },
   { id: 'track-intelligence',    title: 'Track Intelligence',    subtitle: 'Track analytics & movers' },
-  { id: 'action-alerts',         title: 'Action Alerts',         subtitle: 'Artists with active actions' },
 ];
 
 function loadActive() {
@@ -67,16 +65,6 @@ function loadActive() {
     return saved?.length > 0 ? saved : DEFAULT_ACTIVE;
   } catch { return DEFAULT_ACTIVE; }
 }
-
-
-// Pre-compute artist options for dropdowns
-const artistOptions = getTopArtists(20);
-
-// Roster averages for static insights
-const rosterAvg = {
-  listeners: allArtists.reduce((s, a) => s + a.spotify.monthlyListeners, 0) / allArtists.length,
-  social: allArtists.reduce((s, a) => s + a.social.instagram + a.social.tiktok + a.social.youtube, 0) / allArtists.length,
-};
 
 const leaderboardCols = [
   { key: 'pos', label: '#' },
@@ -123,11 +111,12 @@ function StaticInsight({ type, text }) {
   );
 }
 
-function ArtistMultiSelect({ value, onChange }) {
+// Artist selector scoped to the user's tracked artists.
+function ArtistMultiSelect({ value, onChange, options }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   const isAll = value[0] === '__all__';
-  const label = isAll ? 'Entire Roster'
+  const label = isAll ? 'All tracked'
     : value.length === 1 ? (getArtist(value[0])?.name || value[0])
     : `${value.length} artists`;
 
@@ -145,7 +134,7 @@ function ArtistMultiSelect({ value, onChange }) {
     }
     const cur = value.filter(s => s !== '__all__');
     const next = cur.includes(slug) ? cur.filter(s => s !== slug) : [...cur, slug];
-    onChange(next.length > 0 ? next : [artistOptions[0].slug]);
+    onChange(next.length > 0 ? next : ['__all__']);
   };
 
   return (
@@ -167,11 +156,11 @@ function ArtistMultiSelect({ value, onChange }) {
               <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 ${isAll ? 'bg-[#DA7756] border-[#DA7756]' : 'border-[#3D3B37]'}`}>
                 {isAll && <Check size={8} className="text-[#0D0C0B]" />}
               </div>
-              <span className="font-medium">Entire Roster</span>
-              <span className="ml-auto text-[#6B6560]">{allArtists.length}</span>
+              <span className="font-medium">All tracked artists</span>
+              <span className="ml-auto text-[#6B6560]">{options.length}</span>
             </button>
             <div className="border-t border-[#2C2B28] my-1" />
-            {artistOptions.map(a => {
+            {options.map(a => {
               const checked = !isAll && value.includes(a.slug);
               return (
                 <button
@@ -226,14 +215,18 @@ function WidgetCard({ id, title, subtitle, headerRight, children, onDragStart, o
   );
 }
 
-// --- Resolve selection to artists (cap at 20 for perf) ---
-function resolveArtists(slugs) {
-  if (slugs[0] === '__all__') return getTopArtists(20);
-  return slugs.map(s => getArtist(s)).filter(Boolean);
+// --- Resolve a per-widget selection to artist objects (scoped to tracked set) ---
+function resolveArtists(slugs, trackedArtists) {
+  if (slugs[0] === '__all__') return trackedArtists;
+  const resolved = slugs.map(s => getArtist(s)).filter(Boolean);
+  // A selected artist may have been untracked (getArtist now returns null
+  // outside the roster) — fall back to the full tracked set rather than
+  // rendering aggregates over an empty list.
+  return resolved.length > 0 ? resolved : trackedArtists;
 }
 
 function selectionLabel(slugs) {
-  if (slugs[0] === '__all__') return 'Entire Roster';
+  if (slugs[0] === '__all__') return 'All tracked';
   if (slugs.length === 1) return getArtist(slugs[0])?.name || slugs[0];
   return `${slugs.length} artists`;
 }
@@ -303,63 +296,63 @@ function aggBenchmark(artists) {
   return { dimensions: dims, artist: { normalized: avgNorm }, benchmark: all[0].benchmark };
 }
 
-// --- Artist-selectable widget components ---
+// --- Artist-selectable widget components (scoped to tracked set) ---
 
-function StreamingWidget({ dragProps }) {
+function StreamingWidget({ dragProps, trackedArtists, options }) {
   const [slugs, setSlugs] = useState(['__all__']);
-  const artists = useMemo(() => resolveArtists(slugs), [slugs]);
+  const artists = useMemo(() => resolveArtists(slugs, trackedArtists), [slugs, trackedArtists]);
   const data = useMemo(() => aggStreaming(artists), [artists]);
   const insight = useMemo(() => generateInsights(artists[0]).streaming[0], [artists]);
 
   return (
     <WidgetCard id="streaming" title="Streaming Trends" subtitle={`${selectionLabel(slugs)} — 90 days`}
-      headerRight={<ArtistMultiSelect value={slugs} onChange={setSlugs} />} {...dragProps}>
+      headerRight={<ArtistMultiSelect value={slugs} onChange={setSlugs} options={options} />} {...dragProps}>
       <StreamingTrendChart data={data} />
       <WidgetInsight insight={insight} />
     </WidgetCard>
   );
 }
 
-function SocialWidget({ dragProps }) {
+function SocialWidget({ dragProps, trackedArtists, options }) {
   const [slugs, setSlugs] = useState(['__all__']);
-  const artists = useMemo(() => resolveArtists(slugs), [slugs]);
+  const artists = useMemo(() => resolveArtists(slugs, trackedArtists), [slugs, trackedArtists]);
   const data = useMemo(() => aggSocial(artists), [artists]);
   const insight = useMemo(() => generateInsights(artists[0]).social[0], [artists]);
 
   return (
     <WidgetCard id="social" title="Social Growth" subtitle={`${selectionLabel(slugs)} — 90 days`}
-      headerRight={<ArtistMultiSelect value={slugs} onChange={setSlugs} />} {...dragProps}>
+      headerRight={<ArtistMultiSelect value={slugs} onChange={setSlugs} options={options} />} {...dragProps}>
       <SocialGrowthChart data={data} />
       <WidgetInsight insight={insight} />
     </WidgetCard>
   );
 }
 
-function ForecastWidget({ dragProps }) {
+function ForecastWidget({ dragProps, trackedArtists, options }) {
   const [slugs, setSlugs] = useState(['__all__']);
-  const artists = useMemo(() => resolveArtists(slugs), [slugs]);
+  const artists = useMemo(() => resolveArtists(slugs, trackedArtists), [slugs, trackedArtists]);
   const data = useMemo(() => aggForecast(artists), [artists]);
   const insight = useMemo(() => generateInsights(artists[0]).streaming[0], [artists]);
 
   return (
     <WidgetCard id="forecast" title="Stream Forecast" subtitle={`${selectionLabel(slugs)} — 60d + 30d predicted`}
-      headerRight={<ArtistMultiSelect value={slugs} onChange={setSlugs} />} {...dragProps}>
+      headerRight={<ArtistMultiSelect value={slugs} onChange={setSlugs} options={options} />} {...dragProps}>
       <ForecastChart data={data} todayIndex={59} />
       <WidgetInsight insight={insight} />
     </WidgetCard>
   );
 }
 
-function BenchmarkWidget({ dragProps }) {
+function BenchmarkWidget({ dragProps, trackedArtists, options }) {
   const [slugs, setSlugs] = useState(['__all__']);
-  const artists = useMemo(() => resolveArtists(slugs), [slugs]);
+  const artists = useMemo(() => resolveArtists(slugs, trackedArtists), [slugs, trackedArtists]);
   const data = useMemo(() => aggBenchmark(artists), [artists]);
   const insight = useMemo(() => generateInsights(artists[0]).streaming[0], [artists]);
-  const name = slugs[0] === '__all__' ? 'Roster avg' : artists.length === 1 ? artists[0].name : `${artists.length} artists avg`;
+  const name = slugs[0] === '__all__' ? 'Tracked avg' : artists.length === 1 ? artists[0].name : `${artists.length} artists avg`;
 
   return (
     <WidgetCard id="benchmark" title="Benchmark Radar" subtitle={`${name} vs roster average`}
-      headerRight={<ArtistMultiSelect value={slugs} onChange={setSlugs} />} {...dragProps}>
+      headerRight={<ArtistMultiSelect value={slugs} onChange={setSlugs} options={options} />} {...dragProps}>
       <BenchmarkRadarChart
         artist={data.artist}
         benchmark={data.benchmark}
@@ -371,54 +364,59 @@ function BenchmarkWidget({ dragProps }) {
   );
 }
 
-function RevenueWidget({ dragProps }) {
+function RevenueWidget({ dragProps, trackedArtists, options }) {
   const [slugs, setSlugs] = useState(['__all__']);
-  const artists = useMemo(() => resolveArtists(slugs), [slugs]);
+  const artists = useMemo(() => resolveArtists(slugs, trackedArtists), [slugs, trackedArtists]);
   const data = useMemo(() => aggRevenue(artists), [artists]);
   const total = data.reduce((s, r) => s + r.amount, 0);
   const insight = useMemo(() => generateInsights(artists[0]).revenue[0], [artists]);
 
   return (
     <WidgetCard id="revenue" title="Revenue Breakdown" subtitle={`${selectionLabel(slugs)} — ${formatCurrency(total)}`}
-      headerRight={<ArtistMultiSelect value={slugs} onChange={setSlugs} />} {...dragProps}>
+      headerRight={<ArtistMultiSelect value={slugs} onChange={setSlugs} options={options} />} {...dragProps}>
       <RevenueDonutChart data={data} totalRevenue={total} />
       <WidgetInsight insight={insight} />
     </WidgetCard>
   );
 }
 
-function GeographyWidget({ dragProps }) {
+function GeographyWidget({ dragProps, trackedArtists, options }) {
   const [slugs, setSlugs] = useState(['__all__']);
-  const artists = useMemo(() => resolveArtists(slugs), [slugs]);
+  const artists = useMemo(() => resolveArtists(slugs, trackedArtists), [slugs, trackedArtists]);
   const data = useMemo(() => aggGeography(artists), [artists]);
   const insight = useMemo(() => generateInsights(artists[0]).geography[0], [artists]);
 
   return (
     <WidgetCard id="geography" title="Audience Geography" subtitle={`${selectionLabel(slugs)} — listener hotspots`}
-      headerRight={<ArtistMultiSelect value={slugs} onChange={setSlugs} />} {...dragProps}>
+      headerRight={<ArtistMultiSelect value={slugs} onChange={setSlugs} options={options} />} {...dragProps}>
       <GeographyHeatMap data={data} />
       <WidgetInsight insight={insight} />
     </WidgetCard>
   );
 }
 
-function PlatformWidget({ dragProps }) {
+function PlatformWidget({ dragProps, trackedArtists, options }) {
   const [slugs, setSlugs] = useState(['__all__']);
-  const artists = useMemo(() => resolveArtists(slugs), [slugs]);
+  const artists = useMemo(() => resolveArtists(slugs, trackedArtists), [slugs, trackedArtists]);
   const data = useMemo(() => aggStreaming(artists, 12), [artists]);
   const insight = useMemo(() => generateInsights(artists[0]).playlists[0], [artists]);
 
   return (
     <WidgetCard id="platform-breakdown" title="Platform Breakdown" subtitle={`${selectionLabel(slugs)} — streams by platform`}
-      headerRight={<ArtistMultiSelect value={slugs} onChange={setSlugs} />} {...dragProps}>
+      headerRight={<ArtistMultiSelect value={slugs} onChange={setSlugs} options={options} />} {...dragProps}>
       <PlatformBreakdownChart data={data} />
       <WidgetInsight insight={insight} />
     </WidgetCard>
   );
 }
 
-function PlaylistWidget({ dragProps }) {
-  const plStats = useMemo(() => getRosterPlaylistStats(), []);
+function PlaylistWidget({ dragProps, trackedArtists }) {
+  // Playlist stats derive from the tracked roster, which is fetched async —
+  // scope by the loaded roster so this re-derives whenever it changes.
+  const plStats = useMemo(
+    () => getRosterPlaylistStats(trackedArtists.map(a => a.slug)),
+    [trackedArtists],
+  );
 
   return (
     <WidgetCard id="playlist-overview" title="Playlist Intelligence" subtitle={`${plStats.totalPlacements} placements · ${plStats.editorialRate}% editorial`} {...dragProps}>
@@ -449,13 +447,23 @@ function PlaylistWidget({ dragProps }) {
         ))}
       </div>
       <StaticInsight type="success"
-        text={`${plStats.editorialPlacements} editorial placements across the roster — ${plStats.editorialRate}% editorial rate with ${formatNumber(plStats.totalStreamAttribution)} total attributed streams.`} />
+        text={`${plStats.editorialPlacements} editorial placements across your tracked artists — ${plStats.editorialRate}% editorial rate with ${formatNumber(plStats.totalStreamAttribution)} total attributed streams.`} />
     </WidgetCard>
   );
 }
 
-function TrackIntelligenceWidget({ dragProps }) {
-  const tStats = useMemo(() => getRosterTrackStats(), []);
+const EMPTY_TRACK_STATS = { totalStreams: 0, avgPopularity: 0, totalPlaylists: 0, editorialRate: 0, topMovers: [], topTracks: [] };
+
+function TrackIntelligenceWidget({ dragProps, trackedSlugs }) {
+  const [tStats, setTStats] = useState(EMPTY_TRACK_STATS);
+
+  useEffect(() => {
+    let cancelled = false;
+    getRosterTrackStats(trackedSlugs)
+      .then((stats) => { if (!cancelled) setTStats(stats); })
+      .catch(() => { if (!cancelled) setTStats(EMPTY_TRACK_STATS); });
+    return () => { cancelled = true; };
+  }, [trackedSlugs]);
 
   return (
     <WidgetCard id="track-intelligence" title="Track Intelligence" subtitle={`${formatNumber(tStats.totalStreams)} total streams · ${tStats.avgPopularity}/100 avg popularity`} {...dragProps}>
@@ -483,7 +491,7 @@ function TrackIntelligenceWidget({ dragProps }) {
               )}
               <div className="flex-1 min-w-0">
                 <p className="text-xs text-[#F5F0E8] truncate group-hover:text-[#DA7756] transition-colors">{t.name}</p>
-                <p className="text-[9px] text-[#6B6560] truncate">{getArtist(t.artistSlug)?.name || ''}</p>
+                <p className="text-[9px] text-[#6B6560] truncate">{getArtist(t.artistSlug)?.name || t.artistNames?.[0] || t.artistSlug}</p>
               </div>
               <span className={`text-[10px] font-mono shrink-0 ${t.perf.growthDelta >= 0 ? 'text-[#7BAF73]' : 'text-[#C75F4F]'}`}>
                 {t.perf.growthDelta >= 0 ? '+' : ''}{t.perf.growthDelta}%
@@ -492,9 +500,47 @@ function TrackIntelligenceWidget({ dragProps }) {
           </Link>
         ))}
       </div>
-      <StaticInsight type="info"
-        text={`Top mover: "${tStats.topMovers[0]?.name}" at ${tStats.topMovers[0]?.perf.growthDelta >= 0 ? '+' : ''}${tStats.topMovers[0]?.perf.growthDelta}% growth — ${formatNumber(tStats.topMovers[0]?.streams)} total streams across ${formatNumber(tStats.topMovers[0]?.spotifyPlaylists)} playlists.`} />
+      {tStats.topMovers.length > 0 && (
+        <StaticInsight type="info"
+          text={`Top mover: "${tStats.topMovers[0]?.name}" at ${tStats.topMovers[0]?.perf.growthDelta >= 0 ? '+' : ''}${tStats.topMovers[0]?.perf.growthDelta}% growth — ${formatNumber(tStats.topMovers[0]?.streams)} total streams across ${formatNumber(tStats.topMovers[0]?.spotifyPlaylists)} playlists.`} />
+      )}
     </WidgetCard>
+  );
+}
+
+// --- Onboarding / empty-state ---
+
+function EmptyState({ tracked, count, onToggle, onDone }) {
+  return (
+    <div className="max-w-4xl mx-auto py-8">
+      <div className="text-center mb-6">
+        <div className="w-12 h-12 rounded-full bg-[#DA7756]/10 flex items-center justify-center mx-auto mb-4">
+          <Users size={20} className="text-[#DA7756]" />
+        </div>
+        <h1 className="text-2xl font-light text-[#F5F0E8]">Choose the artists you want to track</h1>
+        <p className="text-sm text-[#9B9590] mt-2 max-w-lg mx-auto">
+          Your dashboard is built around the artists you follow. Pick a few to get started —
+          you can always add or remove them later.
+        </p>
+      </div>
+
+      <div className="bg-[#171614] border border-[#2C2B28] rounded p-4">
+        <div className="flex items-center justify-between mb-4">
+          <span className="text-xs font-medium text-[#9B9590]">
+            {count > 0 ? `${count} artist${count === 1 ? '' : 's'} selected` : 'No artists selected yet'}
+          </span>
+          <button
+            onClick={onDone}
+            disabled={count === 0}
+            className="flex items-center gap-1.5 px-4 py-2 text-xs rounded transition-colors cursor-pointer bg-[#DA7756] text-[#0D0C0B] font-semibold hover:bg-[#DA7756]/90 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <Check size={12} />
+            Go to dashboard
+          </button>
+        </div>
+        <TrackedArtistPicker tracked={tracked} onToggle={onToggle} />
+      </div>
+    </div>
   );
 }
 
@@ -503,16 +549,26 @@ function TrackIntelligenceWidget({ dragProps }) {
 export default function Dashboard() {
   const navigate = useNavigate();
   const { favorites, toggleFavorite, isFavorite } = useFavorites();
+  const { tracked, trackedArtists, toggleTracked, loading } = useTrackedArtists();
   const { artistSummary, counts: actionCounts } = useActions();
   const { messages, state: chatState, suggestions, sendMessage, pendingAction, clearAction } = useChat();
 
   const [activeWidgets, setActiveWidgets] = useState(loadActive);
+  const [entered, setEntered] = useState(false);
   const [dragId, setDragId] = useState(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [manageOpen, setManageOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [chatQuery, setChatQuery] = useState('');
   const chatEndRef = useRef(null);
   const chatInputRef = useRef(null);
+  // Capture (once loaded) whether this session started with an empty tracked set,
+  // so a new user stays in the onboarding picker until they click "Go to dashboard"
+  // — instead of being kicked out the moment they track their first artist.
+  const [startedEmpty, setStartedEmpty] = useState(undefined);
+  if (!loading && startedEmpty === undefined) {
+    setStartedEmpty(trackedArtists.length === 0);
+  }
 
   // Handle navigation actions from chat
   useEffect(() => {
@@ -527,31 +583,53 @@ export default function Dashboard() {
     if (chatOpen) chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, chatState, chatOpen]);
 
-  // --- Data for non-artist-selectable widgets ---
-  const stats = useMemo(() => getAggregateStats(), []);
-  const top6 = useMemo(() => getTopArtists(6), []);
+  // --- Aggregate stats over the tracked set ---
+  const stats = useMemo(() => {
+    const list = trackedArtists;
+    return {
+      total: list.length,
+      totalListeners: list.reduce((s, a) => s + a.spotify.monthlyListeners, 0),
+      totalFollowers: list.reduce((s, a) => s + a.spotify.followers, 0),
+      totalPlaylists: list.reduce((s, a) => s + (a.playlists?.spotify?.total || 0), 0),
+      totalPlaylistReach: list.reduce((s, a) => s + (a.playlists?.spotify?.reach || 0), 0),
+    };
+  }, [trackedArtists]);
 
   const avgPopularity = useMemo(() =>
-    Math.round(allArtists.reduce((s, a) => s + a.spotify.popularity, 0) / allArtists.length),
-  []);
+    trackedArtists.length > 0
+      ? Math.round(trackedArtists.reduce((s, a) => s + a.spotify.popularity, 0) / trackedArtists.length)
+      : 0,
+  [trackedArtists]);
+
+  const rosterAvg = useMemo(() => {
+    const n = trackedArtists.length || 1;
+    return {
+      listeners: trackedArtists.reduce((s, a) => s + a.spotify.monthlyListeners, 0) / n,
+      social: trackedArtists.reduce((s, a) => s + a.social.instagram + a.social.tiktok + a.social.youtube, 0) / n,
+    };
+  }, [trackedArtists]);
+
+  const top6 = useMemo(() =>
+    [...trackedArtists].sort((a, b) => a.rank - b.rank).slice(0, 6),
+  [trackedArtists]);
 
   const byListeners = useMemo(() =>
-    [...allArtists].sort((a, b) => b.spotify.monthlyListeners - a.spotify.monthlyListeners)
+    [...trackedArtists].sort((a, b) => b.spotify.monthlyListeners - a.spotify.monthlyListeners)
       .slice(0, 8).map((a, i) => ({ pos: i + 1, name: a.name, slug: a.slug, stat: a.spotify.monthlyListeners })),
-  []);
+  [trackedArtists]);
 
   const bySocial = useMemo(() =>
-    [...allArtists].sort((a, b) =>
+    [...trackedArtists].sort((a, b) =>
       (b.social.instagram + b.social.tiktok + b.social.youtube) -
       (a.social.instagram + a.social.tiktok + a.social.youtube))
       .slice(0, 8).map((a, i) => ({
         pos: i + 1, name: a.name, slug: a.slug,
         stat: a.social.instagram + a.social.tiktok + a.social.youtube,
       })),
-  []);
+  [trackedArtists]);
 
   const trendingArtists = useMemo(() =>
-    allArtists
+    trackedArtists
       .filter(a => a.spotify.popularity >= 70)
       .sort((a, b) => b.spotify.popularity - a.spotify.popularity)
       .slice(0, 8)
@@ -559,15 +637,15 @@ export default function Dashboard() {
         pos: i + 1, name: a.name, slug: a.slug,
         listeners: a.spotify.monthlyListeners,
       })),
-  []);
+  [trackedArtists]);
 
   const trendingTotal = useMemo(() =>
-    allArtists.filter(a => a.spotify.popularity >= 70).length,
-  []);
+    trackedArtists.filter(a => a.spotify.popularity >= 70).length,
+  [trackedArtists]);
 
   const genreDistribution = useMemo(() => {
     const counts = {};
-    allArtists.forEach(a => {
+    trackedArtists.forEach(a => {
       const genre = a.genres?.primary?.name || 'Other';
       counts[genre] = (counts[genre] || 0) + 1;
     });
@@ -575,12 +653,31 @@ export default function Dashboard() {
       .sort((a, b) => b[1] - a[1])
       .slice(0, 10)
       .map(([name, count]) => ({ name, count }));
-  }, []);
+  }, [trackedArtists]);
   const maxGenreCount = genreDistribution[0]?.count || 1;
 
+  const [topTracks, setTopTracks] = useState([]);
+  useEffect(() => {
+    let cancelled = false;
+    getTopTracksAcrossRoster(8, tracked)
+      .then((tracks) => { if (!cancelled) setTopTracks(tracks); })
+      .catch(() => { if (!cancelled) setTopTracks([]); });
+    return () => { cancelled = true; };
+  }, [tracked]);
+
+  const [recentReleases, setRecentReleases] = useState([]);
+  useEffect(() => {
+    let cancelled = false;
+    getRecentReleases(6, tracked)
+      .then((albums) => { if (!cancelled) setRecentReleases(albums); })
+      .catch(() => { if (!cancelled) setRecentReleases([]); });
+    return () => { cancelled = true; };
+  }, [tracked]);
+
+  // getArtist resolves from the roster cache, so re-derive once summaries land.
   const favoriteArtists = useMemo(() =>
     favorites.map(slug => getArtist(slug)).filter(a => a && favorites.includes(a.slug)),
-  [favorites]);
+  [favorites, trackedArtists]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // --- Drag reorder ---
   const persist = useCallback((list) => {
@@ -643,6 +740,7 @@ export default function Dashboard() {
 
   // --- Widget definitions ---
   const dragProps = { onDragStart: setDragId, onDragOver: handleDragOver, onDrop: handleDrop, onRemove: removeWidget };
+  const widgetArtistProps = { trackedArtists, options: trackedArtists };
 
   const widgets = {
     'top-artists': (
@@ -673,14 +771,16 @@ export default function Dashboard() {
             </Link>
           ))}
         </div>
-        <StaticInsight type="info"
-          text={`Top ${top6.length} artists averaging ${Math.round(top6.reduce((s, a) => s + a.spotify.popularity, 0) / top6.length)}/100 popularity — ${top6.filter(a => a.spotify.popularity >= 80).length} at 80+ indicating strong algorithmic support.`} />
+        {top6.length > 0 && (
+          <StaticInsight type="info"
+            text={`Top ${top6.length} artists averaging ${Math.round(top6.reduce((s, a) => s + a.spotify.popularity, 0) / top6.length)}/100 popularity — ${top6.filter(a => a.spotify.popularity >= 80).length} at 80+ indicating strong algorithmic support.`} />
+        )}
       </WidgetCard>
     ),
     'top-tracks': (
-      <WidgetCard id="top-tracks" title="Top Tracks" subtitle="Roster — by Spotify streams" {...dragProps}>
+      <WidgetCard id="top-tracks" title="Top Tracks" subtitle="Your artists — by Spotify streams" {...dragProps}>
         <div className="space-y-0.5">
-          {getTopTracksAcrossRoster(8).map((t, i) => (
+          {topTracks.map((t, i) => (
             <Link key={t.id} to={`/app/track/${t.id}`} className="block">
               <div className="group flex items-center gap-2.5 px-2 py-1.5 rounded hover:bg-[#0D0C0B] transition-all">
                 <span className="text-[10px] font-mono text-[#6B6560] w-4 text-right shrink-0">{i + 1}</span>
@@ -693,19 +793,22 @@ export default function Dashboard() {
                 )}
                 <div className="flex-1 min-w-0">
                   <p className="text-xs text-[#F5F0E8] truncate group-hover:text-[#DA7756] transition-colors">{t.name}</p>
-                  <p className="text-[9px] text-[#6B6560] truncate">{getArtist(t.artistSlug)?.name || ''}</p>
+                  <p className="text-[9px] text-[#6B6560] truncate">{getArtist(t.artistSlug)?.name || t.artistNames?.[0] || t.artistSlug}</p>
                 </div>
                 <span className="text-[10px] font-mono text-[#9B9590] shrink-0">{formatNumber(t.streams)}</span>
               </div>
             </Link>
           ))}
+          {topTracks.length === 0 && (
+            <p className="text-[10px] text-[#6B6560] text-center py-4">No tracks for your tracked artists yet.</p>
+          )}
         </div>
       </WidgetCard>
     ),
     'recent-releases': (
       <WidgetCard id="recent-releases" title="Recent Releases" subtitle="Latest albums & singles" {...dragProps}>
         <div className="grid grid-cols-3 gap-2">
-          {getRecentReleases(6).map((a) => (
+          {recentReleases.map((a) => (
             <Link key={a.id} to={`/app/album/${a.id}`} className="group block">
               <div className="aspect-square rounded overflow-hidden bg-[#2C2B28] border border-[#2C2B28] group-hover:border-[#DA7756]/30 transition-colors mb-1.5">
                 {a.imageUrl ? (
@@ -718,33 +821,40 @@ export default function Dashboard() {
               </div>
               <p className="text-[11px] text-[#F5F0E8] truncate group-hover:text-[#DA7756] transition-colors">{a.name}</p>
               <p className="text-[9px] text-[#6B6560] truncate">
-                {getArtist(a.artistSlug)?.name || ''}
+                {getArtist(a.artistSlug)?.name || a.artistSlug}
                 {a.releaseDate ? ` · ${new Date(a.releaseDate).getFullYear()}` : ''}
               </p>
             </Link>
           ))}
+          {recentReleases.length === 0 && (
+            <p className="text-[10px] text-[#6B6560] col-span-3 text-center py-4">No recent releases for your tracked artists.</p>
+          )}
         </div>
       </WidgetCard>
     ),
-    'streaming': <StreamingWidget dragProps={dragProps} />,
-    'social': <SocialWidget dragProps={dragProps} />,
-    'revenue': <RevenueWidget dragProps={dragProps} />,
-    'forecast': <ForecastWidget dragProps={dragProps} />,
-    'geography': <GeographyWidget dragProps={dragProps} />,
-    'benchmark': <BenchmarkWidget dragProps={dragProps} />,
-    'platform-breakdown': <PlatformWidget dragProps={dragProps} />,
+    'streaming': <StreamingWidget dragProps={dragProps} {...widgetArtistProps} />,
+    'social': <SocialWidget dragProps={dragProps} {...widgetArtistProps} />,
+    'revenue': <RevenueWidget dragProps={dragProps} {...widgetArtistProps} />,
+    'forecast': <ForecastWidget dragProps={dragProps} {...widgetArtistProps} />,
+    'geography': <GeographyWidget dragProps={dragProps} {...widgetArtistProps} />,
+    'benchmark': <BenchmarkWidget dragProps={dragProps} {...widgetArtistProps} />,
+    'platform-breakdown': <PlatformWidget dragProps={dragProps} {...widgetArtistProps} />,
     'leaderboard-listeners': (
       <WidgetCard id="leaderboard-listeners" title="Top by Listeners" subtitle="Spotify monthly" {...dragProps}>
         <DataTable columns={leaderboardCols} data={byListeners} />
-        <StaticInsight type="info"
-          text={`#1 ${byListeners[0]?.name} has ${formatNumber(byListeners[0]?.stat)} monthly listeners — ${(byListeners[0]?.stat / rosterAvg.listeners).toFixed(1)}x the roster average of ${formatNumber(Math.round(rosterAvg.listeners))}.`} />
+        {byListeners.length > 0 && (
+          <StaticInsight type="info"
+            text={`#1 ${byListeners[0]?.name} has ${formatNumber(byListeners[0]?.stat)} monthly listeners — ${(byListeners[0]?.stat / (rosterAvg.listeners || 1)).toFixed(1)}x your tracked average of ${formatNumber(Math.round(rosterAvg.listeners))}.`} />
+        )}
       </WidgetCard>
     ),
     'leaderboard-social': (
       <WidgetCard id="leaderboard-social" title="Top by Social" subtitle="Combined following" {...dragProps}>
         <DataTable columns={socialCols} data={bySocial} />
-        <StaticInsight type="info"
-          text={`#1 ${bySocial[0]?.name} has ${formatNumber(bySocial[0]?.stat)} combined social following — ${(bySocial[0]?.stat / rosterAvg.social).toFixed(1)}x the roster average.`} />
+        {bySocial.length > 0 && (
+          <StaticInsight type="info"
+            text={`#1 ${bySocial[0]?.name} has ${formatNumber(bySocial[0]?.stat)} combined social following — ${(bySocial[0]?.stat / (rosterAvg.social || 1)).toFixed(1)}x your tracked average.`} />
+        )}
       </WidgetCard>
     ),
     'trending': (
@@ -762,13 +872,18 @@ export default function Dashboard() {
               </div>
             </Link>
           ))}
+          {trendingArtists.length === 0 && (
+            <p className="text-[10px] text-[#6B6560] text-center py-4">None of your tracked artists are at 70+ popularity yet.</p>
+          )}
         </div>
-        <StaticInsight type="success"
-          text={`${trendingTotal} of ${allArtists.length} artists (${(trendingTotal / allArtists.length * 100).toFixed(0)}%) with 70+ popularity — strong algorithmic visibility across the roster.`} />
+        {trackedArtists.length > 0 && (
+          <StaticInsight type="success"
+            text={`${trendingTotal} of ${trackedArtists.length} tracked artists (${(trendingTotal / trackedArtists.length * 100).toFixed(0)}%) with 70+ popularity — strong algorithmic visibility.`} />
+        )}
       </WidgetCard>
     ),
     'genre-distribution': (
-      <WidgetCard id="genre-distribution" title="Genre Distribution" subtitle={`${allArtists.length} artists across genres`} {...dragProps}>
+      <WidgetCard id="genre-distribution" title="Genre Distribution" subtitle={`${trackedArtists.length} artists across genres`} {...dragProps}>
         <div className="space-y-1.5 pt-1">
           {genreDistribution.map((g) => (
             <div key={g.name} className="flex items-center gap-2.5">
@@ -783,54 +898,37 @@ export default function Dashboard() {
             </div>
           ))}
         </div>
-        <StaticInsight type="info"
-          text={`${genreDistribution[0]?.name} leads with ${genreDistribution[0]?.count} artists (${(genreDistribution[0]?.count / allArtists.length * 100).toFixed(0)}% of roster). ${genreDistribution.length >= 2 ? `${genreDistribution[1]?.name} follows with ${genreDistribution[1]?.count}.` : ''}`} />
-      </WidgetCard>
-    ),
-    'playlist-overview': <PlaylistWidget dragProps={dragProps} />,
-    'track-intelligence': <TrackIntelligenceWidget dragProps={dragProps} />,
-    'action-alerts': (
-      <WidgetCard id="action-alerts" title="Action Alerts" subtitle={`${actionCounts.selected} actions across ${artistSummary.length} artists`} {...dragProps}>
-        {artistSummary.length > 0 ? (
-          <div className="space-y-0.5">
-            {artistSummary.slice(0, 8).map((a) => {
-              const severityColor = a.topSeverity === 'danger' ? '#C75F4F' : a.topSeverity === 'warning' ? '#DA7756' : a.topSeverity === 'success' ? '#7BAF73' : '#D4A574';
-              return (
-                <Link key={a.slug} to={`/app/actions/${a.slug}`} className="block">
-                  <div className="group flex items-center gap-2.5 px-2 py-1.5 rounded hover:bg-[#0D0C0B] transition-all">
-                    {a.imageUrl ? (
-                      <img src={a.imageUrl} alt="" className="w-7 h-7 rounded object-cover shrink-0" />
-                    ) : (
-                      <div className="w-7 h-7 rounded bg-[#2C2B28] flex items-center justify-center shrink-0">
-                        <Music size={11} className="text-[#6B6560]" />
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-[#F5F0E8] truncate group-hover:text-[#DA7756] transition-colors">{a.name}</p>
-                      <p className="text-[9px] text-[#6B6560]">{a.count} action{a.count !== 1 ? 's' : ''}</p>
-                    </div>
-                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: severityColor }} />
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="text-center py-6">
-            <ListChecks size={18} className="mx-auto mb-2 text-[#2C2B28]" />
-            <p className="text-[10px] text-[#6B6560] leading-relaxed">
-              No actions selected yet.<br />
-              <Link to="/app/actions" className="text-[#DA7756] hover:text-[#F5F0E8] transition-colors">Add actions</Link> to track them here.
-            </p>
-          </div>
-        )}
-        {artistSummary.length > 0 && (
-          <StaticInsight type={artistSummary[0]?.warningCount > 0 ? 'warning' : 'info'}
-            text={`${actionCounts.selected} action${actionCounts.selected !== 1 ? 's' : ''} across ${artistSummary.length} artist${artistSummary.length !== 1 ? 's' : ''} — ${artistSummary.reduce((s, a) => s + a.warningCount, 0)} require attention.`} />
+        {genreDistribution.length > 0 && (
+          <StaticInsight type="info"
+            text={`${genreDistribution[0]?.name} leads with ${genreDistribution[0]?.count} artists (${(genreDistribution[0]?.count / trackedArtists.length * 100).toFixed(0)}% of your tracked set). ${genreDistribution.length >= 2 ? `${genreDistribution[1]?.name} follows with ${genreDistribution[1]?.count}.` : ''}`} />
         )}
       </WidgetCard>
     ),
+    'playlist-overview': <PlaylistWidget dragProps={dragProps} trackedArtists={trackedArtists} />,
+    'track-intelligence': <TrackIntelligenceWidget dragProps={dragProps} trackedSlugs={tracked} />,
   };
+
+  // --- Wait for the persisted slug list + roster summaries before deciding what to render ---
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-32">
+        <div className="w-8 h-8 rounded-full border-2 border-[#2C2B28] border-t-[#DA7756] animate-spin" />
+      </div>
+    );
+  }
+
+  // --- Onboarding: empty set, or still picking during first-run onboarding ---
+  const showOnboarding = trackedArtists.length === 0 || (startedEmpty && !entered);
+  if (showOnboarding) {
+    return (
+      <EmptyState
+        tracked={tracked}
+        count={trackedArtists.length}
+        onToggle={toggleTracked}
+        onDone={() => setEntered(true)}
+      />
+    );
+  }
 
   return (
     <div className="flex gap-6">
@@ -840,12 +938,19 @@ export default function Dashboard() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-light text-[#F5F0E8]">Dashboard</h1>
-            <p className="text-xs text-[#9B9590] mt-1">{stats.total} artists tracked — {activeWidgets.length} of {WIDGET_CATALOG.length} widgets active</p>
+            <p className="text-xs text-[#9B9590] mt-1">{trackedArtists.length} artists tracked — {activeWidgets.length} of {WIDGET_CATALOG.length} widgets active</p>
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setPickerOpen(!pickerOpen)}
+              onClick={() => setManageOpen(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] text-[#DA7756] border border-[#DA7756]/20 hover:border-[#DA7756]/40 rounded transition-colors cursor-pointer"
+            >
+              <Users size={10} />
+              Manage artists
+            </button>
+            <button
+              onClick={() => setPickerOpen(!pickerOpen)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] text-[#9B9590] border border-[#2C2B28] hover:border-[#3D3B37] rounded transition-colors cursor-pointer"
             >
               <LayoutGrid size={10} />
               Manage widgets
@@ -912,7 +1017,7 @@ export default function Dashboard() {
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2">
           <KpiCard title="Total Listeners" value={stats.totalListeners} index={0} />
           <KpiCard title="Total Followers" value={stats.totalFollowers} index={1} />
-          <KpiCard title="Roster Size" value={stats.total} index={2} />
+          <KpiCard title="Artists Tracked" value={stats.total} index={2} />
           <KpiCard title="Avg Popularity" value={avgPopularity} suffix="/100" index={3} />
           <KpiCard title="Total Playlists" value={stats.totalPlaylists} index={4} />
           <KpiCard title="Playlist Reach" value={stats.totalPlaylistReach} index={5} />
@@ -992,8 +1097,88 @@ export default function Dashboard() {
               </div>
             )}
           </div>
+
+          {/* Action Alerts */}
+          <div className="bg-[#171614] border border-[#2C2B28] rounded p-4 mt-3">
+            <div className="flex items-center gap-2 mb-3">
+              <ListChecks size={13} className="text-[#DA7756]" />
+              <span className="text-xs font-medium text-[#9B9590]">Actions</span>
+              {actionCounts.selected > 0 && (
+                <span className="text-[10px] text-[#6B6560] ml-auto">{actionCounts.selected}</span>
+              )}
+            </div>
+
+            {artistSummary.length > 0 ? (
+              <div className="space-y-0.5">
+                {artistSummary.slice(0, 6).map((a) => {
+                  const severityColor = a.topSeverity === 'danger' ? '#C75F4F' : a.topSeverity === 'warning' ? '#DA7756' : a.topSeverity === 'success' ? '#7BAF73' : '#D4A574';
+                  return (
+                    <Link key={a.slug} to={`/app/actions/${a.slug}`} className="block">
+                      <div className="group flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[#1C1B18] transition-colors">
+                        {a.imageUrl ? (
+                          <img src={a.imageUrl} alt="" className="w-7 h-7 rounded object-cover shrink-0" />
+                        ) : (
+                          <div className="w-7 h-7 rounded bg-[#2C2B28] flex items-center justify-center shrink-0">
+                            <Music size={11} className="text-[#6B6560]" />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[11px] text-[#F5F0E8] truncate group-hover:text-[#DA7756] transition-colors">{a.name}</p>
+                          <p className="text-[9px] text-[#6B6560]">{a.count} action{a.count !== 1 ? 's' : ''}</p>
+                        </div>
+                        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: severityColor }} />
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-4">
+                <ListChecks size={16} className="mx-auto mb-1.5 text-[#2C2B28]" />
+                <p className="text-[10px] text-[#6B6560] leading-relaxed">
+                  No actions selected yet.<br />
+                  <Link to="/app/actions" className="text-[#DA7756] hover:text-[#F5F0E8] transition-colors">Add actions</Link> to track them here.
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
+
+      {/* Manage tracked artists modal */}
+      <AnimatePresence>
+        {manageOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-start justify-center p-4 sm:p-8 bg-black/60 overflow-y-auto"
+            onClick={() => setManageOpen(false)}
+          >
+            <motion.div
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 20, opacity: 0 }}
+              className="w-full max-w-4xl bg-[#171614] border border-[#2C2B28] rounded-lg p-5 my-8"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-lg font-light text-[#F5F0E8]">Manage tracked artists</h2>
+                  <p className="text-xs text-[#9B9590] mt-0.5">{trackedArtists.length} tracked — add or remove to reshape your dashboard.</p>
+                </div>
+                <button
+                  onClick={() => setManageOpen(false)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-[#DA7756] border border-[#DA7756]/20 hover:border-[#DA7756]/40 rounded transition-colors cursor-pointer"
+                >
+                  <Check size={12} /> Done
+                </button>
+              </div>
+              <TrackedArtistPicker tracked={tracked} onToggle={toggleTracked} />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Chat Panel — fixed bottom */}
       <div className="fixed bottom-0 left-0 right-0 z-40">
@@ -1010,7 +1195,7 @@ export default function Dashboard() {
                 <div className="flex items-center justify-between py-2">
                   <div className="flex items-center gap-2">
                     <Sparkles size={12} className="text-[#DA7756]" />
-                    <span className="text-[10px] font-medium text-[#9B9590] uppercase tracking-wider">Cadence</span>
+                    <span className="text-[10px] font-medium text-[#9B9590] uppercase tracking-wider">Prelude</span>
                   </div>
                   <button onClick={() => setChatOpen(false)} className="p-1 text-[#6B6560] hover:text-[#9B9590] cursor-pointer">
                     <X size={14} />
@@ -1058,7 +1243,7 @@ export default function Dashboard() {
                 value={chatQuery}
                 onChange={(e) => setChatQuery(e.target.value)}
                 onFocus={() => setChatOpen(true)}
-                placeholder="Ask Cadence anything..."
+                placeholder="Ask Prelude anything..."
                 className="flex-1 bg-transparent text-sm text-[#F5F0E8] placeholder-[#6B6560] outline-none"
                 disabled={chatState !== 'idle'}
               />

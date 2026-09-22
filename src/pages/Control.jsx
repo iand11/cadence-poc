@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useLocation } from 'react-router';
 import { motion } from 'motion/react';
 import { ArrowUp, Sparkles } from 'lucide-react';
 import ChatMessage from '../components/ai/ChatMessage';
@@ -9,11 +9,13 @@ import { useActions } from '../hooks/useActions';
 
 export default function Control() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { addCustomAction } = useActions();
   const { messages, state, suggestions, sendMessage, pendingAction, clearAction } = useChat({ onCreateAction: addCustomAction });
   const [input, setInput] = useState('');
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  const sentInitialRef = useRef(false);
 
   const hasConversation = messages.length > 1;
   const welcome = messages[0];
@@ -27,6 +29,17 @@ export default function Control() {
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  // Auto-send a prompt passed via navigation state (e.g. from an artist's AI summary suggestions)
+  useEffect(() => {
+    const prompt = location.state?.prompt;
+    if (prompt && !sentInitialRef.current) {
+      sentInitialRef.current = true;
+      // Clear the state so a refresh or back-nav doesn't re-send it
+      navigate(location.pathname, { replace: true, state: null });
+      sendMessage(prompt);
+    }
+  }, [location, navigate, sendMessage]);
 
   useEffect(() => {
     if (pendingAction?.type === 'navigate') {
@@ -81,7 +94,7 @@ export default function Control() {
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(e); } }}
-                    placeholder="Ask Cadence anything..."
+                    placeholder="Ask Prelude anything..."
                     disabled={state !== 'idle'}
                     rows={2}
                     className="flex-1 bg-transparent text-sm text-[#F5F0E8] placeholder-[#6B6560] outline-none resize-none"
@@ -95,7 +108,7 @@ export default function Control() {
                   </button>
                 </form>
                 <p className="text-[10px] text-[#6B6560] text-center mt-2">
-                  Cadence may produce inaccurate information. Verify critical details.
+                  Prelude may produce inaccurate information. Verify critical details.
                 </p>
               </div>
 
@@ -146,7 +159,7 @@ export default function Control() {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(e); } }}
-                  placeholder="Ask Cadence anything..."
+                  placeholder="Ask Prelude anything..."
                   disabled={state !== 'idle'}
                   rows={2}
                   className="flex-1 bg-transparent text-sm text-[#F5F0E8] placeholder-[#6B6560] outline-none resize-none"
@@ -176,7 +189,7 @@ export default function Control() {
               )}
 
               <p className="text-[10px] text-[#6B6560] text-center mt-2">
-                Cadence may produce inaccurate information. Verify critical details.
+                Prelude may produce inaccurate information. Verify critical details.
               </p>
             </div>
           </div>

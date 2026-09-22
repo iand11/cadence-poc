@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
 import { Plus, FileText, Trash2, Clock, BarChart3, Music } from 'lucide-react';
 import { useReports } from '../hooks/useReports';
 import { getArtist } from '../data/artists';
+import { fetchArtistsBySlugs } from '../data/artistsRemote';
 
 function timeAgo(dateStr) {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -32,6 +33,19 @@ export default function ReportsList() {
   const { reports, createReport, deleteReport } = useReports();
   const navigate = useNavigate();
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [, setArtistsResolved] = useState(0);
+
+  // Resolve every artist referenced by a report into the cache so the sync
+  // getArtist reads in the rows below work
+  useEffect(() => {
+    const slugs = [...new Set(reports.flatMap((r) => r.artists))];
+    if (slugs.length === 0) return;
+    let cancelled = false;
+    fetchArtistsBySlugs(slugs)
+      .then(() => { if (!cancelled) setArtistsResolved((t) => t + 1); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [reports]);
 
   const handleNew = () => {
     const id = createReport({ name: 'Untitled Report' });

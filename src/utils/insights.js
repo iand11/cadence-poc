@@ -1,29 +1,48 @@
-import { allArtists } from '../data/artists';
+import { getRoster, subscribeRoster } from '../data/rosterStore';
 import { formatNumber, formatCurrency } from './formatters';
 
-// Pre-compute roster averages once
-const roster = allArtists.length;
-const avg = {
-  listeners: allArtists.reduce((s, a) => s + a.spotify.monthlyListeners, 0) / roster,
-  followers: allArtists.reduce((s, a) => s + a.spotify.followers, 0) / roster,
-  popularity: allArtists.reduce((s, a) => s + a.spotify.popularity, 0) / roster,
-  tiktok: allArtists.reduce((s, a) => s + a.social.tiktok, 0) / roster,
-  instagram: allArtists.reduce((s, a) => s + a.social.instagram, 0) / roster,
-  youtube: allArtists.reduce((s, a) => s + a.social.youtube, 0) / roster,
-  twitter: allArtists.reduce((s, a) => s + a.social.twitter, 0) / roster,
-  spPlaylists: allArtists.reduce((s, a) => s + a.playlists.spotify.total, 0) / roster,
-  spEditorial: allArtists.reduce((s, a) => s + a.playlists.spotify.editorial, 0) / roster,
-  spReach: allArtists.reduce((s, a) => s + a.playlists.spotify.reach, 0) / roster,
-  editorialRate: (() => {
-    const totals = allArtists.filter(a => a.playlists.spotify.total > 0);
-    return totals.reduce((s, a) => s + a.playlists.spotify.editorial / a.playlists.spotify.total, 0) / totals.length;
-  })(),
-  reachPerPlaylist: (() => {
-    const valid = allArtists.filter(a => a.playlists.spotify.total > 0);
-    return valid.reduce((s, a) => s + a.playlists.spotify.reach / a.playlists.spotify.total, 0) / valid.length;
-  })(),
-  shazam: allArtists.reduce((s, a) => s + a.engagement.shazam, 0) / roster,
-};
+// Roster averages, recomputed lazily whenever the tracked roster changes.
+// With an empty roster we fall back to sensible industry-ish baselines so
+// insight text still reads correctly.
+let _avg = null;
+subscribeRoster(() => { _avg = null; });
+
+function rosterAvg() {
+  if (_avg) return _avg;
+  const roster = getRoster();
+  if (!roster.length) {
+    _avg = {
+      listeners: 1_000_000, followers: 500_000, popularity: 55,
+      tiktok: 500_000, instagram: 500_000, youtube: 300_000, twitter: 200_000,
+      spPlaylists: 5_000, spEditorial: 50, spReach: 50_000_000,
+      editorialRate: 0.01, reachPerPlaylist: 10_000, shazam: 1_000_000,
+    };
+    return _avg;
+  }
+  const n = roster.length;
+  const sum = (fn) => roster.reduce((s, a) => s + fn(a), 0);
+  const withPlaylists = roster.filter(a => a.playlists.spotify.total > 0);
+  _avg = {
+    listeners: sum(a => a.spotify.monthlyListeners) / n,
+    followers: sum(a => a.spotify.followers) / n,
+    popularity: sum(a => a.spotify.popularity) / n,
+    tiktok: sum(a => a.social.tiktok) / n,
+    instagram: sum(a => a.social.instagram) / n,
+    youtube: sum(a => a.social.youtube) / n,
+    twitter: sum(a => a.social.twitter) / n,
+    spPlaylists: sum(a => a.playlists.spotify.total) / n,
+    spEditorial: sum(a => a.playlists.spotify.editorial) / n,
+    spReach: sum(a => a.playlists.spotify.reach) / n,
+    editorialRate: withPlaylists.length
+      ? withPlaylists.reduce((s, a) => s + a.playlists.spotify.editorial / a.playlists.spotify.total, 0) / withPlaylists.length
+      : 0.01,
+    reachPerPlaylist: withPlaylists.length
+      ? withPlaylists.reduce((s, a) => s + a.playlists.spotify.reach / a.playlists.spotify.total, 0) / withPlaylists.length
+      : 10_000,
+    shazam: sum(a => a.engagement.shazam) / n,
+  };
+  return _avg;
+}
 
 const fmt = formatNumber;
 
@@ -64,13 +83,13 @@ function streamingInsights(a) {
   } else if (pop >= 50) {
     insights.push({
       type: 'info',
-      text: `Popularity score of ${pop}/100 (roster average: ${Math.round(avg.popularity)}) — strong enough for algorithmic recommendations but below the threshold for top-tier playlist placement.`,
+      text: `Popularity score of ${pop}/100 (roster average: ${Math.round(rosterAvg().popularity)}) — strong enough for algorithmic recommendations but below the threshold for top-tier playlist placement.`,
       action: 'Target editorial playlist submissions with strong pitch narratives. Collaborative tracks with higher-popularity artists can boost this score.',
     });
   } else {
     insights.push({
       type: 'warning',
-      text: `Popularity score of ${pop}/100 is below the roster average of ${Math.round(avg.popularity)}. Limited algorithmic amplification — streams are likely driven by existing fans and curated playlists.`,
+      text: `Popularity score of ${pop}/100 is below the roster average of ${Math.round(rosterAvg().popularity)}. Limited algorithmic amplification — streams are likely driven by existing fans and curated playlists.`,
       action: 'Prioritize third-party playlist pitching and social-driven traffic. TikTok campaigns and influencer seeding can create the spike needed to boost algorithmic signals.',
     });
   }
@@ -146,16 +165,16 @@ function playlistInsights(a) {
   // Editorial rate
   if (sp.total > 0) {
     const rate = sp.editorial / sp.total;
-    if (rate > avg.editorialRate * 1.5) {
+    if (rate > rosterAvg().editorialRate * 1.5) {
       insights.push({
         type: 'success',
-        text: `Editorial playlist rate of ${(rate * 100).toFixed(2)}% is well above the roster average of ${(avg.editorialRate * 100).toFixed(2)}%. Strong curation support from Spotify editors indicates the artist is on the editorial team's radar.`,
+        text: `Editorial playlist rate of ${(rate * 100).toFixed(2)}% is well above the roster average of ${(rosterAvg().editorialRate * 100).toFixed(2)}%. Strong curation support from Spotify editors indicates the artist is on the editorial team's radar.`,
         action: 'Maintain the relationship — submit releases early with compelling pitch narratives, artist story updates, and performance data from previous editorial placements.',
       });
-    } else if (rate < avg.editorialRate * 0.5) {
+    } else if (rate < rosterAvg().editorialRate * 0.5) {
       insights.push({
         type: 'warning',
-        text: `Editorial playlist rate of ${(rate * 100).toFixed(2)}% is below the roster average of ${(avg.editorialRate * 100).toFixed(2)}%. Most playlist placements are algorithmic or user-generated rather than editor-curated.`,
+        text: `Editorial playlist rate of ${(rate * 100).toFixed(2)}% is below the roster average of ${(rosterAvg().editorialRate * 100).toFixed(2)}%. Most playlist placements are algorithmic or user-generated rather than editor-curated.`,
         action: 'Strengthen playlist pitching: submit via Spotify for Artists 7+ days before release, include compelling narratives, and provide social proof (press coverage, tour dates, sync placements).',
       });
     } else {
@@ -170,13 +189,13 @@ function playlistInsights(a) {
   // Reach efficiency
   if (sp.total > 0) {
     const reachPer = sp.reach / sp.total;
-    if (reachPer > avg.reachPerPlaylist * 1.5) {
+    if (reachPer > rosterAvg().reachPerPlaylist * 1.5) {
       insights.push({
         type: 'success',
-        text: `Playlist reach efficiency of ${fmt(Math.round(reachPer))} listeners per playlist is ${(reachPer / avg.reachPerPlaylist).toFixed(1)}x the roster average. Placements are on high-traffic playlists.`,
+        text: `Playlist reach efficiency of ${fmt(Math.round(reachPer))} listeners per playlist is ${(reachPer / rosterAvg().reachPerPlaylist).toFixed(1)}x the roster average. Placements are on high-traffic playlists.`,
         action: 'This is a competitive advantage. Track which specific playlists drive the most streams and build release strategies around maintaining those placements.',
       });
-    } else if (reachPer < avg.reachPerPlaylist * 0.5) {
+    } else if (reachPer < rosterAvg().reachPerPlaylist * 0.5) {
       insights.push({
         type: 'warning',
         text: `Playlist reach efficiency of ${fmt(Math.round(reachPer))} listeners per playlist is below average — many placements are on low-traffic playlists with limited discovery impact.`,
@@ -293,7 +312,7 @@ function revenueInsights(a) {
   }
 
   // Sync opportunity
-  if (a.engagement.shazam > avg.shazam) {
+  if (a.engagement.shazam > rosterAvg().shazam) {
     insights.push({
       type: 'success',
       text: `Shazam count of ${fmt(a.engagement.shazam)} exceeds the roster average — this indicates the music is being discovered in real-world contexts (TV, shops, venues). Sync supervisors use Shazam data as a signal for placement potential.`,

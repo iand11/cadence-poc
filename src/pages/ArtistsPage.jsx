@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Link } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
 import { Users, Search, ArrowUpDown, Check, X } from 'lucide-react';
@@ -6,22 +6,41 @@ import ChartCard from '../components/shared/ChartCard';
 import Pagination from '../components/shared/Pagination';
 import FilterBar from '../components/shared/FilterBar';
 import BenchmarkRadarChart from '../components/charts/BenchmarkRadarChart';
-import { allArtists, getAggregateStats, getBenchmarkComparison } from '../data/artists';
+import { getBenchmarkComparison } from '../data/artists';
+import { fetchArtists, fetchFacets } from '../data/artistsRemote';
 import { formatNumber } from '../utils/formatters';
 
 const COLORS = ['#DA7756', '#7BAF73', '#C75F4F', '#D4A574'];
 
-const SORT_OPTIONS = [
-  { key: 'listeners', label: 'Listeners' },
-  { key: 'followers', label: 'Followers' },
-  { key: 'playlists', label: 'Playlists' },
-  { key: 'score', label: 'Score' },
-];
+// Listener-tier filter options → server minListeners/maxListeners params
+// (maxListeners is exclusive on the server, matching the old `< 1M` check).
+const TIER_PARAMS = {
+  '1M+': { minListeners: 1_000_000 },
+  '100K–1M': { minListeners: 100_000, maxListeners: 1_000_000 },
+  '<100K': { maxListeners: 100_000 },
+};
+
+const GRID_COLS = 'grid-cols-[40px_1fr_120px_100px_80px_60px]';
+
+function SortHeader({ label, sortField, activeKey, onSort, className = '' }) {
+  return (
+    <button
+      onClick={() => onSort(sortField)}
+      className={`flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider cursor-pointer hover:text-[#F5F0E8] transition-colors ${
+        activeKey === sortField ? 'text-[#DA7756]' : 'text-[#9B9590]'
+      } ${className}`}
+    >
+      {label}
+      <ArrowUpDown size={10} className={activeKey === sortField ? 'opacity-100' : 'opacity-30'} />
+    </button>
+  );
+}
 
 export default function ArtistsPage() {
-  const stats = useMemo(() => getAggregateStats(), []);
+  const [facets, setFacets] = useState(null);
 
   const [query, setQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   const [sortKey, setSortKey] = useState('listeners');
   const [sortAsc, setSortAsc] = useState(false);
   const [genreFilter, setGenreFilter] = useState('All');
@@ -29,101 +48,108 @@ export default function ArtistsPage() {
   const [countryFilter, setCountryFilter] = useState('All');
   const [tierFilter, setTierFilter] = useState('All');
   const [typeFilter, setTypeFilter] = useState('All');
-  const [selectedSlugs, setSelectedSlugs] = useState([]);
+  const [selectedArtists, setSelectedArtists] = useState([]);
   const [showComparison, setShowComparison] = useState(false);
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(20);
+
+  const [artists, setArtists] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [loadedKey, setLoadedKey] = useState('');
   const comparisonRef = useRef(null);
 
-  const topGenres = useMemo(() => {
-    const counts = {};
-    allArtists.forEach(a => {
-      const g = a.genres?.primary?.name;
-      if (g) counts[g] = (counts[g] || 0) + 1;
-    });
-    return ['All', ...Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([k]) => k)];
+  // Facet options + catalog-wide headline stats (one-time load).
+  useEffect(() => {
+    let cancelled = false;
+    fetchFacets()
+      .then((data) => { if (!cancelled) setFacets(data); })
+      .catch((err) => { if (!cancelled) console.error('Failed to load artist facets', err); });
+    return () => { cancelled = true; };
   }, []);
 
-  const topLabels = useMemo(() => {
-    const counts = {};
-    allArtists.forEach(a => {
-      const l = a.label;
-      if (l && l !== 'Independent') counts[l] = (counts[l] || 0) + 1;
-    });
-    return ['All', 'Independent', ...Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 7).map(([k]) => k)];
-  }, []);
+  // Debounce the free-text query (and reset to page 1 when it settles).
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedQuery(query.trim());
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [query]);
 
-  const topCountries = useMemo(() => {
-    const counts = {};
-    allArtists.forEach(a => {
-      const c = a.country;
-      if (c) counts[c] = (counts[c] || 0) + 1;
-    });
-    return ['All', ...Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([k]) => k)];
-  }, []);
+  // Current server query params; `loading` is derived by comparing the params
+  // key against the key of the last response applied to state.
+  const listParams = useMemo(() => {
+    const params = { sort: sortKey, order: sortAsc ? 'asc' : 'desc', page, perPage };
+    if (debouncedQuery.length >= 2) params.q = debouncedQuery;
+    if (genreFilter !== 'All') params.genre = genreFilter;
+    if (labelFilter !== 'All') params.label = labelFilter;
+    if (countryFilter !== 'All') params.country = countryFilter;
+    if (typeFilter !== 'All') params.isBand = typeFilter === 'Band' ? '1' : '0';
+    Object.assign(params, TIER_PARAMS[tierFilter] || {});
+    return params;
+  }, [debouncedQuery, genreFilter, labelFilter, countryFilter, tierFilter, typeFilter, sortKey, sortAsc, page, perPage]);
 
-  const filtered = useMemo(() => {
-    let list = allArtists;
-    if (query.length >= 2) {
-      const q = query.toLowerCase();
-      list = list.filter(a =>
-        a.name.toLowerCase().includes(q) ||
-        (a.label || '').toLowerCase().includes(q) ||
-        (a.genres?.primary?.name || '').toLowerCase().includes(q) ||
-        (a.city || '').toLowerCase().includes(q)
-      );
-    }
-    if (genreFilter !== 'All') {
-      list = list.filter(a => (a.genres?.primary?.name || '') === genreFilter);
-    }
-    if (labelFilter !== 'All') {
-      list = list.filter(a => (a.label || '') === labelFilter);
-    }
-    if (countryFilter !== 'All') {
-      list = list.filter(a => (a.country || '') === countryFilter);
-    }
-    if (tierFilter !== 'All') {
-      list = list.filter(a => {
-        const l = a.spotify.monthlyListeners;
-        switch (tierFilter) {
-          case '1M+': return l >= 1_000_000;
-          case '100K–1M': return l >= 100_000 && l < 1_000_000;
-          case '<100K': return l < 100_000;
-          default: return true;
-        }
+  const listKey = JSON.stringify(listParams);
+  const loading = loadedKey !== listKey;
+
+  // Server-driven list: refetch on any query/filter/sort/page change.
+  useEffect(() => {
+    let cancelled = false;
+    fetchArtists(listParams)
+      .then((data) => {
+        if (cancelled) return;
+        setArtists(data.artists);
+        setTotal(data.total);
+        setLoadedKey(listKey);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error('Failed to load artists', err);
+        setArtists([]);
+        setTotal(0);
+        setLoadedKey(listKey);
       });
-    }
-    if (typeFilter !== 'All') {
-      list = list.filter(a => typeFilter === 'Band' ? a.isBand : !a.isBand);
-    }
-    const sorted = [...list].sort((a, b) => {
-      let av, bv;
-      switch (sortKey) {
-        case 'listeners': av = a.spotify.monthlyListeners; bv = b.spotify.monthlyListeners; break;
-        case 'followers': av = a.spotify.followers; bv = b.spotify.followers; break;
-        case 'playlists': av = a.playlists.spotify.total; bv = b.playlists.spotify.total; break;
-        case 'score': av = a.score; bv = b.score; break;
-        default: av = a.spotify.monthlyListeners; bv = b.spotify.monthlyListeners;
-      }
-      return sortAsc ? av - bv : bv - av;
+    return () => { cancelled = true; };
+  }, [listParams, listKey]);
+
+  const stats = facets?.stats;
+
+  const topGenres = useMemo(
+    () => ['All', ...(facets?.genres || []).slice(0, 8).map((g) => g.value)],
+    [facets]
+  );
+
+  const topLabels = useMemo(
+    () => [
+      'All',
+      'Independent',
+      ...(facets?.labels || [])
+        .filter((l) => l.value !== 'Independent')
+        .slice(0, 7)
+        .map((l) => l.value),
+    ],
+    [facets]
+  );
+
+  const topCountries = useMemo(
+    () => ['All', ...(facets?.countries || []).slice(0, 8).map((c) => c.value)],
+    [facets]
+  );
+
+  const selectedSlugs = useMemo(() => selectedArtists.map((a) => a.slug), [selectedArtists]);
+
+  // Keep the full artist objects in state — after filter/page changes the
+  // selected artists may no longer be in the currently loaded page.
+  const toggleSelect = (artist) => {
+    setSelectedArtists((prev) => {
+      if (prev.some((a) => a.slug === artist.slug)) return prev.filter((a) => a.slug !== artist.slug);
+      if (prev.length >= 4) return prev;
+      return [...prev, artist];
     });
-    return sorted;
-  }, [query, sortKey, sortAsc, genreFilter, labelFilter, countryFilter, tierFilter, typeFilter]);
+  };
 
-  const paginated = useMemo(() => {
-    const start = (page - 1) * perPage;
-    return filtered.slice(start, start + perPage);
-  }, [filtered, page, perPage]);
-
-  // Reset to page 1 when filters change
-  useMemo(() => { setPage(1); }, [query, sortKey, sortAsc, genreFilter, labelFilter, countryFilter, tierFilter, typeFilter]);
-
-  const toggleSelect = (slug) => {
-    if (selectedSlugs.includes(slug)) {
-      setSelectedSlugs(selectedSlugs.filter(s => s !== slug));
-    } else if (selectedSlugs.length < 4) {
-      setSelectedSlugs([...selectedSlugs, slug]);
-    }
+  const removeSelected = (slug) => {
+    setSelectedArtists((prev) => prev.filter((a) => a.slug !== slug));
   };
 
   const handleSort = (key) => {
@@ -133,24 +159,13 @@ export default function ArtistsPage() {
       setSortKey(key);
       setSortAsc(false);
     }
+    setPage(1);
   };
 
-  const selectedArtists = useMemo(
-    () => allArtists.filter(a => selectedSlugs.includes(a.slug)),
-    [selectedSlugs]
-  );
-
-  const SortHeader = ({ label, sortField, className = '' }) => (
-    <button
-      onClick={() => handleSort(sortField)}
-      className={`flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider cursor-pointer hover:text-[#F5F0E8] transition-colors ${
-        sortKey === sortField ? 'text-[#DA7756]' : 'text-[#9B9590]'
-      } ${className}`}
-    >
-      {label}
-      <ArrowUpDown size={10} className={sortKey === sortField ? 'opacity-100' : 'opacity-30'} />
-    </button>
-  );
+  const changeFilter = (setter) => (value) => {
+    setter(value);
+    setPage(1);
+  };
 
   return (
     <div className="space-y-6">
@@ -162,24 +177,24 @@ export default function ArtistsPage() {
           </span>
         </div>
         <h1 className="text-3xl font-light text-[#F5F0E8] mt-2">Artists</h1>
-        <p className="text-sm text-[#9B9590] mt-1">Browse, search, and compare roster artists</p>
+        <p className="text-sm text-[#9B9590] mt-1">Browse, search, and compare artists across the catalog</p>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-5">
           <div className="bg-[#171614] border border-[#2C2B28] rounded p-3">
             <p className="text-[10px] text-[#9B9590] uppercase tracking-wider">Total Artists</p>
-            <p className="text-lg font-mono text-[#F5F0E8] mt-1">{stats.total}</p>
+            <p className="text-lg font-mono text-[#F5F0E8] mt-1">{stats ? formatNumber(stats.total) : '—'}</p>
           </div>
           <div className="bg-[#171614] border border-[#2C2B28] rounded p-3">
             <p className="text-[10px] text-[#9B9590] uppercase tracking-wider">Monthly Listeners</p>
-            <p className="text-lg font-mono text-[#F5F0E8] mt-1">{formatNumber(stats.totalListeners)}</p>
+            <p className="text-lg font-mono text-[#F5F0E8] mt-1">{stats ? formatNumber(stats.totalListeners) : '—'}</p>
           </div>
           <div className="bg-[#171614] border border-[#2C2B28] rounded p-3">
             <p className="text-[10px] text-[#9B9590] uppercase tracking-wider">Avg Score</p>
-            <p className="text-lg font-mono text-[#F5F0E8] mt-1">{Math.round(stats.avgScore)}</p>
+            <p className="text-lg font-mono text-[#F5F0E8] mt-1">{stats ? Math.round(stats.avgScore) : '—'}</p>
           </div>
           <div className="bg-[#171614] border border-[#2C2B28] rounded p-3">
-            <p className="text-[10px] text-[#9B9590] uppercase tracking-wider">Playlist Reach</p>
-            <p className="text-lg font-mono text-[#F5F0E8] mt-1">{formatNumber(stats.totalPlaylistReach)}</p>
+            <p className="text-[10px] text-[#9B9590] uppercase tracking-wider">Followers</p>
+            <p className="text-lg font-mono text-[#F5F0E8] mt-1">{stats ? formatNumber(stats.totalFollowers) : '—'}</p>
           </div>
         </div>
       </motion.div>
@@ -201,106 +216,133 @@ export default function ArtistsPage() {
             </button>
           )}
         </div>
-        <span className="text-[10px] text-[#6B6560]">{filtered.length} artists</span>
+        <span className="text-[10px] text-[#6B6560]">{total.toLocaleString()} artists</span>
       </div>
 
       {/* Filters */}
       <FilterBar filters={[
-        { label: 'Genre', options: topGenres, value: genreFilter, onChange: setGenreFilter },
-        { label: 'Label', options: topLabels, value: labelFilter, onChange: setLabelFilter },
-        { label: 'Country', options: topCountries, value: countryFilter, onChange: setCountryFilter },
-        { label: 'Tier', options: ['All', '1M+', '100K–1M', '<100K'], value: tierFilter, onChange: setTierFilter },
-        { label: 'Type', options: ['All', 'Solo', 'Band'], value: typeFilter, onChange: setTypeFilter },
+        { label: 'Genre', options: topGenres, value: genreFilter, onChange: changeFilter(setGenreFilter) },
+        { label: 'Label', options: topLabels, value: labelFilter, onChange: changeFilter(setLabelFilter) },
+        { label: 'Country', options: topCountries, value: countryFilter, onChange: changeFilter(setCountryFilter) },
+        { label: 'Tier', options: ['All', '1M+', '100K–1M', '<100K'], value: tierFilter, onChange: changeFilter(setTierFilter) },
+        { label: 'Type', options: ['All', 'Solo', 'Band'], value: typeFilter, onChange: changeFilter(setTypeFilter) },
       ]} />
 
       {/* Table */}
       <div className="bg-[#171614] border border-[#2C2B28] rounded overflow-hidden">
         {/* Table header */}
-        <div className="grid grid-cols-[40px_1fr_120px_100px_80px_60px] items-center gap-2 px-3 py-2.5 border-b border-[#2C2B28] bg-[#0D0C0B]">
+        <div className={`grid ${GRID_COLS} items-center gap-2 px-3 py-2.5 border-b border-[#2C2B28] bg-[#0D0C0B]`}>
           <div className="text-[10px] text-[#6B6560] text-center">#</div>
           <div className="text-[10px] font-medium text-[#9B9590] uppercase tracking-wider">Artist</div>
-          <SortHeader label="Listeners" sortField="listeners" className="justify-end" />
-          <SortHeader label="Followers" sortField="followers" className="justify-end" />
-          <SortHeader label="Playlists" sortField="playlists" className="justify-end" />
-          <SortHeader label="Score" sortField="score" className="justify-end" />
+          <SortHeader label="Listeners" sortField="listeners" activeKey={sortKey} onSort={handleSort} className="justify-end" />
+          <SortHeader label="Followers" sortField="followers" activeKey={sortKey} onSort={handleSort} className="justify-end" />
+          {/* Playlist counts aren't a server sort key — column stays, sorting dropped */}
+          <div className="text-[10px] font-medium text-[#9B9590] uppercase tracking-wider text-right">Playlists</div>
+          <SortHeader label="Score" sortField="score" activeKey={sortKey} onSort={handleSort} className="justify-end" />
         </div>
 
-        {/* Table rows */}
-        {paginated.map((artist, i) => {
-          const globalIdx = (page - 1) * perPage + i;
-          const isSelected = selectedSlugs.includes(artist.slug);
-          const colorIdx = selectedSlugs.indexOf(artist.slug);
-          return (
-            <div
-              key={artist.slug}
-              className={`grid grid-cols-[40px_1fr_120px_100px_80px_60px] items-center gap-2 px-3 py-2.5 border-b border-[#2C2B28]/50 hover:bg-[#1C1B18] transition-colors group ${
-                isSelected ? 'bg-[#1C1B18]' : ''
-              }`}
-            >
-              {/* Checkbox / rank */}
-              <div className="flex items-center justify-center">
-                <button
-                  onClick={() => toggleSelect(artist.slug)}
-                  disabled={!isSelected && selectedSlugs.length >= 4}
-                  className={`w-5 h-5 rounded border flex items-center justify-center shrink-0 cursor-pointer transition-colors ${
-                    isSelected
-                      ? 'border-[#DA7756] bg-[#DA7756]'
-                      : 'border-[#3D3B37] group-hover:border-[#6B6560]'
-                  } ${!isSelected && selectedSlugs.length >= 4 ? 'opacity-30 cursor-not-allowed' : ''}`}
-                >
-                  {isSelected ? (
-                    <Check size={10} className="text-[#0D0C0B]" />
-                  ) : (
-                    <span className="text-[9px] font-mono text-[#6B6560]">{globalIdx + 1}</span>
-                  )}
-                </button>
-              </div>
-
-              {/* Artist info */}
-              <Link to={`/app/artist/${artist.slug}`} className="flex items-center gap-2.5 min-w-0">
-                {artist.imageUrl ? (
-                  <img src={artist.imageUrl} alt="" className="w-8 h-8 rounded-full object-cover shrink-0" />
-                ) : (
-                  <div className="w-8 h-8 rounded-full bg-[#2C2B28] flex items-center justify-center shrink-0">
-                    <Users size={12} className="text-[#6B6560]" />
-                  </div>
-                )}
-                <div className="min-w-0">
-                  <p className="text-xs text-[#F5F0E8] truncate group-hover:text-[#DA7756] transition-colors">
-                    {isSelected && <span className="inline-block w-1.5 h-1.5 rounded-full mr-1.5" style={{ backgroundColor: COLORS[colorIdx] }} />}
-                    {artist.name}
-                  </p>
-                  <p className="text-[9px] text-[#6B6560] truncate">{artist.label}</p>
+        {/* Table rows (dimmed while a fetch is in flight) */}
+        <div className={`transition-opacity duration-200 ${loading ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
+          {artists.map((artist, i) => {
+            const globalIdx = (page - 1) * perPage + i;
+            const isSelected = selectedSlugs.includes(artist.slug);
+            const colorIdx = selectedSlugs.indexOf(artist.slug);
+            return (
+              <div
+                key={artist.slug}
+                className={`grid ${GRID_COLS} items-center gap-2 px-3 py-2.5 border-b border-[#2C2B28]/50 hover:bg-[#1C1B18] transition-colors group ${
+                  isSelected ? 'bg-[#1C1B18]' : ''
+                }`}
+              >
+                {/* Checkbox / rank */}
+                <div className="flex items-center justify-center">
+                  <button
+                    onClick={() => toggleSelect(artist)}
+                    disabled={!isSelected && selectedSlugs.length >= 4}
+                    className={`w-5 h-5 rounded border flex items-center justify-center shrink-0 cursor-pointer transition-colors ${
+                      isSelected
+                        ? 'border-[#DA7756] bg-[#DA7756]'
+                        : 'border-[#3D3B37] group-hover:border-[#6B6560]'
+                    } ${!isSelected && selectedSlugs.length >= 4 ? 'opacity-30 cursor-not-allowed' : ''}`}
+                  >
+                    {isSelected ? (
+                      <Check size={10} className="text-[#0D0C0B]" />
+                    ) : (
+                      <span className="text-[9px] font-mono text-[#6B6560]">{globalIdx + 1}</span>
+                    )}
+                  </button>
                 </div>
-              </Link>
 
-              {/* Monthly Listeners */}
-              <span className="text-xs font-mono text-[#F5F0E8] text-right">{formatNumber(artist.spotify.monthlyListeners)}</span>
+                {/* Artist info */}
+                <Link to={`/app/artist/${artist.slug}`} className="flex items-center gap-2.5 min-w-0">
+                  {artist.imageUrl ? (
+                    <img src={artist.imageUrl} alt="" className="w-8 h-8 rounded-full object-cover shrink-0" />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-[#2C2B28] flex items-center justify-center shrink-0">
+                      <Users size={12} className="text-[#6B6560]" />
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <p className="text-xs text-[#F5F0E8] truncate group-hover:text-[#DA7756] transition-colors">
+                      {isSelected && <span className="inline-block w-1.5 h-1.5 rounded-full mr-1.5" style={{ backgroundColor: COLORS[colorIdx] }} />}
+                      {artist.name}
+                    </p>
+                    <p className="text-[9px] text-[#6B6560] truncate">{artist.label}</p>
+                  </div>
+                </Link>
 
-              {/* Followers */}
-              <span className="text-xs font-mono text-[#F5F0E8] text-right">{formatNumber(artist.spotify.followers)}</span>
+                {/* Monthly Listeners */}
+                <span className="text-xs font-mono text-[#F5F0E8] text-right">{formatNumber(artist.spotify.monthlyListeners)}</span>
 
-              {/* Playlists */}
-              <span className="text-xs font-mono text-[#F5F0E8] text-right">{formatNumber(artist.playlists.spotify.total)}</span>
+                {/* Followers */}
+                <span className="text-xs font-mono text-[#F5F0E8] text-right">{formatNumber(artist.spotify.followers)}</span>
 
-              {/* Score */}
-              <span className="text-xs font-mono text-[#F5F0E8] text-right">{artist.score}</span>
-            </div>
-          );
-        })}
+                {/* Playlists */}
+                <span className="text-xs font-mono text-[#F5F0E8] text-right">{formatNumber(artist.playlists.spotify.total)}</span>
 
-        {filtered.length === 0 && (
+                {/* Score */}
+                <span className="text-xs font-mono text-[#F5F0E8] text-right">{artist.score}</span>
+              </div>
+            );
+          })}
+
+          {/* Skeleton rows for the initial load */}
+          {loading && artists.length === 0 && (
+            Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className={`grid ${GRID_COLS} items-center gap-2 px-3 py-2.5 border-b border-[#2C2B28]/50 animate-pulse`}>
+                <div className="flex items-center justify-center">
+                  <div className="w-5 h-5 rounded border border-[#2C2B28]" />
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-full bg-[#2C2B28] shrink-0" />
+                  <div className="space-y-1.5">
+                    <div className="h-2.5 w-28 rounded bg-[#2C2B28]" />
+                    <div className="h-2 w-16 rounded bg-[#2C2B28]/60" />
+                  </div>
+                </div>
+                <div className="h-2.5 w-12 rounded bg-[#2C2B28] justify-self-end" />
+                <div className="h-2.5 w-10 rounded bg-[#2C2B28] justify-self-end" />
+                <div className="h-2.5 w-8 rounded bg-[#2C2B28] justify-self-end" />
+                <div className="h-2.5 w-6 rounded bg-[#2C2B28] justify-self-end" />
+              </div>
+            ))
+          )}
+        </div>
+
+        {!loading && artists.length === 0 && (
           <div className="text-center py-12">
             <Users size={24} className="mx-auto text-[#2C2B28] mb-2" />
-            <p className="text-xs text-[#6B6560]">No artists match "{query}"</p>
+            <p className="text-xs text-[#6B6560]">
+              {query ? `No artists match "${query}"` : 'No artists match the current filters'}
+            </p>
           </div>
         )}
 
-        {filtered.length > 0 && (
+        {total > 0 && (
           <Pagination
             page={page}
             perPage={perPage}
-            total={filtered.length}
+            total={total}
             onPageChange={setPage}
             onPerPageChange={(n) => { setPerPage(n); setPage(1); }}
           />
@@ -309,7 +351,7 @@ export default function ArtistsPage() {
 
       {/* Floating compare bar */}
       <AnimatePresence>
-        {selectedSlugs.length >= 2 && !showComparison && (
+        {selectedArtists.length >= 2 && !showComparison && (
           <motion.div
             initial={{ y: 80, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -318,18 +360,15 @@ export default function ArtistsPage() {
           >
             <div className="flex items-center gap-4 px-5 py-3 bg-[#171614] border border-[#2C2B28] rounded-full shadow-2xl">
               <div className="flex items-center gap-2">
-                {selectedSlugs.map((slug, i) => {
-                  const a = allArtists.find(a => a.slug === slug);
-                  return (
-                    <div key={slug} className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px]"
-                      style={{ backgroundColor: COLORS[i] + '15', color: COLORS[i] }}>
-                      <span className="truncate max-w-[80px]">{a?.name}</span>
-                      <button onClick={() => setSelectedSlugs(selectedSlugs.filter(s => s !== slug))} className="cursor-pointer">
-                        <X size={8} />
-                      </button>
-                    </div>
-                  );
-                })}
+                {selectedArtists.map((a, i) => (
+                  <div key={a.slug} className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px]"
+                    style={{ backgroundColor: COLORS[i] + '15', color: COLORS[i] }}>
+                    <span className="truncate max-w-[80px]">{a.name}</span>
+                    <button onClick={() => removeSelected(a.slug)} className="cursor-pointer">
+                      <X size={8} />
+                    </button>
+                  </div>
+                ))}
               </div>
               <button
                 onClick={() => {
@@ -338,7 +377,7 @@ export default function ArtistsPage() {
                 }}
                 className="px-4 py-1.5 bg-[#DA7756] text-[#0D0C0B] text-xs font-medium rounded-full hover:bg-[#DA7756]/90 transition-colors cursor-pointer"
               >
-                Compare {selectedSlugs.length}
+                Compare {selectedArtists.length}
               </button>
             </div>
           </motion.div>
@@ -442,9 +481,9 @@ export default function ArtistsPage() {
             {/* Benchmark Radar for each artist */}
             <div className={`grid gap-3 ${selectedArtists.length <= 2 ? 'grid-cols-2' : selectedArtists.length === 3 ? 'grid-cols-3' : 'grid-cols-4'}`}>
               {selectedArtists.map((a, i) => {
-                const bench = getBenchmarkComparison(a);
+                const bench = getBenchmarkComparison(a, selectedArtists);
                 return (
-                  <ChartCard key={a.slug} title={a.name} subtitle="vs roster average">
+                  <ChartCard key={a.slug} title={a.name} subtitle="vs comparison group">
                     <div style={{ borderTopColor: COLORS[i], borderTopWidth: 2 }} className="rounded">
                       <BenchmarkRadarChart
                         artist={bench.artist}

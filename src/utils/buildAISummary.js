@@ -1,22 +1,42 @@
-import { allArtists } from '../data/artists';
+import { getRoster, subscribeRoster } from '../data/rosterStore';
 import { formatNumber } from './formatters';
 
-const rosterSize = allArtists.length;
-export const rosterAvg = {
-  listeners: allArtists.reduce((s, a) => s + a.spotify.monthlyListeners, 0) / rosterSize,
-  followers: allArtists.reduce((s, a) => s + a.spotify.followers, 0) / rosterSize,
-  popularity: allArtists.reduce((s, a) => s + a.spotify.popularity, 0) / rosterSize,
-  tiktok: allArtists.reduce((s, a) => s + a.social.tiktok, 0) / rosterSize,
-  instagram: allArtists.reduce((s, a) => s + a.social.instagram, 0) / rosterSize,
-  youtube: allArtists.reduce((s, a) => s + a.social.youtube, 0) / rosterSize,
-  playlists: allArtists.reduce((s, a) => s + a.playlists.spotify.total, 0) / rosterSize,
-  reach: allArtists.reduce((s, a) => s + a.playlists.spotify.reach, 0) / rosterSize,
-  shazam: allArtists.reduce((s, a) => s + a.engagement.shazam, 0) / rosterSize,
-};
+// Tracked-roster averages, recomputed lazily when the roster changes.
+// Empty-roster fallbacks keep comparison prose sane during onboarding.
+let _avg = null;
+subscribeRoster(() => { _avg = null; });
+
+function getRosterAvg() {
+  if (_avg) return _avg;
+  const roster = getRoster();
+  if (!roster.length) {
+    _avg = {
+      listeners: 1_000_000, followers: 500_000, popularity: 55,
+      tiktok: 500_000, instagram: 500_000, youtube: 300_000,
+      playlists: 5_000, reach: 50_000_000, shazam: 1_000_000,
+    };
+    return _avg;
+  }
+  const n = roster.length;
+  const sum = (fn) => roster.reduce((s, a) => s + fn(a), 0);
+  _avg = {
+    listeners: sum(a => a.spotify.monthlyListeners) / n,
+    followers: sum(a => a.spotify.followers) / n,
+    popularity: sum(a => a.spotify.popularity) / n,
+    tiktok: sum(a => a.social.tiktok) / n,
+    instagram: sum(a => a.social.instagram) / n,
+    youtube: sum(a => a.social.youtube) / n,
+    playlists: sum(a => a.playlists.spotify.total) / n,
+    reach: sum(a => a.playlists.spotify.reach) / n,
+    shazam: sum(a => a.engagement.shazam) / n,
+  };
+  return _avg;
+}
 
 export function buildAISummary(artist) {
   const a = artist;
   const fmt = formatNumber;
+  const rosterAvg = getRosterAvg();
   const listeners = a.spotify.monthlyListeners;
   const followers = a.spotify.followers;
   const pop = a.spotify.popularity;
@@ -116,10 +136,10 @@ export function buildAISummary(artist) {
   ];
 
   const suggestions = [
-    `Compare ${a.name} to similar artists`,
-    'Identify playlist growth opportunities',
-    'Analyze social engagement gaps',
+    { label: 'Compare to similar artists', action: `Compare ${a.name} to similar artists`, dataType: 'benchmarks', platform: 'general' },
+    { label: 'Identify playlist growth opportunities', action: `Identify playlist growth opportunities for ${a.name}`, dataType: 'playlists', platform: 'spotify' },
+    { label: 'Analyze social engagement gaps', action: `Analyze social engagement gaps for ${a.name}`, dataType: 'social', platform: 'social' },
   ];
 
-  return { text, keyMetrics, suggestions };
+  return { text, keyMetrics, suggestions, artistSlug: a.slug, artistName: a.name };
 }

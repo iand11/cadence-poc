@@ -16,23 +16,70 @@ The `ANTHROPIC_API_KEY` env var is required for the AI chat feature.
 
 ## Architecture
 
-Cadence is a React 19 + Vite SPA for music industry intelligence. No TypeScript, no database — all data is static JSON processed at build time.
+MusicSpace is a React 19 + Vite SPA for music industry intelligence. No TypeScript. All artist/track/album/social data lives in Supabase Postgres (200k+ artist scale); nothing is bundled at build time. The legacy static pipeline (`responses.json` → `scripts/build-artists.js` → generated JSON) is retired — the generated files may still exist on disk but nothing imports them.
 
-### Data Pipeline
+### Database (Supabase Postgres — replaces the static pipeline at scale)
 
-`responses.json` (2.3GB raw API dump) → `scripts/build-artists.js` → two outputs:
-- `src/data/artists-index.generated.json` — artist metadata index bundled into the app (~9MB)
-- `public/data/artists/{slug}.json` — per-artist track/album detail files loaded lazily via `fetch`
+Schema in `db/schema.sql` (apply with `npm run db:schema`, idempotent). Identity and
+metrics are split: `artists` holds slow-moving profile data only (name, genre, career
+stage, etc.); volatile metrics live in `artist_stats_current` (one row per artist —
+indexed latest values + full `stats` jsonb, a rebuildable cache the list API joins for
+sorting) and `artist_metric_snapshots` (append-only history, one row per artist per
+refresh per source). `tracks` / `albums` (+ `artist_tracks`, `artist_albums` join tables)
+hold the catalog; `social_posts` is the upserted content feed; `ingest_files` makes bulk
+loads resumable. Stats refreshes merge partial payloads (jsonb `||`), so a single-platform
+fetch never wipes other platforms' values.
+
+- `npm run db:ingest -- --dir <dir>` — bulk-load per-artist JSON dumps (resumable, `--concurrency N`)
+- `npm run db:ingest-social` — load social posts (re-run after fresh fetches; upserts by post_id)
+- `npm run db:refresh-stats -- --file <json>` — persist fresh social/streaming stats (updates live values + appends snapshot)
+- `npm run db:worker -- [--once --dry]` — reference worker for the refresh queue
+
+Tracking → refresh handoff (docs/REFRESH_PIPELINE.md): saving the tracked
+roster mirrors it into `tracked_artists` and enqueues `refresh_queue` jobs for
+newly tracked artists (pg_notify 'refresh_jobs' on insert). External fetcher
+services claim jobs with FOR UPDATE SKIP LOCKED, persist results through the
+stats/posts upsert paths, and run staleness sweeps off the
+`tracked_artist_freshness` view.
+
+Missing-artist requests: `TrackedArtistPicker` is search-first (no catalog
+browsing; empty query shows the current roster). When a search comes up short,
+the user submits `POST /api/artists/requests` (api/artists/requests.js), which
+inserts a pending `artist_requests` row (one open request per normalized name;
+pg_notify 'artist_requests' on insert). An outside service reads pending rows,
+ingests the artist, and marks the request fulfilled (sets `artist_id`).
+
+API: `GET /api/artists` (search/filter/sort/paginate), `GET /api/artists/:slug`
+(`?include=tracks,albums,history`), `GET /api/feed`. Handlers in `api/artists/` share
+`api/lib/artist-shape.js`, which returns the exact same object shapes `src/data/artists.js`
+builds, so components need no reshaping. Frontend adapter: `src/data/artistsRemote.js`
+(async drop-ins: `fetchArtists`, `fetchArtist`, `loadArtistDetail`, `fetchContentFeed`).
+Dev middleware for these routes is `dbApiPlugin()` in `vite.config.js`.
 
 ### Data Modules (`src/data/`)
 
-- **`artists.js`** — Core data module. Exports `allArtists` (static array), `getArtist(slug)`, `loadArtistDetail(slug)` (async, fetches per-artist JSON). Also exports generators for streaming trends, social timelines, forecasts, revenue breakdowns, and benchmarks — all use seeded randomization for deterministic demo data.
-- **`trackData.js`** — Track analytics. `getRosterTrackStats()` for dashboard, `loadAllRosterTracks()` for async full roster load, `generateTrackPerformance()` for per-track metrics.
-- **`playlistData.js`** — Generates playlist placements by matching artist genres to a universe of ~40 real playlist templates. Builds reverse index of playlist→artist mappings.
+The app is roster-scoped: users track artists (`TrackedArtistsProvider` in `src/context/`,
+persisted slugs → one `/api/artists?slugs=` fetch, pushed into `rosterStore.js` so non-React
+modules share it). There is no client-side "all artists" array — catalog-wide browsing and
+search go through the API.
+
+- **`artistsRemote.js`** — HTTP adapter: `fetchArtists` (search/filter/sort/paginate),
+  `fetchArtistsBySlugs`, `fetchArtist`, `fetchTracks`, `fetchAlbums`, `fetchTrack`,
+  `fetchAlbum`, `fetchFacets`, `fetchContentFeed`. Responses are pre-shaped server-side.
+- **`artists.js`** — Core module. Sync `getArtist(slug)` resolves roster/cache and returns
+  null on a miss; `searchArtists`, `getTopArtists`, `getTopTracksAcrossRoster`,
+  `getRecentReleases`, `getTrackAsync`, `getAlbumAsync` are async (DB). Aggregates and
+  benchmarks are roster-scoped. Seeded generators (trends/forecast/revenue) unchanged.
+- **`trackData.js`** — `getRosterTrackStats()` / `loadAllRosterTracks()` are async, DB-backed,
+  roster-scoped. Per-track generators are sync seeded functions.
+- **`playlistData.js`** — Synthetic playlist placements generated from the tracked roster
+  (sync API, caches invalidate on roster change via `subscribeRoster`).
+- **`userData.js`** — per-user key/value persistence (`/api/user-data`); imported by
+  `usePersistedState`. Must never depend on artist modules.
 
 ### AI Chat (`/api/chat`)
 
-The chat endpoint is a Vite middleware plugin in `vite.config.js` (dev) and `api/chat.js` (Vercel). It streams SSE responses from Claude with a system prompt containing condensed roster context. The `create_report` tool lets the AI generate reports that save to localStorage and trigger navigation.
+The chat endpoint is a Vite middleware plugin in `vite.config.js` (dev) and `api/chat.js` (Vercel). It streams SSE responses from Claude; the condensed roster context is built client-side from the tracked roster (useChat) and sent as `artistContext` in the request body. The `create_report` tool lets the AI generate reports that save to localStorage and trigger navigation.
 
 The frontend chat logic lives in `src/hooks/useChat.js` — handles SSE parsing, streaming state, tool execution, and suggestion rotation.
 
@@ -51,7 +98,7 @@ All routes nested under `<App>` (which renders AppBar + Outlet):
 
 - No global state library. Pages manage their own state with `useState` + `useMemo`.
 - List pages follow a consistent pattern: query/filter/sort state → `useMemo` for filtered results → `useMemo` for paginated slice. Filter state **must** be in the `useMemo` dependency array or filters won't work.
-- Persistence via localStorage: reports (`cadence-reports-v1`), favorites, dashboard layout.
+- Persistence via localStorage: reports (`musicspace-reports-v1`), favorites, dashboard layout.
 - Custom hooks: `useChat`, `useReports`, `useFavorites`, `useDashboardLayout`, `useArtistCustomData`, `useSheets`.
 
 ### Styling
@@ -86,4 +133,4 @@ Reports are composed of selectable widget components (8 available: artist-compar
 
 ### Deployment
 
-Vercel with `vercel.json`. The `api/chat.js` function includes `responses.json` for building artist context at the edge. The chat endpoint is duplicated: `vite.config.js` (dev middleware) and `api/chat.js` (Vercel serverless). Production has IP-based rate limiting (20 req/hour).
+Vercel with `vercel.json`. API endpoints are Vercel functions under `api/` hitting Supabase Postgres via `SUPABASE_DB_URL`; in dev the same handlers are mounted as Vite middleware (`dbApiPlugin()` and friends in `vite.config.js`). The chat endpoint is duplicated: `vite.config.js` (dev middleware) and `api/chat.js` (Vercel serverless). Production has IP-based rate limiting (20 req/hour).

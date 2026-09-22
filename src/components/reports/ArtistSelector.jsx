@@ -1,17 +1,50 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { Search, X, Music } from 'lucide-react';
-import { allArtists, searchArtists } from '../../data/artists';
+import { searchArtists, getTopArtists } from '../../data/artists';
+import { useTrackedArtists } from '../../hooks/useTrackedArtists';
 import { formatNumber } from '../../utils/formatters';
 
 export default function ArtistSelector({ selected, onChange }) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
+  const [searchResults, setSearchResults] = useState([]);
+  const [topArtists, setTopArtists] = useState([]);
   const inputRef = useRef(null);
   const containerRef = useRef(null);
 
+  const { trackedArtists, loading: rosterLoading } = useTrackedArtists();
+
+  // Debounced server-side search across the full catalog
+  useEffect(() => {
+    if (query.length < 1) return;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      searchArtists(query)
+        .then((artists) => { if (!cancelled) setSearchResults(artists); })
+        .catch(() => { if (!cancelled) setSearchResults([]); });
+    }, 250);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [query]);
+
+  // Fallback suggestions when the tracked roster is empty
+  useEffect(() => {
+    if (rosterLoading || trackedArtists.length > 0) return;
+    let cancelled = false;
+    getTopArtists(8)
+      .then((artists) => { if (!cancelled) setTopArtists(artists); })
+      .catch(() => { if (!cancelled) setTopArtists([]); });
+    return () => { cancelled = true; };
+  }, [rosterLoading, trackedArtists.length]);
+
+  // Tracked roster by rank (falls back to top catalog artists)
+  const rosterByRank = useMemo(() => {
+    const pool = trackedArtists.length > 0 ? trackedArtists : topArtists;
+    return [...pool].sort((a, b) => (a.rank ?? Infinity) - (b.rank ?? Infinity));
+  }, [trackedArtists, topArtists]);
+
   const results = query.length >= 1
-    ? searchArtists(query).filter(a => !selected.some(s => s.slug === a.slug))
-    : allArtists.filter(a => !selected.some(s => s.slug === a.slug)).slice(0, 8);
+    ? searchResults.filter(a => !selected.some(s => s.slug === a.slug))
+    : rosterByRank.filter(a => !selected.some(s => s.slug === a.slug)).slice(0, 8);
 
   useEffect(() => {
     const handleClick = (e) => {
@@ -73,13 +106,13 @@ export default function ArtistSelector({ selected, onChange }) {
       {/* Quick actions */}
       <div className="flex gap-2 mt-2">
         <button
-          onClick={() => onChange(allArtists.slice(0, 5))}
+          onClick={() => onChange(rosterByRank.slice(0, 5))}
           className="text-[10px] text-[#9B9590] hover:text-[#F5F0E8] transition-colors cursor-pointer"
         >
           Top 5
         </button>
         <button
-          onClick={() => onChange(allArtists.slice(0, 10))}
+          onClick={() => onChange(rosterByRank.slice(0, 10))}
           className="text-[10px] text-[#9B9590] hover:text-[#F5F0E8] transition-colors cursor-pointer"
         >
           Top 10

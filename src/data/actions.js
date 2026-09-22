@@ -1,4 +1,4 @@
-import { allArtists } from './artists';
+import { getRoster, subscribeRoster } from './rosterStore';
 import { generateInsights } from '../utils/insights';
 import { generateSteps } from './actionSteps';
 
@@ -43,14 +43,16 @@ function derivePlatform(dataType, text) {
 const PRIORITY_WEIGHT = { warning: 3, info: 2, success: 1 };
 
 let cached = null;
+subscribeRoster(() => { cached = null; });
 
 export function generateAllActions() {
   if (cached) return cached;
 
   const actions = [];
-  const totalArtists = allArtists.length;
+  const roster = getRoster();
+  const totalArtists = roster.length;
 
-  for (const artist of allArtists) {
+  for (const artist of roster) {
     const insights = generateInsights(artist);
     const rankBoost = (totalArtists - (artist.rank || totalArtists)) / totalArtists;
 
@@ -79,6 +81,31 @@ export function generateAllActions() {
   actions.sort((a, b) => b.priority - a.priority);
   cached = actions;
   return actions;
+}
+
+export const PRIORITY_LABELS = {
+  high: 'High',
+  medium: 'Medium',
+  low: 'Low',
+};
+
+export const PRIORITY_COLORS = {
+  high: '#C75F4F',
+  medium: '#D4A574',
+  low: '#7BAF73',
+};
+
+// Order used for sorting/grouping (high first)
+export const PRIORITY_ORDER = ['high', 'medium', 'low'];
+
+// Bucket the numeric priority score into a high/medium/low level.
+// Scores combine insight severity (warning 3 / info 2 / success 1) with a rank boost (0–1),
+// so warnings land in high, info in medium, and opportunities in low.
+export function getPriorityLevel(action) {
+  const p = action?.priority ?? 0;
+  if (p >= 3) return 'high';
+  if (p >= 2) return 'medium';
+  return 'low';
 }
 
 export const DATA_TYPE_LABELS = {

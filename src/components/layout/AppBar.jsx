@@ -1,11 +1,11 @@
 import { Link, useLocation, useNavigate } from 'react-router';
-import { Search, Bell, FileText, LayoutDashboard, Music, Star, Sparkles, ListMusic, Users, ChevronDown, AlertTriangle, TrendingUp, Zap, Sheet, ListChecks } from 'lucide-react';
-import { useState, useRef } from 'react';
+import { Search, FileText, LayoutDashboard, Music, Star, ListMusic, Users, ChevronDown, Sheet, ListChecks, Megaphone, LogOut } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { searchArtists } from '../../data/artists';
-import { breakoutAlerts } from '../../data/mockAlerts';
 import { formatNumber } from '../../utils/formatters';
 import { useFavorites } from '../../hooks/useFavorites';
+import { useAuth } from '../../hooks/useAuth';
 
 const LIST_ITEMS = [
   { path: '/app/tracks', label: 'Tracks', icon: Music, match: '/app/track' },
@@ -19,12 +19,30 @@ export default function AppBar() {
   const [query, setQuery] = useState('');
   const [focused, setFocused] = useState(false);
   const [listsOpen, setListsOpen] = useState(false);
-  const [notifOpen, setNotifOpen] = useState(false);
   const inputRef = useRef(null);
   const listsRef = useRef(null);
 
   const { toggleFavorite, isFavorite } = useFavorites();
-  const results = query.length >= 2 ? searchArtists(query).slice(0, 6) : [];
+  const { user, signOut } = useAuth();
+  const [searchResults, setSearchResults] = useState([]);
+
+  // Debounced server-side search across the full catalog
+  useEffect(() => {
+    if (query.length < 2) return;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      searchArtists(query, 6)
+        .then((artists) => { if (!cancelled) setSearchResults(artists); })
+        .catch(() => { if (!cancelled) setSearchResults([]); });
+    }, 250);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [query]);
+
+  const results = query.length >= 2 ? searchResults : [];
+
+  const handleSignOut = async () => {
+    try { await signOut(); } finally { navigate('/login'); }
+  };
 
   const handleSelect = (artist) => {
     navigate(`/app/artist/${artist.slug}`);
@@ -42,10 +60,10 @@ export default function AppBar() {
           {/* Logo */}
           <Link to="/app" className="flex items-center gap-2 shrink-0">
             <div className="w-7 h-7 rounded bg-[#DA7756]/15 flex items-center justify-center">
-              <span className="font-mono text-sm font-bold text-[#DA7756]">C</span>
+              <span className="font-mono text-sm font-bold text-[#DA7756]">P</span>
             </div>
             <span className="font-['Epilogue'] text-sm font-medium text-[#F5F0E8] hidden sm:block">
-              Cadence
+              Prelude
             </span>
           </Link>
 
@@ -116,17 +134,6 @@ export default function AppBar() {
 
           {/* Nav Links */}
           <div className="flex items-center gap-1 shrink-0">
-            <Link
-              to="/app"
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs transition-colors ${
-                location.pathname === '/app'
-                  ? 'text-[#F5F0E8] bg-[#171614]'
-                  : 'text-[#9B9590] hover:text-[#F5F0E8]'
-              }`}
-            >
-              <Sparkles size={14} />
-              <span className="hidden md:inline">Chat</span>
-            </Link>
             <Link
               to="/app/dashboard"
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs transition-colors ${
@@ -208,6 +215,17 @@ export default function AppBar() {
               <span className="hidden md:inline">Actions</span>
             </Link>
             <Link
+              to="/app/campaigns"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs transition-colors ${
+                location.pathname.startsWith('/app/campaigns')
+                  ? 'text-[#F5F0E8] bg-[#171614]'
+                  : 'text-[#9B9590] hover:text-[#F5F0E8]'
+              }`}
+            >
+              <Megaphone size={14} />
+              <span className="hidden md:inline">Campaigns</span>
+            </Link>
+            <Link
               to="/app/sheets"
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs transition-colors ${
                 location.pathname.startsWith('/app/sheets') || location.pathname.match(/\/app\/artist\/[^/]+\/sheet/)
@@ -216,67 +234,27 @@ export default function AppBar() {
               }`}
             >
               <Sheet size={14} />
-              <span className="hidden md:inline">Sheets</span>
+              <span className="hidden md:inline">Pages</span>
             </Link>
 
-            {/* Notifications */}
-            <div className="relative">
+            {/* User + Sign out */}
+            <div className="flex items-center gap-2 pl-2 ml-1 border-l border-[#2C2B28]">
+              {user && (
+                <div
+                  className="w-6 h-6 rounded-full bg-[#DA7756]/15 text-[#DA7756] flex items-center justify-center text-[10px] font-mono font-bold shrink-0"
+                  title={user.email || 'Signed in'}
+                >
+                  {(user.email || '?').charAt(0).toUpperCase()}
+                </div>
+              )}
               <button
-                onClick={() => setNotifOpen(!notifOpen)}
-                onBlur={() => setTimeout(() => setNotifOpen(false), 200)}
-                className="relative flex items-center gap-1.5 px-3 py-1.5 rounded text-xs text-[#9B9590] hover:text-[#F5F0E8] transition-colors cursor-pointer"
+                onClick={handleSignOut}
+                title="Sign out"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs text-[#9B9590] hover:text-[#F5F0E8] transition-colors cursor-pointer"
               >
-                <Bell size={14} />
-                <span className="absolute top-0.5 left-[22px] w-3.5 h-3.5 bg-[#C75F4F] rounded-full text-[8px] font-bold text-white flex items-center justify-center">
-                  {breakoutAlerts.filter(a => a.severity === 'high' || a.severity === 'medium').length}
-                </span>
+                <LogOut size={14} />
+                <span className="hidden md:inline">Sign out</span>
               </button>
-
-              <AnimatePresence>
-                {notifOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -4 }}
-                    transition={{ duration: 0.15 }}
-                    className="absolute top-full right-0 mt-1.5 w-80 bg-[#171614] border border-[#2C2B28] rounded shadow-2xl z-50 overflow-hidden"
-                  >
-                    <div className="px-3.5 py-2.5 border-b border-[#2C2B28] flex items-center justify-between">
-                      <span className="text-xs font-medium text-[#F5F0E8]">Notifications</span>
-                      <span className="text-[9px] text-[#6B6560]">{breakoutAlerts.length} alerts</span>
-                    </div>
-                    <div className="max-h-80 overflow-y-auto">
-                      {breakoutAlerts.map((alert) => {
-                        const IconComp = alert.type === 'viral' ? Zap : alert.type === 'growth' ? TrendingUp : AlertTriangle;
-                        const severityColor = alert.severity === 'high' ? '#C75F4F' : alert.severity === 'medium' ? '#DA7756' : '#9B9590';
-                        return (
-                          <div
-                            key={alert.id}
-                            onMouseDown={(e) => e.preventDefault()}
-                            className="px-3.5 py-3 border-b border-[#2C2B28]/50 hover:bg-[#1C1B18] transition-colors"
-                          >
-                            <div className="flex items-start gap-2.5">
-                              <div className="mt-0.5 shrink-0" style={{ color: severityColor }}>
-                                <IconComp size={13} />
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <p className="text-xs text-[#F5F0E8] leading-snug">{alert.title}</p>
-                                <p className="text-[10px] text-[#6B6560] mt-1 line-clamp-2">{alert.description}</p>
-                                <div className="flex items-center gap-2 mt-1.5">
-                                  <span className="text-[9px] px-1.5 py-0.5 rounded border" style={{ color: severityColor, borderColor: severityColor + '30', backgroundColor: severityColor + '10' }}>
-                                    {alert.severity}
-                                  </span>
-                                  <span className="text-[9px] text-[#6B6560]">{alert.type}</span>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
             </div>
           </div>
         </div>

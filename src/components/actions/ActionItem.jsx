@@ -1,10 +1,17 @@
 import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Check, X, RotateCcw, ChevronRight, Sparkles, Pencil, Plus, Trash2, BookmarkMinus } from 'lucide-react';
+import { Check, X, RotateCcw, ChevronRight, Sparkles, Plus, Trash2, BookmarkMinus, Calendar, Users } from 'lucide-react';
 import Badge from '../shared/Badge';
-import { DATA_TYPE_LABELS, PLATFORM_LABELS } from '../../data/actions';
-import { PLATFORM_COLORS } from '../../constants/colors';
+import InlineEdit from './InlineEdit';
+import { PRIORITY_LABELS, getPriorityLevel } from '../../data/actions';
+import { OWNERS } from '../../hooks/useActions';
 import { STEP_CATEGORY_LABELS, STEP_CATEGORY_COLORS } from '../../data/actionSteps';
+
+const PRIORITY_BADGE_VARIANT = {
+  high: 'danger',
+  medium: 'info',
+  low: 'success',
+};
 
 const TYPE_BORDERS = {
   success: '#7BAF73',
@@ -20,67 +27,7 @@ const TYPE_BGS = {
   info: 'rgba(212, 165, 116, 0.04)',
 };
 
-function InlineEdit({ value, onSave, className = '', multiline = false }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(value);
-  const inputRef = useRef(null);
-
-  const startEdit = (e) => {
-    e.stopPropagation();
-    setDraft(value);
-    setEditing(true);
-    setTimeout(() => inputRef.current?.focus(), 0);
-  };
-
-  const save = () => {
-    const trimmed = draft.trim();
-    if (trimmed && trimmed !== value) {
-      onSave(trimmed);
-    }
-    setEditing(false);
-  };
-
-  const cancel = () => {
-    setDraft(value);
-    setEditing(false);
-  };
-
-  if (!editing) {
-    return (
-      <span className={`group/edit inline ${className}`}>
-        <span>{value}</span>
-        <button
-          onClick={startEdit}
-          className="inline-flex ml-1.5 opacity-0 group-hover/edit:opacity-100 text-[#6B6560] hover:text-[#DA7756] transition-all cursor-pointer align-middle"
-          title="Edit"
-        >
-          <Pencil size={9} />
-        </button>
-      </span>
-    );
-  }
-
-  const Tag = multiline ? 'textarea' : 'input';
-  return (
-    <span className="inline-flex items-center gap-1 w-full" onClick={e => e.stopPropagation()}>
-      <Tag
-        ref={inputRef}
-        value={draft}
-        onChange={e => setDraft(e.target.value)}
-        onKeyDown={e => {
-          if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); save(); }
-          if (e.key === 'Escape') cancel();
-        }}
-        onBlur={save}
-        rows={multiline ? 2 : undefined}
-        className={`flex-1 bg-[#0D0C0B] border border-[#DA7756]/40 rounded px-2 py-1 outline-none text-[#F5F0E8] ${className}`}
-        style={{ fontSize: 'inherit', fontFamily: 'inherit', lineHeight: 'inherit' }}
-      />
-    </span>
-  );
-}
-
-export default function ActionItem({ item, onComplete, onIgnore, onRestore, onDelete, onDeselect, onToggleStep, onEditAction, onEditStep, onAddStep, onRemoveStep, onAskAI, showArtist = true, archived = false }) {
+export default function ActionItem({ item, onComplete, onIgnore, onRestore, onDelete, onDeselect, onToggleStep, onEditAction, onSetOwner, onEditStep, onAddStep, onRemoveStep, onAskAI, showArtist = true, archived = false }) {
   const [expanded, setExpanded] = useState(false);
   const [addingStep, setAddingStep] = useState(false);
   const [newStepText, setNewStepText] = useState('');
@@ -88,7 +35,7 @@ export default function ActionItem({ item, onComplete, onIgnore, onRestore, onDe
 
   const borderColor = TYPE_BORDERS[item.insightType] || TYPE_BORDERS.info;
   const bgColor = TYPE_BGS[item.insightType] || TYPE_BGS.info;
-  const platformColor = PLATFORM_COLORS[item.platform] || '#9B9590';
+  const priorityLevel = getPriorityLevel(item);
 
   const steps = item.steps || [];
   const completedCount = steps.filter(s => s.completed).length;
@@ -140,17 +87,25 @@ export default function ActionItem({ item, onComplete, onIgnore, onRestore, onDe
                 {item.artistName}
               </span>
             )}
-            <Badge variant={item.insightType === 'warning' ? 'warning' : item.insightType === 'success' ? 'success' : 'info'}>
-              {DATA_TYPE_LABELS[item.dataType] || item.dataType}
+            <Badge variant={PRIORITY_BADGE_VARIANT[priorityLevel]}>
+              {PRIORITY_LABELS[priorityLevel]} priority
             </Badge>
-            {item.platform !== 'general' && item.platform !== 'revenue' && (
-              <span className="flex items-center gap-1 text-[10px] font-mono text-[#9B9590]">
-                <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ backgroundColor: platformColor }} />
-                {PLATFORM_LABELS[item.platform] || item.platform}
-              </span>
-            )}
             {item.source === 'ai' && (
               <span className="text-[10px] font-mono text-[#DA7756]">AI</span>
+            )}
+            {item.owner && (
+              <span className="flex items-center gap-1 text-[9px] font-mono text-[#9B9590] bg-[#2C2B28] rounded px-1.5 py-0.5">
+                <Users size={8} />
+                {item.owner}
+              </span>
+            )}
+            {item.dueDate && !archived && (
+              <span className={`flex items-center gap-0.5 text-[9px] font-mono ml-auto ${
+                item.dueDate < new Date().toISOString().split('T')[0] ? 'text-[#C75F4F]' : 'text-[#6B6560]'
+              }`}>
+                <Calendar size={8} />
+                {new Date(item.dueDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              </span>
             )}
           </div>
 
@@ -250,6 +205,47 @@ export default function ActionItem({ item, onComplete, onIgnore, onRestore, onDe
                     />
                   ) : (
                     <p>{item.text}</p>
+                  )}
+                </div>
+              )}
+
+              {/* Owner */}
+              {onSetOwner && (
+                <div className="flex items-center gap-2 mb-3">
+                  <Users size={10} className="text-[#6B6560]" />
+                  <label className="text-[9px] font-mono text-[#6B6560]">Owner</label>
+                  <select
+                    value={item.owner || ''}
+                    onChange={e => onSetOwner(item.id, e.target.value || null)}
+                    onClick={e => e.stopPropagation()}
+                    className="bg-[#0D0C0B] border border-[#2C2B28] rounded px-2 py-0.5 text-[10px] font-mono text-[#F5F0E8] outline-none focus:border-[#DA7756]/40 transition-colors cursor-pointer"
+                  >
+                    <option value="">Unassigned</option>
+                    {OWNERS.map(o => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                </div>
+              )}
+
+              {/* Due date */}
+              {onEditAction && (
+                <div className="flex items-center gap-2 mb-3">
+                  <Calendar size={10} className="text-[#6B6560]" />
+                  <label className="text-[9px] font-mono text-[#6B6560]">Due</label>
+                  <input
+                    type="date"
+                    value={item.dueDate || ''}
+                    onChange={e => onEditAction(item.id, 'dueDate', e.target.value || null)}
+                    onClick={e => e.stopPropagation()}
+                    className="bg-[#0D0C0B] border border-[#2C2B28] rounded px-2 py-0.5 text-[10px] font-mono text-[#F5F0E8] outline-none focus:border-[#DA7756]/40 transition-colors [color-scheme:dark]"
+                  />
+                  {item.dueDate && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onEditAction(item.id, 'dueDate', null); }}
+                      className="text-[#6B6560] hover:text-[#C75F4F] transition-colors cursor-pointer"
+                      title="Clear date"
+                    >
+                      <X size={10} />
+                    </button>
                   )}
                 </div>
               )}
@@ -357,7 +353,7 @@ export default function ActionItem({ item, onComplete, onIgnore, onRestore, onDe
                   className="flex items-center gap-1.5 mt-2 text-[10px] font-mono text-[#DA7756] hover:text-[#F5F0E8] transition-colors cursor-pointer"
                 >
                   <Sparkles size={10} />
-                  Get tailored steps from Cadence
+                  Get tailored steps from Prelude
                 </button>
               )}
             </div>

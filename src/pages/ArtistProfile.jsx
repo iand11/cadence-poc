@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router';
 import { motion } from 'motion/react';
 import { Music, TrendingUp, Users, DollarSign, Radio, Globe, Disc3, MapPin, Tag, Star, ListMusic, FileText } from 'lucide-react';
@@ -16,8 +16,7 @@ import BenchmarkRadarChart from '../components/charts/BenchmarkRadarChart';
 import ForecastChart from '../components/charts/ForecastChart';
 import PlaylistDistributionChart from '../components/charts/PlaylistDistributionChart';
 import {
-  allArtists,
-  getArtist,
+  getArtistAsync,
   loadArtistDetail,
   generateStreamingTrend,
   generateSocialTimeline,
@@ -36,28 +35,63 @@ import { buildAISummary } from '../utils/buildAISummary';
 
 export default function ArtistProfile() {
   const { id } = useParams();
-  const artist = getArtist(id);
   const { toggleFavorite, isFavorite } = useFavorites();
+  const [resolved, setResolved] = useState({ id: null, artist: null });
   const [detail, setDetail] = useState(null);
 
+  // undefined = loading, null = not found
+  const artist = resolved.id === id ? resolved.artist : undefined;
+
   useEffect(() => {
+    let cancelled = false;
+    getArtistAsync(id).then(a => {
+      if (!cancelled) setResolved({ id, artist: a || null });
+    });
+    return () => { cancelled = true; };
+  }, [id]);
+
+  useEffect(() => {
+    if (!artist) return;
     setDetail(null);
     loadArtistDetail(artist.slug).then(setDetail);
-  }, [artist.slug]);
+  }, [artist]);
 
   const tracks = detail?.tracks || [];
   const albums = detail?.albums || [];
 
   // Generate all data from real artist metrics
-  const streamingData = generateStreamingTrend(artist);
-  const socialData = generateSocialTimeline(artist);
-  const forecastData = generateForecast(artist);
-  const revenueData = generateRevenue(artist);
-  const benchmarkData = getBenchmarkComparison(artist);
+  const streamingData = useMemo(() => artist ? generateStreamingTrend(artist) : [], [artist]);
+  const socialData = useMemo(() => artist ? generateSocialTimeline(artist) : [], [artist]);
+  const forecastData = useMemo(() => artist ? generateForecast(artist) : [], [artist]);
+  const revenueData = useMemo(() => artist ? generateRevenue(artist) : [], [artist]);
+  const benchmarkData = useMemo(() => artist ? getBenchmarkComparison(artist) : null, [artist]);
+  const aiSummary = useMemo(() => artist ? buildAISummary(artist) : null, [artist]);
+  const insights = useMemo(() => artist ? generateInsights(artist) : null, [artist]);
+
+  if (artist === undefined) {
+    return (
+      <div className="text-center py-20">
+        <Music size={32} className="mx-auto text-[#2C2B28] mb-3 animate-pulse" />
+        <p className="text-sm text-[#9B9590]">Loading artist...</p>
+      </div>
+    );
+  }
+
+  if (!artist) {
+    return (
+      <div className="text-center py-20">
+        <Music size={32} className="mx-auto text-[#2C2B28] mb-3" />
+        <p className="text-sm text-[#9B9590]">Artist not found</p>
+        <p className="text-[11px] text-[#6B6560] mt-1">id: {id}</p>
+        <Link to="/app/dashboard" className="inline-block mt-4 text-xs text-[#DA7756] hover:underline">
+          Back to Dashboard
+        </Link>
+      </div>
+    );
+  }
+
   const geographyData = artist.spotify.topCities;
   const totalRevenue = revenueData.reduce((sum, r) => sum + r.amount, 0);
-  const aiSummary = buildAISummary(artist);
-  const insights = generateInsights(artist);
 
   const primaryGenre = artist.genres?.primary?.name || 'Artist';
   const secondaryGenres = artist.genres?.secondary || [];

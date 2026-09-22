@@ -3,7 +3,13 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Routes, Route } from 'react-router';
 import './index.css';
 import App from './App.jsx';
+import AppGate from './components/AppGate';
+import { AuthProvider } from './hooks/useAuth';
+import { TrackedArtistsProvider } from './context/TrackedArtistsContext';
+import ProtectedRoute from './components/auth/ProtectedRoute';
 import Landing from './pages/Landing';
+import LoginPage from './pages/LoginPage';
+import Pitch from './pages/Pitch';
 import Control from './pages/Control';
 import Dashboard from './pages/Dashboard';
 import ArtistProfile from './pages/ArtistProfile';
@@ -20,12 +26,20 @@ import ArtistSheet from './pages/ArtistSheet';
 import SheetsPage from './pages/SheetsPage';
 import ActionsPage from './pages/ActionsPage';
 import ArtistActionsPage from './pages/ArtistActionsPage';
+import CampaignsPage from './pages/CampaignsPage';
+import CampaignDetail from './pages/CampaignDetail';
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrowserRouter>
+      <AppGate>
+      <AuthProvider>
+      <TrackedArtistsProvider>
       <Routes>
         <Route path="/" element={<Landing />} />
+        <Route path="/pitch" element={<Pitch />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route element={<ProtectedRoute />}>
         <Route path="app" element={<App />}>
           <Route index element={<Control />} />
           <Route path="actions" element={<ActionsPage />} />
@@ -41,10 +55,16 @@ createRoot(document.getElementById('root')).render(
           <Route path="artists" element={<ArtistsPage />} />
           <Route path="chart/:id" element={<ChartProfile />} />
           <Route path="sheets" element={<SheetsPage />} />
+          <Route path="campaigns" element={<CampaignsPage />} />
+          <Route path="campaigns/:id" element={<CampaignDetail />} />
           <Route path="reports" element={<ReportsList />} />
           <Route path="reports/:id" element={<ReportCenter />} />
         </Route>
+        </Route>
       </Routes>
+      </TrackedArtistsProvider>
+      </AuthProvider>
+      </AppGate>
     </BrowserRouter>
   </StrictMode>
 );

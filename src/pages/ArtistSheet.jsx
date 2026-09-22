@@ -23,7 +23,7 @@ import ForecastChart from '../components/charts/ForecastChart';
 import PlaylistDistributionChart from '../components/charts/PlaylistDistributionChart';
 
 import {
-  getArtist, loadArtistDetail,
+  getArtistAsync, loadArtistDetail,
   generateStreamingTrend, generateSocialTimeline,
   generateForecast, generateRevenue, getBenchmarkComparison,
 } from '../data/artists';
@@ -65,7 +65,7 @@ const DEFAULT_ACCENT = 'DA7756';
 const DEFAULT_BG = '0D0C0B';
 
 const ACCENT_PRESETS = [
-  { hex: 'DA7756', label: 'Cadence' }, { hex: '4A90D9', label: 'Ocean' },
+  { hex: 'DA7756', label: 'Prelude' }, { hex: '4A90D9', label: 'Ocean' },
   { hex: '7BAF73', label: 'Sage' },    { hex: 'D4A574', label: 'Sand' },
   { hex: 'C75F4F', label: 'Coral' },   { hex: '9B7ED8', label: 'Violet' },
   { hex: 'E8B960', label: 'Gold' },    { hex: '4ECDC4', label: 'Teal' },
@@ -112,18 +112,51 @@ function parseSpotifyUrl(url) {
 
 export default function ArtistSheet() {
   const { id } = useParams();
+  const navigate = useNavigate();
+  const [resolved, setResolved] = useState({ id: null, artist: null });
+
+  // undefined = loading, null = not found
+  const artist = resolved.id === id ? resolved.artist : undefined;
+
+  useEffect(() => {
+    let cancelled = false;
+    getArtistAsync(id).then(a => {
+      if (!cancelled) setResolved({ id, artist: a || null });
+    });
+    return () => { cancelled = true; };
+  }, [id]);
+
+  useEffect(() => {
+    if (artist === null) navigate('/app/artists', { replace: true });
+  }, [artist, navigate]);
+
+  // Gate rendering until the artist resolves — the sheet (and its PNG/PDF
+  // export path) assumes the artist exists.
+  if (!artist) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#0D0C0B]">
+        <div className="text-center">
+          <FileText size={32} className="mx-auto text-[#2C2B28] mb-3 animate-pulse" />
+          <p className="text-sm text-[#9B9590]">Loading artist...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return <ArtistSheetContent artist={artist} />;
+}
+
+function ArtistSheetContent({ artist }) {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const artist = getArtist(id);
   const sheetRef = useRef(null);
 
   const [detail, setDetail] = useState(null);
 
   useEffect(() => {
-    if (!artist) return;
     setDetail(null);
     loadArtistDetail(artist.slug).then(setDetail);
-  }, [artist?.slug]);
+  }, [artist.slug]);
 
   // Custom data
   const {
@@ -154,7 +187,7 @@ export default function ArtistSheet() {
 
   // Extract prominent color from artist image and set as background
   const sampleColorFromImage = useCallback(async () => {
-    if (!artist?.imageUrl) return;
+    if (!artist.imageUrl) return;
     setSampling(true);
     try {
       const color = await new Promise((resolve, reject) => {
@@ -194,7 +227,7 @@ export default function ArtistSheet() {
     } finally {
       setSampling(false);
     }
-  }, [artist?.imageUrl]);
+  }, [artist.imageUrl]);
 
   // Auto-sample background color from artist image on first load
   const autoSampledRef = useRef(false);
@@ -278,12 +311,6 @@ export default function ArtistSheet() {
   // Sheets sync
   const [sheetsSyncing, setSheetsSyncing] = useState(false);
   const [sheetsError, setSheetsError] = useState(null);
-
-  useEffect(() => {
-    if (!artist) navigate('/app/artists', { replace: true });
-  }, [artist, navigate]);
-
-  if (!artist) return null;
 
   const accentColor = `#${accent}`;
   const bgColor = `#${bg}`;
@@ -413,8 +440,8 @@ export default function ArtistSheet() {
         } else { pdf.addImage(dataUrl, 'PNG', m, curY, cw, sh); curY += sh + gap; }
       }
       const np = pdf.getNumberOfPages();
-      for (let i = 1; i <= np; i++) { pdf.setPage(i); pdf.setFontSize(7); pdf.setTextColor(100,100,100); pdf.text('Cadence', m, ph - 10); pdf.text(`${i} / ${np}`, pw - m, ph - 10, { align: 'right' }); }
-      pdf.save(`Cadence-${artist.name.replace(/\s+/g, '_')}-${new Date().toISOString().split('T')[0]}.pdf`);
+      for (let i = 1; i <= np; i++) { pdf.setPage(i); pdf.setFontSize(7); pdf.setTextColor(100,100,100); pdf.text('Prelude', m, ph - 10); pdf.text(`${i} / ${np}`, pw - m, ph - 10, { align: 'right' }); }
+      pdf.save(`Prelude-${artist.name.replace(/\s+/g, '_')}-${new Date().toISOString().split('T')[0]}.pdf`);
     } catch (err) { console.error('PDF export failed:', err); }
     finally {
       for (const { el, origSrc, hidden } of imgSaved) { if (hidden) { el.style.visibility = el.dataset.pdfHidden || ''; delete el.dataset.pdfHidden; } el.src = origSrc; }
@@ -1058,7 +1085,7 @@ export default function ArtistSheet() {
         className="flex items-center justify-between px-4 py-3 border-b border-[#2C2B28] hover:bg-[#0D0C0B]/50 transition-colors cursor-pointer shrink-0">
         <div className="flex items-center gap-2">
           <Settings size={13} className="text-[#6B6560]" />
-          <span className="text-xs font-medium text-[#9B9590]">Sheet Settings</span>
+          <span className="text-xs font-medium text-[#9B9590]">Page Settings</span>
         </div>
         <motion.div animate={{ rotate: settingsOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
           <ChevronDown size={13} className="text-[#6B6560]" />
@@ -1227,8 +1254,8 @@ export default function ArtistSheet() {
           <div className="w-16 h-16 rounded-full mx-auto mb-6 flex items-center justify-center" style={{ backgroundColor: `${accentColor}15` }}>
             <Lock size={24} style={{ color: accentColor }} />
           </div>
-          <h2 className="text-xl font-light mb-2" style={{ color: colors.textPrimary }}>This sheet is private</h2>
-          <p className="text-sm mb-6" style={{ color: colors.textSecondary }}>The owner hasn't made this artist sheet public yet.</p>
+          <h2 className="text-xl font-light mb-2" style={{ color: colors.textPrimary }}>This page is private</h2>
+          <p className="text-sm mb-6" style={{ color: colors.textSecondary }}>The owner hasn't made this artist page public yet.</p>
           <button onClick={() => navigate('/app')} className="px-4 py-2 text-sm rounded border cursor-pointer transition-colors" style={{ borderColor: colors.border, color: colors.textSecondary }}>
             Go Home
           </button>
@@ -1266,7 +1293,7 @@ export default function ArtistSheet() {
             onClick={() => updateField('visibility', customData.visibility === 'public' ? 'private' : 'public')}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded border cursor-pointer transition-colors"
             style={{ color: customData.visibility === 'public' ? '#7BAF73' : (sidebarOpen ? '#9B9590' : colors.textSecondary), borderColor: sidebarOpen ? '#2C2B28' : colors.border }}
-            title={customData.visibility === 'public' ? 'Sheet is public — click to make private' : 'Sheet is private — click to make public'}
+            title={customData.visibility === 'public' ? 'Page is public — click to make private' : 'Page is private — click to make public'}
           >
             {customData.visibility === 'public' ? <Globe size={12} /> : <Lock size={12} />}
             {customData.visibility === 'public' ? 'Public' : 'Private'}
@@ -1313,7 +1340,7 @@ export default function ArtistSheet() {
 
       {socialPostOpen && (
         <SocialPostModal
-          artistSlug={id}
+          artist={artist}
           accentColor={accentColor}
           onClose={() => setSocialPostOpen(false)}
         />

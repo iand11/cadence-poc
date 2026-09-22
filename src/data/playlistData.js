@@ -1,4 +1,5 @@
-import { allArtists, getArtist } from './artists';
+import { getArtist } from './artists';
+import { getRoster, subscribeRoster } from './rosterStore';
 
 // --- Seeded random (same pattern as mockProfiles.js) ---
 function seededRandom(seed) {
@@ -88,8 +89,12 @@ function genreMatches(artistGenre, playlistGenre) {
   return false;
 }
 
-// Cache
+// Caches — cleared whenever the tracked roster changes
 const _artistPlaylistCache = new Map();
+subscribeRoster(() => {
+  _artistPlaylistCache.clear();
+  _playlistArtistMap = null;
+});
 
 function generateArtistPlacements(artist) {
   if (_artistPlaylistCache.has(artist.slug)) return _artistPlaylistCache.get(artist.slug);
@@ -168,8 +173,8 @@ function ensurePlaylistArtistMap() {
   for (const pl of playlistUniverse) {
     _playlistArtistMap.set(pl.id, []);
   }
-  // Only process top 100 artists for performance (they cover the most meaningful placements)
-  const artistsToProcess = allArtists.slice(0, 100);
+  // Placements are generated for the tracked roster (small by construction)
+  const artistsToProcess = getRoster();
   for (const artist of artistsToProcess) {
     const placements = generateArtistPlacements(artist);
     for (const p of placements) {
@@ -186,10 +191,12 @@ function ensurePlaylistArtistMap() {
 
 // --- Public API ---
 
-export function getAllPlaylists() {
+export function getAllPlaylists(slugs = null) {
   const map = ensurePlaylistArtistMap();
+  const set = slugs ? new Set(slugs) : null;
   return playlistUniverse.map(pl => {
-    const tracks = map.get(pl.id) || [];
+    let tracks = map.get(pl.id) || [];
+    if (set) tracks = tracks.filter(t => set.has(t.artistSlug));
     const totalStreams = tracks.reduce((s, t) => s + t.streamsFromPlaylist, 0);
     return {
       ...pl,
@@ -258,24 +265,28 @@ export function getPlaylistComparison(ids) {
   return ids.map(id => getPlaylist(id)).filter(Boolean);
 }
 
-export function getRosterPlaylistStats() {
+export function getRosterPlaylistStats(slugs = null) {
   const map = ensurePlaylistArtistMap();
+  const set = slugs ? new Set(slugs) : null;
   let totalPlacements = 0;
   let editorialPlacements = 0;
   let totalStreamAttribution = 0;
 
   for (const pl of playlistUniverse) {
-    const tracks = map.get(pl.id) || [];
+    let tracks = map.get(pl.id) || [];
+    if (set) tracks = tracks.filter(t => set.has(t.artistSlug));
     totalPlacements += tracks.length;
     if (pl.type === 'editorial') editorialPlacements += tracks.length;
     totalStreamAttribution += tracks.reduce((s, t) => s + t.streamsFromPlaylist, 0);
   }
 
-  const totalReach = allArtists.reduce((s, a) => s + a.playlists.spotify.reach, 0);
+  const roster = getRoster();
+  const reachSource = set ? roster.filter(a => set.has(a.slug)) : roster;
+  const totalReach = reachSource.reduce((s, a) => s + a.playlists.spotify.reach, 0);
   const editorialRate = totalPlacements > 0 ? Math.round(editorialPlacements / totalPlacements * 100) : 0;
 
   // Top playlists by stream attribution
-  const topPlaylists = getAllPlaylists().slice(0, 8);
+  const topPlaylists = getAllPlaylists(slugs).slice(0, 8);
 
   return {
     totalPlacements,

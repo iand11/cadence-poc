@@ -1,44 +1,9 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
-import { readFileSync } from 'fs'
-import { resolve } from 'path'
-
-// Build condensed artist context — one compact line per artist
-function buildArtistContext() {
-  const indexData = JSON.parse(readFileSync(resolve(process.cwd(), 'src/data/artists-index.generated.json'), 'utf-8'));
-  const raw = indexData.artists;
-  const fmt = n =>
-    n >= 1e9 ? (n / 1e9).toFixed(1) + 'B' :
-    n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' :
-    n >= 1e3 ? (n / 1e3).toFixed(0) + 'K' : String(n);
-
-  const artists = raw
-    .filter(r => r.ok && r.body?.data)
-    .map(r => {
-      const d = r.body.data;
-      const s = d.cm_statistics || {};
-      const slug = d.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-      const cities = (s.sp_where_people_listen || []).slice(0, 2)
-        .map(c => c.name).join('/');
-      return {
-        rank: d.cm_artist_rank,
-        line: `#${d.cm_artist_rank} ${d.name} (${slug}) | ${d.genres?.primary?.name || '?'} | pop:${s.sp_popularity || 0} | Sp:${fmt(s.sp_monthly_listeners || 0)}mo ${fmt(s.sp_followers || 0)}fol | IG:${fmt(s.ins_followers || 0)} TT:${fmt(s.tiktok_followers || 0)} YT:${fmt(s.ycs_subscribers || 0)} | PL:${s.num_sp_playlists || 0}(${s.num_sp_editorial_playlists || 0}ed) ${fmt(s.sp_playlist_total_reach || 0)}reach | ${cities}`,
-      };
-    })
-    .sort((a, b) => a.rank - b.rank);
-
-  const totalListeners = raw.filter(r => r.ok).reduce((sum, r) =>
-    sum + (r.body?.data?.cm_statistics?.sp_monthly_listeners || 0), 0);
-
-  return {
-    context: `ROSTER: ${artists.length} artists | ${fmt(totalListeners)} total monthly listeners\n` +
-      artists.map(a => a.line).join('\n'),
-    slugList: raw.filter(r => r.ok && r.body?.data)
-      .map(r => r.body.data.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''))
-      .sort(),
-  };
-}
+import { existsSync } from 'fs'
+import { join } from 'path'
+import { pathToFileURL } from 'url'
 
 function sheetProxyPlugin() {
   return {
@@ -86,7 +51,6 @@ function sheetProxyPlugin() {
 }
 
 function claudeApiPlugin() {
-  let cached = null;
   let Anthropic = null;
 
   return {
@@ -95,7 +59,6 @@ function claudeApiPlugin() {
       server.middlewares.use('/api/chat', async (req, res, next) => {
         if (req.method !== 'POST') return next();
 
-        if (!cached) cached = buildArtistContext();
         if (!Anthropic) Anthropic = (await import('@anthropic-ai/sdk')).default;
 
         let body = '';
@@ -105,7 +68,10 @@ function claudeApiPlugin() {
         try { parsed = JSON.parse(body); }
         catch { res.writeHead(400); res.end('Invalid JSON'); return; }
 
-        const { messages } = parsed;
+        const { messages, artistContext } = parsed;
+        const rosterContext = typeof artistContext === 'string' && artistContext.trim()
+          ? artistContext.slice(0, 30_000)
+          : 'No tracked artists yet — the user has not added artists to their roster.';
         const apiKey = process.env.ANTHROPIC_API_KEY;
 
         if (!apiKey || apiKey === 'your-api-key-here') {
@@ -123,17 +89,17 @@ function claudeApiPlugin() {
           'Connection': 'keep-alive',
         });
 
-        const systemPrompt = `You are Cadence, a music industry intelligence assistant in the Cadence platform. You help A&R, managers, and label executives make data-driven decisions.
+        const systemPrompt = `You are MusicSpace, a music industry intelligence assistant in the MusicSpace platform. You help A&R, managers, and label executives make data-driven decisions.
 
 Real-time roster data:
-${cached.context}
+${rosterContext}
 
 Rules:
 - Use the REAL data above. Cite specific numbers.
 - Be concise: 2-3 paragraphs max. Direct and professional.
 - Speak authoritatively — no hedging like "Based on my data".
 - End with one follow-up suggestion.
-- You are Cadence, not Claude.
+- You are MusicSpace, not Claude.
 - Use markdown formatting: **bold** for artist names and key numbers, bullet lists for comparisons.
 - When asked to show, visualize, or chart data, use the render_chart tool. Construct the data array from the roster stats above. Include brief text analysis alongside the chart.
 - When the user asks to create a task, action item, reminder, or to-do for an artist, use the create_action tool. This adds the item to the Action Center.`;
@@ -270,8 +236,132 @@ Rules:
   };
 }
 
+function campaignGeneratePlugin() {
+  return {
+    name: 'campaign-generate-proxy',
+    configureServer(server) {
+      server.middlewares.use('/api/campaign/generate', async (req, res, next) => {
+        if (req.method !== 'POST') return next();
+
+        let body = '';
+        for await (const chunk of req) body += chunk;
+        let parsed;
+        try { parsed = JSON.parse(body); }
+        catch { res.writeHead(400); res.end('Invalid JSON'); return; }
+
+        req.body = parsed;
+        // Disable Nagle for SSE
+        if (res.socket) res.socket.setNoDelay(true);
+
+        const handler = (await import('./api/campaign/generate.js')).default;
+        await handler(req, res);
+      });
+    },
+  };
+}
+
+function pitchAuthPlugin() {
+  return {
+    name: 'pitch-auth-proxy',
+    configureServer(server) {
+      server.middlewares.use('/api/pitch', async (req, res) => {
+        if (req.method === 'POST') {
+          let body = '';
+          for await (const chunk of req) body += chunk;
+          try { req.body = JSON.parse(body || '{}'); } catch { req.body = {}; }
+        }
+        const handler = (await import('./api/pitch.js')).default;
+        await handler(req, res);
+      });
+    },
+  };
+}
+
+function appAuthPlugin() {
+  return {
+    name: 'app-auth-proxy',
+    configureServer(server) {
+      server.middlewares.use('/api/auth', async (req, res) => {
+        if (req.method === 'POST') {
+          let body = '';
+          for await (const chunk of req) body += chunk;
+          try { req.body = JSON.parse(body || '{}'); } catch { req.body = {}; }
+        }
+        const handler = (await import('./api/auth.js')).default;
+        await handler(req, res);
+      });
+    },
+  };
+}
+
+function userDataPlugin() {
+  return {
+    name: 'user-data-proxy',
+    configureServer(server) {
+      server.middlewares.use('/api/user-data', async (req, res) => {
+        if (req.method === 'POST' || req.method === 'PUT') {
+          let body = '';
+          for await (const chunk of req) body += chunk;
+          try { req.body = JSON.parse(body || '{}'); } catch { req.body = {}; }
+        }
+        // api/user-data.js is written Vercel-style (res.status().json()).
+        // Shim those onto the raw Node response so the same handler runs in dev.
+        res.status = (code) => { res.statusCode = code; return res; };
+        res.json = (obj) => {
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify(obj));
+        };
+        const handler = (await import('./api/user-data.js')).default;
+        await handler(req, res);
+      });
+    },
+  };
+}
+
+function dbApiPlugin() {
+  const shim = (res) => {
+    res.status = (code) => { res.statusCode = code; return res; };
+    res.json = (obj) => {
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify(obj));
+    };
+  };
+  return {
+    name: 'db-api-proxy',
+    configureServer(server) {
+      // /api/<resource> and /api/<resource>/:id — connect strips the mount
+      // prefix, so req.url is '/' for the index and '/<id>' for detail.
+      const mountResource = (mount, dir, detailFile) => {
+        server.middlewares.use(mount, async (req, res) => {
+          shim(res);
+          const subpath = (req.url || '/').split('?')[0].replace(/^\/+|\/+$/g, '');
+          // Static routes (e.g. artists/facets.js) win over the dynamic
+          // [slug]/[id] handler, matching Vercel's file routing.
+          const file = !subpath ? 'index.js'
+            : existsSync(`./api/${dir}/${subpath}.js`) ? `${subpath}.js`
+            : detailFile;
+          // Absolute file URL — vite bundles this config into node_modules/
+          // .vite-temp, so relative dynamic imports would resolve wrong.
+          const handler = (await import(
+            pathToFileURL(join(process.cwd(), 'api', dir, file)).href
+          )).default;
+          await handler(req, res);
+        });
+      };
+      mountResource('/api/artists', 'artists', '[slug].js');
+      mountResource('/api/tracks', 'tracks', '[id].js');
+      mountResource('/api/albums', 'albums', '[id].js');
+      server.middlewares.use('/api/feed', async (req, res) => {
+        shim(res);
+        const handler = (await import('./api/feed.js')).default;
+        await handler(req, res);
+      });
+    },
+  };
+}
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   Object.assign(process.env, env);
-  return { plugins: [react(), tailwindcss(), sheetProxyPlugin(), claudeApiPlugin()] };
+  return { plugins: [react(), tailwindcss(), sheetProxyPlugin(), claudeApiPlugin(), campaignGeneratePlugin(), pitchAuthPlugin(), appAuthPlugin(), userDataPlugin(), dbApiPlugin()] };
 });
