@@ -240,12 +240,18 @@ export default function AppBar() {
             {/* User + Sign out */}
             <div className="flex items-center gap-2 pl-2 ml-1 border-l border-[#2C2B28]">
               {user && (
-                <div
-                  className="w-6 h-6 rounded-full bg-[#DA7756]/15 text-[#DA7756] flex items-center justify-center text-[10px] font-mono font-bold shrink-0"
-                  title={user.email || 'Signed in'}
+                <Link
+                  to="/app/account"
+                  title="Account settings"
+                  aria-label="Account settings"
+                  className={`w-7 h-7 rounded-full bg-[#DA7756]/15 text-[#DA7756] flex items-center justify-center text-[10px] font-mono font-bold shrink-0 transition-shadow ${
+                    location.pathname.startsWith('/app/account')
+                      ? 'ring-2 ring-[#DA7756]/60'
+                      : 'hover:ring-2 hover:ring-[#DA7756]/30'
+                  }`}
                 >
-                  {(user.email || '?').charAt(0).toUpperCase()}
-                </div>
+                  {(user.displayName || user.email || '?').charAt(0).toUpperCase()}
+                </Link>
               )}
               <button
                 onClick={handleSignOut}

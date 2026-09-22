@@ -27,3 +27,34 @@ export async function setUserData(key, value) {
     body: JSON.stringify({ key, data: value }),
   });
 }
+
+// Debounced saves, keyed by storage key. Kept at module level so sign-out can
+// flush them while the auth token is still valid.
+const SAVE_DEBOUNCE_MS = 300;
+const pending = new Map(); // key -> { value, timer }
+
+export function queueUserData(key, value) {
+  const prev = pending.get(key);
+  if (prev) clearTimeout(prev.timer);
+  const timer = setTimeout(() => {
+    pending.delete(key);
+    setUserData(key, value).catch(() => {});
+  }, SAVE_DEBOUNCE_MS);
+  pending.set(key, { value, timer });
+}
+
+/** Send every queued save now. Call before signing out. */
+export async function flushUserData() {
+  const entries = [...pending.entries()];
+  pending.clear();
+  await Promise.all(entries.map(([key, { value, timer }]) => {
+    clearTimeout(timer);
+    return setUserData(key, value).catch(() => {});
+  }));
+}
+
+/** Drop queued saves without sending (the signed-in user changed). */
+export function cancelUserData() {
+  for (const { timer } of pending.values()) clearTimeout(timer);
+  pending.clear();
+}

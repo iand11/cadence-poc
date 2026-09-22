@@ -6,6 +6,7 @@ import App from './App.jsx';
 import AppGate from './components/AppGate';
 import { AuthProvider } from './hooks/useAuth';
 import { TrackedArtistsProvider } from './context/TrackedArtistsContext';
+import { FavoritesProvider } from './context/FavoritesContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import Landing from './pages/Landing';
 import LoginPage from './pages/LoginPage';
@@ -28,12 +29,14 @@ import ActionsPage from './pages/ActionsPage';
 import ArtistActionsPage from './pages/ArtistActionsPage';
 import CampaignsPage from './pages/CampaignsPage';
 import CampaignDetail from './pages/CampaignDetail';
+import AccountSettings from './pages/AccountSettings';
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrowserRouter>
       <AppGate>
       <AuthProvider>
+      <FavoritesProvider>
       <TrackedArtistsProvider>
       <Routes>
         <Route path="/" element={<Landing />} />
@@ -59,10 +62,12 @@ createRoot(document.getElementById('root')).render(
           <Route path="campaigns/:id" element={<CampaignDetail />} />
           <Route path="reports" element={<ReportsList />} />
           <Route path="reports/:id" element={<ReportCenter />} />
+          <Route path="account" element={<AccountSettings />} />
         </Route>
         </Route>
       </Routes>
       </TrackedArtistsProvider>
+      </FavoritesProvider>
       </AuthProvider>
       </AppGate>
     </BrowserRouter>
