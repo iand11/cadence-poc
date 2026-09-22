@@ -179,23 +179,6 @@ export default function ArtistProfile() {
                   ))}
                 </div>
               )}
-
-              {/* Collaborators */}
-              {artist.collaborators?.length > 0 && (
-                <div>
-                  <span className="text-[10px] uppercase tracking-wider text-[#9B9590] mb-1 block">Top Collaborators</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {artist.collaborators.slice(0, 8).map((c) => (
-                      <span
-                        key={c}
-                        className="text-[10px] font-mono bg-[#D4A574]/5 text-[#D4A574]/70 rounded px-2 py-0.5 border border-[#D4A574]/10"
-                      >
-                        {c}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         </div>
