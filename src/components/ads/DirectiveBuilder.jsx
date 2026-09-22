@@ -5,7 +5,7 @@ import { X, Search, Music, Loader2, Heart, Eye, CheckCircle, Play, Plus, Chevron
 import { PLATFORM_OBJECTIVES, PLATFORM_CONSTRAINTS, PLATFORM_LABELS, CREATIVE_TYPES } from '../../data/directives';
 import BudgetAllocator from './BudgetAllocator';
 import { PLATFORM_COLORS } from '../../constants/colors';
-import { allArtists } from '../../data/artists';
+import { searchArtists, getArtist, getArtistAsync } from '../../data/artists';
 import { api } from '../../data/api';
 
 const PLATFORM_COLOR_MAP = {
@@ -129,20 +129,43 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
 
   const CONTENT_PAGE_SIZE = 12;
 
-  // Artist selection
+  // Artist selection — the picked artist object is kept in state (the search
+  // result IS the artist object); slug-only initialData resolves from the
+  // cache, then the catalog
   const [artistSlug, setArtistSlug] = useState(initialData?.artistSlug || '');
   const [artistSearch, setArtistSearch] = useState('');
+  const [pickedArtist, setPickedArtist] = useState(() =>
+    initialData?.artistSlug ? getArtist(initialData.artistSlug) : null
+  );
 
-  const searchResults = useMemo(() => {
-    if (!artistSearch || artistSearch.length < 2) return [];
-    const q = artistSearch.toLowerCase();
-    return allArtists.filter(a => a.name.toLowerCase().includes(q)).slice(0, 6);
+  const selectedArtist = artistSlug
+    ? (pickedArtist?.slug === artistSlug ? pickedArtist : getArtist(artistSlug))
+    : null;
+
+  // Debounced server-side search across the full catalog
+  const [rawSearchResults, setRawSearchResults] = useState([]);
+  useEffect(() => {
+    if (!artistSearch || artistSearch.length < 2) return;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      searchArtists(artistSearch, 6)
+        .then(artists => { if (!cancelled) setRawSearchResults(artists); })
+        .catch(() => { if (!cancelled) setRawSearchResults([]); });
+    }, 250);
+    return () => { cancelled = true; clearTimeout(timer); };
   }, [artistSearch]);
 
-  const selectedArtist = useMemo(() => {
-    if (!artistSlug) return null;
-    return allArtists.find(a => a.slug === artistSlug);
-  }, [artistSlug]);
+  const searchResults = artistSearch && artistSearch.length >= 2 ? rawSearchResults : [];
+
+  // Resolve the artist object from the catalog when only a slug is known
+  useEffect(() => {
+    if (!artistSlug || selectedArtist) return;
+    let cancelled = false;
+    getArtistAsync(artistSlug)
+      .then(artist => { if (!cancelled && artist) setPickedArtist(artist); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [artistSlug, selectedArtist]);
 
   const objectives = PLATFORM_OBJECTIVES[platform] || [];
   const creativeTypes = CREATIVE_TYPES[platform] || [];
@@ -500,7 +523,7 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
                     {searchResults.map(a => (
                       <button
                         key={a.slug}
-                        onMouseDown={() => { setArtistSlug(a.slug); setArtistSearch(''); }}
+                        onMouseDown={() => { setArtistSlug(a.slug); setPickedArtist(a); setArtistSearch(''); }}
                         className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-[#1C1B18] transition-colors text-left cursor-pointer"
                       >
                         {a.imageUrl ? (

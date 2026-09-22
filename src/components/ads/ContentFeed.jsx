@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Loader2, ChevronLeft, ChevronRight, Zap, Search, X } from 'lucide-react';
 import ContentFeedItem from './ContentFeedItem';
 import { api } from '../../data/api';
-import { allArtists } from '../../data/artists';
+import { searchArtists } from '../../data/artists';
 import { useFavorites } from '../../hooks/useFavorites';
 import { analyzeBoostPotential, generateBoostRecommendations } from '../../utils/boostDetection';
 import { PLATFORM_COLORS } from '../../constants/colors';
@@ -50,15 +50,25 @@ export default function ContentFeed({ onBoost }) {
   const [offset, setOffset] = useState(0);
   const [scope, setScope] = useState('favorites'); // 'favorites' | 'all'
   const [artistFilter, setArtistFilter] = useState(null);
+  const [filterArtist, setFilterArtist] = useState(null); // selected artist object (for the active chip)
   const [artistQuery, setArtistQuery] = useState('');
   const [artistDropdownOpen, setArtistDropdownOpen] = useState(false);
+  const [rawArtistResults, setRawArtistResults] = useState([]);
   const artistInputRef = useRef(null);
 
-  const artistSearchResults = useMemo(() => {
-    if (!artistQuery || artistQuery.length < 2) return [];
-    const q = artistQuery.toLowerCase();
-    return allArtists.filter(a => a.name.toLowerCase().includes(q)).slice(0, 6);
+  // Debounced server-side search across the full catalog
+  useEffect(() => {
+    if (!artistQuery || artistQuery.length < 2) return;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      searchArtists(artistQuery, 6)
+        .then(artists => { if (!cancelled) setRawArtistResults(artists); })
+        .catch(() => { if (!cancelled) setRawArtistResults([]); });
+    }, 250);
+    return () => { cancelled = true; clearTimeout(timer); };
   }, [artistQuery]);
+
+  const artistSearchResults = artistQuery && artistQuery.length >= 2 ? rawArtistResults : [];
 
   useEffect(() => {
     let cancelled = false;
@@ -206,10 +216,10 @@ export default function ContentFeed({ onBoost }) {
         <div className="relative">
           {artistFilter ? (
             <button
-              onClick={() => { setArtistFilter(null); setArtistQuery(''); }}
+              onClick={() => { setArtistFilter(null); setFilterArtist(null); setArtistQuery(''); }}
               className="flex items-center gap-1.5 text-[10px] font-mono px-2.5 py-1 rounded bg-[#DA7756]/15 border border-[#DA7756]/30 text-[#DA7756] cursor-pointer hover:bg-[#DA7756]/25 transition-colors"
             >
-              {allArtists.find(a => a.slug === artistFilter)?.name || artistFilter}
+              {filterArtist?.name || artistFilter}
               <X size={9} />
             </button>
           ) : (
@@ -240,6 +250,7 @@ export default function ContentFeed({ onBoost }) {
                     key={a.slug}
                     onMouseDown={() => {
                       setArtistFilter(a.slug);
+                      setFilterArtist(a);
                       setArtistQuery('');
                       setArtistDropdownOpen(false);
                     }}

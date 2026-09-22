@@ -7,7 +7,7 @@ import CollapsibleSection from '../components/profile/CollapsibleSection';
 import ChartCard from '../components/shared/ChartCard';
 import KpiCard from '../components/shared/KpiCard';
 import Badge from '../components/shared/Badge';
-import { getTrackAsync, getArtist, loadArtistDetail, allArtists } from '../data/artists';
+import { getTrackAsync, getArtistAsync, loadArtistDetail } from '../data/artists';
 import { generateTrackStreamingTrend, generateTrackPerformance, getTrackPlaylists } from '../data/trackData';
 import StreamingTrendChart from '../components/charts/StreamingTrendChart';
 import { formatNumber, formatDelta } from '../utils/formatters';
@@ -31,9 +31,9 @@ function formatVersionFlag(flag) {
   return flag.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 
-function buildTrackSummary(track, artist) {
+function buildTrackSummary(track, artistName) {
   const parts = [];
-  parts.push(`"${track.name}" by ${artist.name} has accumulated ${formatNumber(track.streams)} Spotify streams.`);
+  parts.push(`"${track.name}" by ${artistName} has accumulated ${formatNumber(track.streams)} Spotify streams.`);
 
   if (track.spotifyPlaylists > 0) {
     parts.push(`The track sits on ${formatNumber(track.spotifyPlaylists)} Spotify playlists${track.spotifyEditorialPlaylists > 0 ? ` (${track.spotifyEditorialPlaylists} editorial)` : ''}, reaching an audience of ${formatNumber(track.spotifyPlaylistReach)} listeners.`);
@@ -44,7 +44,7 @@ function buildTrackSummary(track, artist) {
   }
 
   if (track.isFeature) {
-    const others = track.artistNames.filter(n => n && n !== artist.name);
+    const others = track.artistNames.filter(n => n && n !== artistName);
     if (others.length > 0) {
       parts.push(`This is a featured collaboration with ${others.join(', ')}.`);
     }
@@ -70,29 +70,30 @@ function buildTrackSummary(track, artist) {
   };
 }
 
-function findFeaturingArtists(track) {
-  const others = track.artistNames.filter(n => n);
-  return others
-    .map(name => allArtists.find(a => a.name === name))
-    .filter(Boolean);
-}
-
 export default function TrackProfile() {
   const { id } = useParams();
   const [track, setTrack] = useState(undefined); // undefined = loading, null = not found
+  const [artist, setArtist] = useState(null); // catalog-wide summary — may stay null
   const [similar, setSimilar] = useState([]);
 
   useEffect(() => {
+    let cancelled = false;
     setTrack(undefined);
+    setArtist(null);
     setSimilar([]);
     getTrackAsync(id).then(t => {
+      if (cancelled) return;
       setTrack(t);
       if (t) {
+        getArtistAsync(t.artistSlug).then(a => {
+          if (!cancelled) setArtist(a);
+        });
         loadArtistDetail(t.artistSlug).then(detail => {
-          setSimilar(detail.tracks.filter(x => x.id !== t.id).slice(0, 6));
+          if (!cancelled) setSimilar(detail.tracks.filter(x => x.id !== t.id).slice(0, 6));
         });
       }
     });
+    return () => { cancelled = true; };
   }, [id]);
 
   if (track === undefined) {
@@ -117,9 +118,9 @@ export default function TrackProfile() {
     );
   }
 
-  const artist = getArtist(track.artistSlug);
-  const aiSummary = buildTrackSummary(track, artist);
-  const collabs = findFeaturingArtists(track);
+  const artistName = artist?.name ?? track.artistNames?.[0] ?? track.artistSlug;
+  const aiSummary = buildTrackSummary(track, artistName);
+  const featuredNames = (track.artistNames || []).filter(n => n && n !== artistName);
   const releaseDate = formatReleaseDate(track.releaseDate);
 
   // Cross-platform playlist totals
@@ -138,8 +139,8 @@ export default function TrackProfile() {
     <ProfileLayout
       title={track.name}
       subtitle={
-        <Link to={`/app/artist/${artist.slug}`} className="hover:text-[#DA7756] transition-colors">
-          by {artist.name}{track.isFeature ? ' (feature)' : ''}
+        <Link to={`/app/artist/${track.artistSlug}`} className="hover:text-[#DA7756] transition-colors">
+          by {artistName}{track.isFeature ? ' (feature)' : ''}
         </Link>
       }
       type="track"
@@ -227,22 +228,18 @@ export default function TrackProfile() {
               </div>
             )}
 
-            {/* Collaborators */}
-            {collabs.length > 1 && (
+            {/* Collaborators — names only (catalog lookup would need a server round-trip per name) */}
+            {featuredNames.length > 0 && (
               <div>
                 <span className="text-[10px] uppercase tracking-wider text-[#9B9590] mb-1.5 block">Featured Artists</span>
                 <div className="flex flex-wrap gap-1.5">
-                  {collabs.map(a => (
-                    <Link
-                      key={a.slug}
-                      to={`/app/artist/${a.slug}`}
-                      className="flex items-center gap-1.5 text-xs bg-[#171614] border border-[#2C2B28] hover:border-[#DA7756]/30 rounded px-2 py-1 transition-colors"
+                  {featuredNames.map(name => (
+                    <span
+                      key={name}
+                      className="flex items-center gap-1.5 text-xs bg-[#171614] border border-[#2C2B28] rounded px-2 py-1"
                     >
-                      {a.imageUrl && (
-                        <img src={a.imageUrl} alt="" className="w-4 h-4 rounded object-cover" />
-                      )}
-                      <span className="text-[#F5F0E8]">{a.name}</span>
-                    </Link>
+                      <span className="text-[#F5F0E8]">{name}</span>
+                    </span>
                   ))}
                 </div>
               </div>
@@ -296,7 +293,7 @@ export default function TrackProfile() {
         const shown = placements.slice(0, 10);
         return (
           <CollapsibleSection title="Playlist Placements" icon={ListMusic}>
-            <ChartCard title={`${placements.length} playlist${placements.length === 1 ? '' : 's'} featuring ${artist.name}`}>
+            <ChartCard title={`${placements.length} playlist${placements.length === 1 ? '' : 's'} featuring ${artistName}`}>
               <div className="space-y-1">
                 {shown.map((p, i) => (
                   <Link key={`${p.playlistId}-${i}`} to={`/app/playlist/${p.playlistId}`} className="block">
@@ -327,7 +324,7 @@ export default function TrackProfile() {
 
       {/* Similar tracks (same artist) */}
       {similar.length > 0 && (
-        <CollapsibleSection title={`More from ${artist.name}`} icon={Users}>
+        <CollapsibleSection title={`More from ${artistName}`} icon={Users}>
           <ChartCard title="Other top tracks">
             <div className="space-y-1">
               {similar.map((t, i) => (

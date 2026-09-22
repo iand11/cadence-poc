@@ -7,6 +7,8 @@ import { formatNumber } from '../../utils/formatters';
 
 export default function SearchOverlay({ onClose }) {
   const [query, setQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [trending, setTrending] = useState([]);
   const inputRef = useRef(null);
   const navigate = useNavigate();
 
@@ -17,8 +19,28 @@ export default function SearchOverlay({ onClose }) {
     return () => window.removeEventListener('keydown', handleEsc);
   }, [onClose]);
 
-  const results = query.length >= 1 ? searchArtists(query) : [];
-  const trending = getTopArtists(6);
+  // Debounced server-side search across the full catalog
+  useEffect(() => {
+    if (query.length < 1) return;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      searchArtists(query)
+        .then((artists) => { if (!cancelled) setSearchResults(artists); })
+        .catch(() => { if (!cancelled) setSearchResults([]); });
+    }, 250);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [query]);
+
+  const results = query.length >= 1 ? searchResults : [];
+
+  // Top-ranked catalog artists shown when the query is empty
+  useEffect(() => {
+    let cancelled = false;
+    getTopArtists(6)
+      .then((artists) => { if (!cancelled) setTrending(artists); })
+      .catch(() => { if (!cancelled) setTrending([]); });
+    return () => { cancelled = true; };
+  }, []);
 
   const handleSelect = (artist) => {
     navigate(`/app/artist/${artist.slug}`);

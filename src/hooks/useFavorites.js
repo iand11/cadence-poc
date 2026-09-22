@@ -1,8 +1,9 @@
 import { useState, useCallback } from 'react';
-import { getTopArtists } from '../data/artists';
 
 const STORAGE_KEY = 'musicspace-favorites';
-const DEFAULT_FAVORITES = getTopArtists(7).map(a => a.slug);
+// No static default roster any more — favorites start empty until the user
+// adds some (the old default was the top 7 of the bundled index).
+const DEFAULT_FAVORITES = [];
 
 function load() {
   try {

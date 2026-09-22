@@ -7,15 +7,15 @@ import KpiCard from '../components/shared/KpiCard';
 import StreamingTrendChart from '../components/charts/StreamingTrendChart';
 import { getTopTracksAcrossRoster, getArtist } from '../data/artists';
 import { getTrackComparison } from '../data/trackData';
+import { useTrackedArtists } from '../hooks/useTrackedArtists';
 import { formatNumber } from '../utils/formatters';
 
 const COLORS = ['#DA7756', '#7BAF73', '#C75F4F', '#D4A574'];
 
-function TrackSelector({ selected, onChange }) {
+function TrackSelector({ tracks, selected, onChange }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const ref = useRef(null);
-  const allTracks = useMemo(() => getTopTracksAcrossRoster(20), []);
 
   useEffect(() => {
     if (!open) return;
@@ -25,11 +25,11 @@ function TrackSelector({ selected, onChange }) {
   }, [open]);
 
   const filtered = query
-    ? allTracks.filter(t =>
+    ? tracks.filter(t =>
         t.name.toLowerCase().includes(query.toLowerCase()) ||
-        (getArtist(t.artistSlug)?.name || '').toLowerCase().includes(query.toLowerCase())
+        (getArtist(t.artistSlug)?.name ?? t.artistNames?.[0] ?? '').toLowerCase().includes(query.toLowerCase())
       )
-    : allTracks;
+    : tracks;
 
   const toggle = (id) => {
     if (selected.includes(id)) {
@@ -72,7 +72,7 @@ function TrackSelector({ selected, onChange }) {
             {filtered.map(t => {
               const checked = selected.includes(t.id);
               const disabled = !checked && selected.length >= 4;
-              const artistName = getArtist(t.artistSlug)?.name || '';
+              const artistName = getArtist(t.artistSlug)?.name ?? t.artistNames?.[0] ?? '';
               return (
                 <button
                   key={t.id}
@@ -128,8 +128,22 @@ function mergeStreamingTrends(comparisons) {
 }
 
 export default function TrackComparison() {
-  const allTracks = useMemo(() => getTopTracksAcrossRoster(20), []);
-  const [selectedIds, setSelectedIds] = useState(() => allTracks.slice(0, 3).map(t => t.id));
+  const { trackedArtists, loading: rosterLoading } = useTrackedArtists();
+  const [allTracks, setAllTracks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedIds, setSelectedIds] = useState([]);
+
+  useEffect(() => {
+    if (rosterLoading) return;
+    let cancelled = false;
+    getTopTracksAcrossRoster(20).then(tracks => {
+      if (cancelled) return;
+      setAllTracks(tracks);
+      setSelectedIds(prev => prev.length > 0 ? prev : tracks.slice(0, 3).map(t => t.id));
+      setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [rosterLoading, trackedArtists]);
 
   const selectedTracks = useMemo(
     () => allTracks.filter(t => selectedIds.includes(t.id)),
@@ -162,7 +176,7 @@ export default function TrackComparison() {
 
       {/* Selector */}
       <div className="flex items-center gap-3 flex-wrap">
-        <TrackSelector selected={selectedIds} onChange={setSelectedIds} />
+        <TrackSelector tracks={allTracks} selected={selectedIds} onChange={setSelectedIds} />
         {selectedIds.map((id, i) => {
           const c = comparisons.find(c => c.track.id === id);
           if (!c) return null;
@@ -178,7 +192,11 @@ export default function TrackComparison() {
         })}
       </div>
 
-      {comparisons.length === 0 ? (
+      {rosterLoading || loading ? (
+        <div className="flex items-center justify-center py-16">
+          <div className="w-8 h-8 rounded-full border-2 border-[#2C2B28] border-t-[#DA7756] animate-spin" />
+        </div>
+      ) : comparisons.length === 0 ? (
         <div className="text-center py-16">
           <Music size={32} className="mx-auto text-[#2C2B28] mb-3" />
           <p className="text-sm text-[#9B9590]">Select tracks to compare</p>

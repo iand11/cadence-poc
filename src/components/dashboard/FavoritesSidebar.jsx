@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { Star, Music, Disc3, ListMusic, BarChart3 } from 'lucide-react';
 import { getTopArtists } from '../../data/artists';
@@ -11,16 +12,24 @@ function formatListeners(n) {
   return String(n);
 }
 
-const topArtists = getTopArtists(5);
-
-const favorites = topArtists.map(a => ({
-  type: 'artist',
-  name: a.name,
-  path: '/artist/' + a.slug,
-  detail: formatListeners(a.spotify.monthlyListeners) + ' listeners',
-}));
-
 export default function FavoritesSidebar() {
+  const [topArtists, setTopArtists] = useState([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    getTopArtists(5)
+      .then((artists) => { if (!cancelled) setTopArtists(artists); })
+      .catch(() => { if (!cancelled) setTopArtists([]); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const favorites = topArtists.map(a => ({
+    type: 'artist',
+    name: a.name,
+    path: '/artist/' + a.slug,
+    detail: formatListeners(a.spotify.monthlyListeners) + ' listeners',
+  }));
+
   return (
     <div className="bg-[#171614] border border-[#2C2B28] rounded p-5">
       <div className="flex items-center gap-2 mb-4">

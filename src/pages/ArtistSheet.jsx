@@ -23,7 +23,7 @@ import ForecastChart from '../components/charts/ForecastChart';
 import PlaylistDistributionChart from '../components/charts/PlaylistDistributionChart';
 
 import {
-  getArtist, loadArtistDetail,
+  getArtistAsync, loadArtistDetail,
   generateStreamingTrend, generateSocialTimeline,
   generateForecast, generateRevenue, getBenchmarkComparison,
 } from '../data/artists';
@@ -112,18 +112,51 @@ function parseSpotifyUrl(url) {
 
 export default function ArtistSheet() {
   const { id } = useParams();
+  const navigate = useNavigate();
+  const [resolved, setResolved] = useState({ id: null, artist: null });
+
+  // undefined = loading, null = not found
+  const artist = resolved.id === id ? resolved.artist : undefined;
+
+  useEffect(() => {
+    let cancelled = false;
+    getArtistAsync(id).then(a => {
+      if (!cancelled) setResolved({ id, artist: a || null });
+    });
+    return () => { cancelled = true; };
+  }, [id]);
+
+  useEffect(() => {
+    if (artist === null) navigate('/app/artists', { replace: true });
+  }, [artist, navigate]);
+
+  // Gate rendering until the artist resolves — the sheet (and its PNG/PDF
+  // export path) assumes the artist exists.
+  if (!artist) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#0D0C0B]">
+        <div className="text-center">
+          <FileText size={32} className="mx-auto text-[#2C2B28] mb-3 animate-pulse" />
+          <p className="text-sm text-[#9B9590]">Loading artist...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return <ArtistSheetContent artist={artist} />;
+}
+
+function ArtistSheetContent({ artist }) {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const artist = getArtist(id);
   const sheetRef = useRef(null);
 
   const [detail, setDetail] = useState(null);
 
   useEffect(() => {
-    if (!artist) return;
     setDetail(null);
     loadArtistDetail(artist.slug).then(setDetail);
-  }, [artist?.slug]);
+  }, [artist.slug]);
 
   // Custom data
   const {
@@ -154,7 +187,7 @@ export default function ArtistSheet() {
 
   // Extract prominent color from artist image and set as background
   const sampleColorFromImage = useCallback(async () => {
-    if (!artist?.imageUrl) return;
+    if (!artist.imageUrl) return;
     setSampling(true);
     try {
       const color = await new Promise((resolve, reject) => {
@@ -194,7 +227,7 @@ export default function ArtistSheet() {
     } finally {
       setSampling(false);
     }
-  }, [artist?.imageUrl]);
+  }, [artist.imageUrl]);
 
   // Auto-sample background color from artist image on first load
   const autoSampledRef = useRef(false);
@@ -278,12 +311,6 @@ export default function ArtistSheet() {
   // Sheets sync
   const [sheetsSyncing, setSheetsSyncing] = useState(false);
   const [sheetsError, setSheetsError] = useState(null);
-
-  useEffect(() => {
-    if (!artist) navigate('/app/artists', { replace: true });
-  }, [artist, navigate]);
-
-  if (!artist) return null;
 
   const accentColor = `#${accent}`;
   const bgColor = `#${bg}`;
@@ -1313,7 +1340,7 @@ export default function ArtistSheet() {
 
       {socialPostOpen && (
         <SocialPostModal
-          artistSlug={id}
+          artist={artist}
           accentColor={accentColor}
           onClose={() => setSocialPostOpen(false)}
         />

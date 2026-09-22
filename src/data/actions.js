@@ -1,4 +1,4 @@
-import { allArtists } from './artists';
+import { getRoster, subscribeRoster } from './rosterStore';
 import { generateInsights } from '../utils/insights';
 import { generateSteps } from './actionSteps';
 
@@ -43,14 +43,16 @@ function derivePlatform(dataType, text) {
 const PRIORITY_WEIGHT = { warning: 3, info: 2, success: 1 };
 
 let cached = null;
+subscribeRoster(() => { cached = null; });
 
 export function generateAllActions() {
   if (cached) return cached;
 
   const actions = [];
-  const totalArtists = allArtists.length;
+  const roster = getRoster();
+  const totalArtists = roster.length;
 
-  for (const artist of allArtists) {
+  for (const artist of roster) {
     const insights = generateInsights(artist);
     const rankBoost = (totalArtists - (artist.rank || totalArtists)) / totalArtists;
 

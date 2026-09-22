@@ -19,8 +19,8 @@ export default defineConfig([
     },
   },
   {
-    // Server-side handlers and build config run in Node, not the browser.
-    files: ['api/**/*.js', '*.config.js'],
+    // Server-side handlers, CLI scripts, and build config run in Node, not the browser.
+    files: ['api/**/*.js', 'scripts/**/*.js', '*.config.js'],
     languageOptions: {
       globals: globals.node,
     },

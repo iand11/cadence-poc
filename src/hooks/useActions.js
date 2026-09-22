@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
 import { generateAllActions } from '../data/actions';
+import { useTrackedArtists } from './useTrackedArtists';
 
 const STORAGE_KEY = 'musicspace-actions-v1';
 
@@ -36,8 +37,12 @@ const SEVERITY_ORDER = { danger: 0, warning: 1, info: 2, success: 3 };
 
 export function useActions() {
   const [stored, setStored] = useState(load);
+  const { trackedArtists } = useTrackedArtists();
 
-  const systemActions = useMemo(() => generateAllActions(), []);
+  // Regenerate when the tracked roster arrives/changes (actions.js caches
+  // internally and invalidates itself on roster change)
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- roster change must retrigger the module-level generator
+  const systemActions = useMemo(() => generateAllActions(), [trackedArtists]);
 
   const actions = useMemo(() => {
     const applyStepState = (a) => {

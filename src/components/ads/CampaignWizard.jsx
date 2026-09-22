@@ -8,7 +8,8 @@ import {
   BarChart3, PieChart, Lightbulb, Globe, DollarSign,
 } from 'lucide-react';
 import ChatInterface from '../ai/ChatInterface';
-import { allArtists } from '../../data/artists';
+import { searchArtists, getArtistAsync } from '../../data/artists';
+import { useTrackedArtists } from '../../hooks/useTrackedArtists';
 import { generateCampaignSuggestions } from '../../utils/campaignSuggestions';
 import { generateDirective, PLATFORM_LABELS, OBJECTIVE_LABELS } from '../../data/directives';
 import { recommendBudgetAllocation } from '../../utils/budgetAllocation';
@@ -62,14 +63,19 @@ function getStepLabel(step, customMode) {
 
 export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, initialArtistSlug, initialSuggestion }) {
   const [step, setStep] = useState(1);
-  const [artistSlug, setArtistSlug] = useState('');
+  const [selectedArtist, setSelectedArtist] = useState(null);
   const [artistSearch, setArtistSearch] = useState('');
   const [selectedSuggestion, setSelectedSuggestion] = useState(null);
+
+  const { trackedArtists } = useTrackedArtists();
 
   // Auto-select artist and jump to step 3 when opened from insight
   useEffect(() => {
     if (isOpen && initialArtistSlug) {
-      setArtistSlug(initialArtistSlug);
+      // Resolves from the tracked roster/cache, else the catalog
+      getArtistAsync(initialArtistSlug)
+        .then((artist) => { if (artist) setSelectedArtist(artist); })
+        .catch(() => {});
       if (initialSuggestion) {
         setSelectedSuggestion(initialSuggestion);
         setTotalBudgetRaw(initialSuggestion.suggestedBudget || 1000);
@@ -98,16 +104,20 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, in
   const [generatingStep, setGeneratingStep] = useState(0);
   const [generateError, setGenerateError] = useState(null);
 
-  const searchResults = useMemo(() => {
-    if (!artistSearch || artistSearch.length < 2) return [];
-    const q = artistSearch.toLowerCase();
-    return allArtists.filter(a => a.name.toLowerCase().includes(q)).slice(0, 8);
+  // Debounced server-side search across the full catalog
+  const [rawSearchResults, setRawSearchResults] = useState([]);
+  useEffect(() => {
+    if (!artistSearch || artistSearch.length < 2) return;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      searchArtists(artistSearch, 8)
+        .then(artists => { if (!cancelled) setRawSearchResults(artists); })
+        .catch(() => { if (!cancelled) setRawSearchResults([]); });
+    }, 250);
+    return () => { cancelled = true; clearTimeout(timer); };
   }, [artistSearch]);
 
-  const selectedArtist = useMemo(() => {
-    if (!artistSlug) return null;
-    return allArtists.find(a => a.slug === artistSlug);
-  }, [artistSlug]);
+  const searchResults = artistSearch && artistSearch.length >= 2 ? rawSearchResults : [];
 
   const suggestions = useMemo(() => {
     if (!selectedArtist || step < 2) return [];
@@ -181,7 +191,7 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, in
   // --- Handlers ---
 
   const handleSelectArtist = (artist) => {
-    setArtistSlug(artist.slug);
+    setSelectedArtist(artist);
     setArtistSearch('');
   };
 
@@ -409,7 +419,7 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, in
 
   const handleClose = () => {
     setStep(1);
-    setArtistSlug('');
+    setSelectedArtist(null);
     setArtistSearch('');
     setSelectedSuggestion(null);
     setAllocOverrides({});
@@ -469,7 +479,8 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, in
                   setArtistSearch={setArtistSearch}
                   searchResults={searchResults}
                   handleSelectArtist={handleSelectArtist}
-                  setArtistSlug={setArtistSlug}
+                  onClearArtist={() => setSelectedArtist(null)}
+                  rosterArtists={trackedArtists}
                   topSocial={topSocial}
                 />
               </motion.div>
@@ -583,7 +594,7 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, in
 
 // ─── Step 1: Artist Selection ───
 
-function Step1({ selectedArtist, artistSearch, setArtistSearch, searchResults, handleSelectArtist, setArtistSlug, topSocial }) {
+function Step1({ selectedArtist, artistSearch, setArtistSearch, searchResults, handleSelectArtist, onClearArtist, rosterArtists, topSocial }) {
   if (selectedArtist) {
     return (
       <div className="bg-[#0D0C0B] border border-[#2C2B28] rounded-lg p-4">
@@ -619,7 +630,7 @@ function Step1({ selectedArtist, artistSearch, setArtistSearch, searchResults, h
             </div>
           </div>
           <button
-            onClick={() => { setArtistSlug(''); setArtistSearch(''); }}
+            onClick={() => { onClearArtist(); setArtistSearch(''); }}
             className="text-[10px] text-[#6B6560] hover:text-[#DA7756] transition-colors cursor-pointer px-2"
           >
             Change
@@ -669,11 +680,11 @@ function Step1({ selectedArtist, artistSearch, setArtistSearch, searchResults, h
           </div>
         )}
       </div>
-      {!artistSearch && (
+      {!artistSearch && rosterArtists.length > 0 && (
         <div className="mt-5">
           <p className="text-[9px] font-mono uppercase tracking-wider text-[#6B6560] mb-2">Your Roster</p>
           <div className="grid grid-cols-2 gap-2">
-            {allArtists.slice(0, 8).map(a => (
+            {rosterArtists.slice(0, 8).map(a => (
               <button
                 key={a.slug}
                 onClick={() => handleSelectArtist(a)}

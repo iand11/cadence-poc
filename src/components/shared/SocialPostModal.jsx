@@ -67,8 +67,10 @@ const DEFAULT_SLOTS = [
   { type: 'stat', key: 'tt_followers' },
 ];
 
-export default function SocialPostModal({ artistSlug, accentColor = '#DA7756', onClose }) {
-  const artist = getArtist(artistSlug);
+export default function SocialPostModal({ artist: artistProp, artistSlug, accentColor = '#DA7756', onClose }) {
+  // Prefer a resolved artist object from the caller; fall back to the sync
+  // lookup (tracked roster / session cache) when only a slug is given.
+  const artist = artistProp || (artistSlug ? getArtist(artistSlug) : null);
   const cardRef = useRef(null);
   const [imageUrl, setImageUrl] = useState(null);
   const [generating, setGenerating] = useState(false);
@@ -77,10 +79,10 @@ export default function SocialPostModal({ artistSlug, accentColor = '#DA7756', o
 
   const primaryGenre = artist?.genres?.primary?.name || '';
 
-  const availableStats = ALL_STATS_FLAT.filter(s => {
+  const availableStats = artist ? ALL_STATS_FLAT.filter(s => {
     const v = s.path(artist);
     return v != null && v !== 0;
-  });
+  }) : [];
 
   const enabledStatKeys = new Set(slots.filter(s => s.type === 'stat').map(s => s.key));
 
@@ -91,7 +93,7 @@ export default function SocialPostModal({ artistSlug, accentColor = '#DA7756', o
     }
     const def = ALL_STATS_FLAT.find(s => s.key === slot.key);
     if (!def) return null;
-    const val = getStatDisplay(artist, def);
+    const val = artist ? getStatDisplay(artist, def) : null;
     if (!val) return null;
     return { label: def.label, value: val };
   }).filter(Boolean);

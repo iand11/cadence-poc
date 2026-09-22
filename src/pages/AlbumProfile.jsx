@@ -6,7 +6,7 @@ import ProfileLayout from '../components/profile/ProfileLayout';
 import CollapsibleSection from '../components/profile/CollapsibleSection';
 import ChartCard from '../components/shared/ChartCard';
 import KpiCard from '../components/shared/KpiCard';
-import { getAlbumAsync, getArtist, getAlbumTracksAsync, loadArtistDetail, allArtists } from '../data/artists';
+import { getAlbumAsync, getArtistAsync, getAlbumTracksAsync, loadArtistDetail } from '../data/artists';
 import { formatNumber } from '../utils/formatters';
 
 function formatReleaseDate(dateStr) {
@@ -68,33 +68,45 @@ function buildAlbumSummary(album, tracks, artist) {
 export default function AlbumProfile() {
   const { id } = useParams();
   const [album, setAlbum] = useState(undefined); // undefined = loading, null = not found
+  const [artist, setArtist] = useState(null);
   const [tracks, setTracks] = useState([]);
   const [otherAlbums, setOtherAlbums] = useState([]);
   const [collabs, setCollabs] = useState([]);
 
   useEffect(() => {
+    let cancelled = false;
     setAlbum(undefined);
+    setArtist(null);
     setTracks([]);
     setOtherAlbums([]);
     setCollabs([]);
 
     getAlbumAsync(id).then(a => {
+      if (cancelled) return;
       setAlbum(a);
       if (a) {
+        getArtistAsync(a.artistSlug).then(ar => {
+          if (!cancelled) setArtist(ar);
+        });
         getAlbumTracksAsync(a.id).then(albumTracks => {
+          if (cancelled) return;
           setTracks(albumTracks);
-          // Find roster collaborators from track artists
+          // Find collaborators from track artists
           const slugs = new Set();
           albumTracks.forEach(t => {
             if (t.artistSlug !== a.artistSlug) slugs.add(t.artistSlug);
           });
-          setCollabs([...slugs].map(s => allArtists.find(ar => ar.slug === s)).filter(Boolean));
+          Promise.all([...slugs].map(s => getArtistAsync(s))).then(artists => {
+            if (!cancelled) setCollabs(artists.filter(Boolean));
+          });
         });
         loadArtistDetail(a.artistSlug).then(detail => {
-          setOtherAlbums(detail.albums.filter(x => x.id !== a.id).slice(0, 6));
+          if (!cancelled) setOtherAlbums(detail.albums.filter(x => x.id !== a.id).slice(0, 6));
         });
       }
     });
+
+    return () => { cancelled = true; };
   }, [id]);
 
   if (album === undefined) {
@@ -119,7 +131,6 @@ export default function AlbumProfile() {
     );
   }
 
-  const artist = getArtist(album.artistSlug);
   const aiSummary = buildAlbumSummary(album, tracks, artist);
   const released = formatReleaseDate(album.releaseDate);
 
@@ -300,7 +311,7 @@ export default function AlbumProfile() {
 
       {/* Other releases by same artist */}
       {otherAlbums.length > 0 && (
-        <CollapsibleSection title={`More from ${artist.name}`} icon={Disc3}>
+        <CollapsibleSection title={`More from ${artist?.name || 'this artist'}`} icon={Disc3}>
           <ChartCard title="Other releases">
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 pt-2">
               {otherAlbums.map(a => (

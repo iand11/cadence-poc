@@ -1,9 +1,10 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
 import { Plus, Sheet, Trash2, Clock, Music, Search, X, Globe, Lock, Eye, Link2, Check } from 'lucide-react';
 import { useSheets } from '../hooks/useSheets';
 import { getArtist, searchArtists } from '../data/artists';
+import { fetchArtistsBySlugs } from '../data/artistsRemote';
 
 function getSheetVisibility(slug) {
   try {
@@ -50,9 +51,34 @@ export default function SheetsPage() {
   const [linkCopied, setLinkCopied] = useState(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [, setArtistsResolved] = useState(0);
   const inputRef = useRef(null);
 
-  const results = query.length >= 2 ? searchArtists(query) : [];
+  // Debounced server-side search across the full catalog
+  useEffect(() => {
+    if (query.length < 2) return;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      searchArtists(query)
+        .then((artists) => { if (!cancelled) setSearchResults(artists); })
+        .catch(() => { if (!cancelled) setSearchResults([]); });
+    }, 250);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [query]);
+
+  const results = query.length >= 2 ? searchResults : [];
+
+  // Resolve card artists into the cache so the sync getArtist reads below work
+  useEffect(() => {
+    const slugs = sheets.map((s) => s.artistSlug);
+    if (slugs.length === 0) return;
+    let cancelled = false;
+    fetchArtistsBySlugs(slugs)
+      .then(() => { if (!cancelled) setArtistsResolved((t) => t + 1); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [sheets]);
 
   const handleCreate = (artist) => {
     createSheet(artist.slug);
@@ -221,12 +247,15 @@ export default function SheetsPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <AnimatePresence mode="popLayout">
             {sheets.map((sheet, index) => {
+              // Sync cache read — resolved by the fetchArtistsBySlugs effect above.
+              // Falls back to the slug until (or unless) the artist resolves.
               const artist = getArtist(sheet.artistSlug);
-              if (!artist) return null;
+              const artistSlug = artist?.slug || sheet.artistSlug;
+              const artistName = artist?.name || sheet.artistSlug;
               const isConfirming = confirmDelete === sheet.id;
               const visibility = getSheetVisibility(sheet.artistSlug);
-              const primaryGenre = artist.genres?.primary?.name;
-              const secondaryGenres = (artist.genres?.secondary || []).map(g => typeof g === 'string' ? g : g.name);
+              const primaryGenre = artist?.genres?.primary?.name;
+              const secondaryGenres = (artist?.genres?.secondary || []).map(g => typeof g === 'string' ? g : g.name);
               const allGenres = [primaryGenre, ...secondaryGenres].filter(Boolean);
 
               return (
@@ -239,15 +268,15 @@ export default function SheetsPage() {
                   layout
                 >
                   <Link
-                    to={`/app/artist/${artist.slug}/sheet`}
+                    to={`/app/artist/${artistSlug}/sheet`}
                     className="block relative bg-[#171614] border border-[#2C2B28] rounded overflow-hidden hover:border-[#3D3B37] transition-colors group"
                   >
                     {/* Artist Image */}
                     <div className="relative h-40 overflow-hidden">
-                      {artist.imageUrl ? (
+                      {artist?.imageUrl ? (
                         <img
                           src={artist.imageUrl}
-                          alt={artist.name}
+                          alt={artistName}
                           className="w-full h-full object-cover object-[center_20%] group-hover:scale-105 transition-transform duration-500"
                         />
                       ) : (
@@ -306,7 +335,7 @@ export default function SheetsPage() {
                     {/* Card Body */}
                     <div className="p-4 -mt-2 relative">
                       <h3 className="text-sm font-medium text-[#F5F0E8] group-hover:text-[#DA7756] transition-colors truncate">
-                        {artist.name}
+                        {artistName}
                       </h3>
 
                       {/* Genre Tags */}
@@ -336,7 +365,7 @@ export default function SheetsPage() {
                         </span>
                         <div className="flex items-center gap-1">
                           <button
-                            onClick={(e) => handlePreview(e, artist.slug)}
+                            onClick={(e) => handlePreview(e, artistSlug)}
                             className="flex items-center gap-1 px-2 py-1 rounded text-[10px] text-[#9B9590] hover:text-[#F5F0E8] hover:bg-[#2C2B28] transition-colors cursor-pointer"
                             title="Preview"
                           >
@@ -344,12 +373,12 @@ export default function SheetsPage() {
                             Preview
                           </button>
                           <button
-                            onClick={(e) => handleCopyLink(e, artist.slug)}
+                            onClick={(e) => handleCopyLink(e, artistSlug)}
                             className="flex items-center gap-1 px-2 py-1 rounded text-[10px] text-[#9B9590] hover:text-[#F5F0E8] hover:bg-[#2C2B28] transition-colors cursor-pointer"
                             title="Copy share link"
                           >
-                            {linkCopied === artist.slug ? <Check size={10} className="text-[#7BAF73]" /> : <Link2 size={10} />}
-                            {linkCopied === artist.slug ? 'Copied!' : 'Share'}
+                            {linkCopied === artistSlug ? <Check size={10} className="text-[#7BAF73]" /> : <Link2 size={10} />}
+                            {linkCopied === artistSlug ? 'Copied!' : 'Share'}
                           </button>
                         </div>
                       </div>

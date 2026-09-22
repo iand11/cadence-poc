@@ -1,10 +1,11 @@
 import { Link, useLocation, useNavigate } from 'react-router';
-import { Search, FileText, LayoutDashboard, Music, Star, ListMusic, Users, ChevronDown, Sheet, ListChecks, Megaphone } from 'lucide-react';
-import { useState, useRef } from 'react';
+import { Search, FileText, LayoutDashboard, Music, Star, ListMusic, Users, ChevronDown, Sheet, ListChecks, Megaphone, LogOut } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { searchArtists } from '../../data/artists';
 import { formatNumber } from '../../utils/formatters';
 import { useFavorites } from '../../hooks/useFavorites';
+import { useAuth } from '../../hooks/useAuth';
 
 const LIST_ITEMS = [
   { path: '/app/tracks', label: 'Tracks', icon: Music, match: '/app/track' },
@@ -22,7 +23,26 @@ export default function AppBar() {
   const listsRef = useRef(null);
 
   const { toggleFavorite, isFavorite } = useFavorites();
-  const results = query.length >= 2 ? searchArtists(query).slice(0, 6) : [];
+  const { user, signOut } = useAuth();
+  const [searchResults, setSearchResults] = useState([]);
+
+  // Debounced server-side search across the full catalog
+  useEffect(() => {
+    if (query.length < 2) return;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      searchArtists(query, 6)
+        .then((artists) => { if (!cancelled) setSearchResults(artists); })
+        .catch(() => { if (!cancelled) setSearchResults([]); });
+    }, 250);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [query]);
+
+  const results = query.length >= 2 ? searchResults : [];
+
+  const handleSignOut = async () => {
+    try { await signOut(); } finally { navigate('/login'); }
+  };
 
   const handleSelect = (artist) => {
     navigate(`/app/artist/${artist.slug}`);
@@ -216,6 +236,26 @@ export default function AppBar() {
               <Sheet size={14} />
               <span className="hidden md:inline">Pages</span>
             </Link>
+
+            {/* User + Sign out */}
+            <div className="flex items-center gap-2 pl-2 ml-1 border-l border-[#2C2B28]">
+              {user && (
+                <div
+                  className="w-6 h-6 rounded-full bg-[#DA7756]/15 text-[#DA7756] flex items-center justify-center text-[10px] font-mono font-bold shrink-0"
+                  title={user.email || 'Signed in'}
+                >
+                  {(user.email || '?').charAt(0).toUpperCase()}
+                </div>
+              )}
+              <button
+                onClick={handleSignOut}
+                title="Sign out"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs text-[#9B9590] hover:text-[#F5F0E8] transition-colors cursor-pointer"
+              >
+                <LogOut size={14} />
+                <span className="hidden md:inline">Sign out</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>

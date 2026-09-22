@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
-import { allArtists, getAggregateStats } from '../data/artists';
+import { getAggregateStats } from '../data/artists';
+import { getRoster, subscribeRoster } from '../data/rosterStore';
 
 const welcomeMessage = {
   role: 'ai',
@@ -18,8 +19,10 @@ const suggestedPrompts = [
 
 // Build condensed context string from artist data (runs once)
 let cachedContext = null;
+subscribeRoster(() => { cachedContext = null; });
 function getArtistContext() {
   if (cachedContext) return cachedContext;
+  const roster = getRoster();
 
   const fmt = n =>
     n >= 1e9 ? (n / 1e9).toFixed(1) + 'B' :
@@ -27,7 +30,7 @@ function getArtistContext() {
     n >= 1e3 ? (n / 1e3).toFixed(0) + 'K' : String(n);
 
   const stats = getAggregateStats();
-  const lines = allArtists.map(a => {
+  const lines = roster.map(a => {
     const topCities = a.spotify.topCities.slice(0, 3)
       .map(c => `${c.city}(${fmt(c.listeners)})`).join(', ');
     return [
@@ -41,7 +44,7 @@ function getArtistContext() {
   });
 
   cachedContext = [
-    `ROSTER: ${stats.total} artists, ${fmt(stats.totalListeners)} total monthly listeners, ${fmt(stats.totalFollowers)} followers`,
+    `TRACKED ROSTER: ${stats.total} artists, ${fmt(stats.totalListeners)} total monthly listeners, ${fmt(stats.totalFollowers)} followers`,
     '',
     ...lines,
   ].join('\n');
