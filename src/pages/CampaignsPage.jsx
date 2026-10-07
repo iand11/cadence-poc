@@ -204,6 +204,17 @@ export default function CampaignsPage() {
     setBuilderOpen(true);
   };
 
+  // Open a boost draft when navigated from an artist profile's top posts
+  // ({ state: { boost } } — see src/utils/boostPayload.js).
+  const boostFromNav = location.state?.boost;
+  useEffect(() => {
+    if (!boostFromNav) return;
+    handleBoostContent(boostFromNav);
+    // Clear state so refreshing doesn't re-trigger
+    navigate(location.pathname, { replace: true, state: {} });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once per navigation payload
+  }, [boostFromNav]);
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       {/* Header */}

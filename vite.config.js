@@ -71,7 +71,7 @@ function claudeApiPlugin() {
         const { messages, artistContext } = parsed;
         const rosterContext = typeof artistContext === 'string' && artistContext.trim()
           ? artistContext.slice(0, 30_000)
-          : 'No tracked artists yet — the user has not added artists to their roster.';
+          : 'No followed artists yet — the user has not followed any artists.';
         const apiKey = process.env.ANTHROPIC_API_KEY;
 
         if (!apiKey || apiKey === 'your-api-key-here') {
@@ -91,7 +91,7 @@ function claudeApiPlugin() {
 
         const systemPrompt = `You are MusicSpace, a music industry intelligence assistant in the MusicSpace platform. You help A&R, managers, and label executives make data-driven decisions.
 
-Real-time roster data:
+Real-time data for the artists the user follows:
 ${rosterContext}
 
 Rules:
@@ -101,7 +101,7 @@ Rules:
 - End with one follow-up suggestion.
 - You are MusicSpace, not Claude.
 - Use markdown formatting: **bold** for artist names and key numbers, bullet lists for comparisons.
-- When asked to show, visualize, or chart data, use the render_chart tool. Construct the data array from the roster stats above. Include brief text analysis alongside the chart.
+- When asked to show, visualize, or chart data, use the render_chart tool. Construct the data array from the followed-artist stats above. Include brief text analysis alongside the chart.
 - When the user asks to create a task, action item, reminder, or to-do for an artist, use the create_action tool. This adds the item to the Action Center.`;
 
         const tools = [{
@@ -125,7 +125,7 @@ Rules:
           },
         }, {
           name: 'render_chart',
-          description: 'Render an inline chart in the conversation. Use when the user asks to show, chart, graph, or visualize data. Build the data array from the roster data above. Keep data arrays concise (max ~20 items).',
+          description: 'Render an inline chart in the conversation. Use when the user asks to show, chart, graph, or visualize data. Build the data array from the followed-artist data above. Keep data arrays concise (max ~20 items).',
           input_schema: {
             type: 'object',
             properties: {
@@ -351,9 +351,15 @@ function dbApiPlugin() {
       mountResource('/api/artists', 'artists', '[slug].js');
       mountResource('/api/tracks', 'tracks', '[id].js');
       mountResource('/api/albums', 'albums', '[id].js');
+      mountResource('/api/playlists', 'playlists', '[id].js');
       server.middlewares.use('/api/feed', async (req, res) => {
         shim(res);
         const handler = (await import('./api/feed.js')).default;
+        await handler(req, res);
+      });
+      server.middlewares.use('/api/notifications', async (req, res) => {
+        shim(res);
+        const handler = (await import('./api/notifications.js')).default;
         await handler(req, res);
       });
     },

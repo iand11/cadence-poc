@@ -42,12 +42,28 @@ services claim jobs with FOR UPDATE SKIP LOCKED, persist results through the
 stats/posts upsert paths, and run staleness sweeps off the
 `tracked_artist_freshness` view.
 
-Missing-artist requests: `TrackedArtistPicker` is search-first (no catalog
-browsing; empty query shows the current roster). When a search comes up short,
-the user submits `POST /api/artists/requests` (api/artists/requests.js), which
-inserts a pending `artist_requests` row (one open request per normalized name;
-pg_notify 'artist_requests' on insert). An outside service reads pending rows,
-ingests the artist, and marks the request fulfilled (sets `artist_id`).
+Missing-artist requests: `FollowArtistPicker` is search-first (no catalog
+browsing; empty query shows followed artists, filterable by group). When a search comes up short,
+the user searches Spotify (`GET /api/artists/spotify-search`, client-credentials
+via `api/lib/spotify.js`, needs `SPOTIFY_CLIENT_ID`/`SPOTIFY_CLIENT_SECRET`) and
+picks a real artist; `POST /api/artists/requests` (api/artists/requests.js)
+takes only `{ spotifyId }`, re-validates it against Spotify, and inserts a
+pending `artist_requests` row with Spotify's name/url/snapshot (one open request
+per `spotify_id`; per-user open cap; pg_notify 'artist_requests' on insert). An
+outside service reads pending rows, ingests the artist, and marks the request
+fulfilled (sets `artist_id`).
+
+Request fulfillment → roster + notification: everyone waiting on a request is
+in `artist_request_subscribers` (requester + duplicate submitters). The
+`on_artist_request_resolved` trigger fires when status changes: on
+`fulfilled` it appends the slug to each subscriber's saved roster (`user_data`
++ `tracked_artists`) and inserts an `artist_added` row into `notifications`; on
+`rejected` it inserts `artist_request_rejected`. The client
+(`NotificationsProvider`, polls `GET /api/notifications` every 60s + on focus)
+re-applies `track(slug)` for newly delivered `artist_added` notifications so
+the in-memory roster can't overwrite the server add, shows toasts
+(`NotificationToasts`), then acks `delivered`. The AppBar bell
+(`NotificationBell`) lists them and marks all read on open.
 
 API: `GET /api/artists` (search/filter/sort/paginate), `GET /api/artists/:slug`
 (`?include=tracks,albums,history`), `GET /api/feed`. Handlers in `api/artists/` share
@@ -58,10 +74,18 @@ Dev middleware for these routes is `dbApiPlugin()` in `vite.config.js`.
 
 ### Data Modules (`src/data/`)
 
-The app is roster-scoped: users track artists (`TrackedArtistsProvider` in `src/context/`,
-persisted slugs → one `/api/artists?slugs=` fetch, pushed into `rosterStore.js` so non-React
-modules share it). There is no client-side "all artists" array — catalog-wide browsing and
-search go through the API.
+The app is scoped to the artists a user **follows** (user-facing copy never says "roster" or
+"tracked artists"; "tracked playlists" still means crawler coverage). `FollowedArtistsProvider`
+(`src/context/`, hook `useFollowedArtists`): persisted slugs → one `/api/artists?slugs=` fetch,
+pushed into `rosterStore.js` so non-React modules share it. The storage key stays
+`musicspace-tracked-artists-v1` because `/api/user-data` mirrors it into `tracked_artists` and the
+request trigger appends to it — internal names (`rosterStore`, `tracked_artists`) are unchanged.
+Users organize followed artists into named, many-to-many **groups**
+(`musicspace-artist-groups-v1`: `[{ id, name, color, slugs }]`; suggestions in
+`src/constants/artistGroups.js`; UI in `src/components/groups/ArtistGroups.jsx` —
+`GroupMenu`, `GroupChips`, `GroupFilterBar`, `FollowButton`). Dashboard widget selectors accept
+a live `__group:<id>` selection, and groups are sent to the AI chat context. There is no
+client-side "all artists" array — catalog-wide browsing and search go through the API.
 
 - **`artistsRemote.js`** — HTTP adapter: `fetchArtists` (search/filter/sort/paginate),
   `fetchArtistsBySlugs`, `fetchArtist`, `fetchTracks`, `fetchAlbums`, `fetchTrack`,
@@ -72,8 +96,22 @@ search go through the API.
   benchmarks are roster-scoped. Seeded generators (trends/forecast/revenue) unchanged.
 - **`trackData.js`** — `getRosterTrackStats()` / `loadAllRosterTracks()` are async, DB-backed,
   roster-scoped. Per-track generators are sync seeded functions.
-- **`playlistData.js`** — Synthetic playlist placements generated from the tracked roster
-  (sync API, caches invalidate on roster change via `subscribeRoster`).
+- **`playlistsRemote.js`** — Real playlist data crawled by the external `music-scrapers`
+  service into `playlists` / `playlist_entries` (one row per track stint: position, peak,
+  added/removed dates) / `playlist_snapshots` (daily followers). Async: `fetchPlaylists`,
+  `fetchPlaylist`, `fetchPlacements`; API in `api/playlists/` (list, `[id]`, `placements`).
+  Shared UI in `src/components/playlists/PlaylistBits.jsx` (`PlaylistPlacements`,
+  badges, follower chart); `src/hooks/useAsync.js` for effect-based loading. Coverage:
+  Spotify editorial/algorithmic/label/brand, Apple Music + Deezer editorial/charts; the imported
+  Chartmetric counts in `artist.playlists.*` are separate (crawl rollups land in
+  `*_tracked_*` stats keys).
+- **`actionPlans.js`** — Action plans: guided-wizard questions (`PLAN_QUESTIONS`), a block
+  library `generatePlan(artist, answers)` assembles from (filtered by goal/platforms/budget/
+  release, due dates relative to the release date or plan window), and draft ↔ template
+  conversion (`templateFromDraft`, `draftFromTemplate`, `draftFromActions`). UI is
+  `PlanBuilder` + `PlanEditor` in `src/components/actions/`; `useActions().addPlan` persists a
+  plan as custom actions (`source: 'plan'`); templates persist per account via
+  `useActionTemplates` (`musicspace-action-templates`).
 - **`userData.js`** — per-user key/value persistence (`/api/user-data`); imported by
   `usePersistedState`. Must never depend on artist modules.
 

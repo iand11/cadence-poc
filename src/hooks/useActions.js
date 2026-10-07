@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
 import { generateAllActions } from '../data/actions';
-import { useTrackedArtists } from './useTrackedArtists';
+import { useFollowedArtists } from './useFollowedArtists';
 
 const STORAGE_KEY = 'musicspace-actions-v1';
 
@@ -37,12 +37,12 @@ const SEVERITY_ORDER = { danger: 0, warning: 1, info: 2, success: 3 };
 
 export function useActions() {
   const [stored, setStored] = useState(load);
-  const { trackedArtists } = useTrackedArtists();
+  const { followedArtists } = useFollowedArtists();
 
   // Regenerate when the tracked roster arrives/changes (actions.js caches
   // internally and invalidates itself on roster change)
   // eslint-disable-next-line react-hooks/exhaustive-deps -- roster change must retrigger the module-level generator
-  const systemActions = useMemo(() => generateAllActions(), [trackedArtists]);
+  const systemActions = useMemo(() => generateAllActions(), [followedArtists]);
 
   const actions = useMemo(() => {
     const applyStepState = (a) => {
@@ -299,6 +299,55 @@ export function useActions() {
     return newAction.id;
   }, []);
 
+  // Create a whole plan (from the wizard, a template, or built by hand) as
+  // custom actions for one artist. Also selects any suggested system actions
+  // the user kept from the review step.
+  const addPlan = useCallback((artist, draft, systemActionIds = []) => {
+    const planId = `plan-${Date.now()}`;
+    const priorityScore = { high: 3.5, medium: 2.5, low: 1.5 };
+    const newActions = draft.actions
+      .filter(d => d.action.trim())
+      .map((d, i) => {
+        const id = `action-${planId}-${i}`;
+        return {
+          id,
+          artistSlug: artist.slug,
+          artistName: artist.name,
+          artistImage: artist.imageUrl || null,
+          platform: 'general',
+          dataType: d.dataType || 'general',
+          insightType: 'info',
+          text: d.text || '',
+          action: d.action.trim(),
+          priority: priorityScore[d.priority] ?? 2.5,
+          owner: d.owner || null,
+          dueDate: d.dueDate || null,
+          steps: d.steps
+            .filter(s => s.text.trim())
+            .map((s, j) => ({ id: `${id}-p${j}`, text: s.text.trim(), category: s.category || 'tactical' })),
+          planId,
+          planName: draft.name || null,
+          source: 'plan',
+          createdAt: new Date().toISOString(),
+        };
+      });
+
+    setStored(prev => {
+      const nextSelected = { ...prev.selected };
+      for (const a of newActions) nextSelected[a.id] = true;
+      for (const id of systemActionIds) nextSelected[id] = true;
+      const next = {
+        ...prev,
+        customActions: [...newActions, ...(prev.customActions || [])],
+        selected: nextSelected,
+      };
+      save(next);
+      return next;
+    });
+
+    return planId;
+  }, []);
+
   const counts = useMemo(() => ({
     active: activeActions.length,
     completed: completedActions.length,
@@ -326,6 +375,7 @@ export function useActions() {
     selectActions,
     deselectAction,
     addCustomAction,
+    addPlan,
     counts,
   };
 }

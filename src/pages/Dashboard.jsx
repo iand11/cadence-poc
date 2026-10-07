@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   Star, Sparkles, ArrowUp, Music, GripVertical,
   RotateCcw, MessageSquare, X, TrendingUp,
-  Plus, LayoutGrid, Check, ListMusic, ListChecks, Users, ArrowRight,
+  Plus, LayoutGrid, Check, ListMusic, ListChecks, Users, ArrowRight, FolderTree,
 } from 'lucide-react';
 import KpiCard from '../components/shared/KpiCard';
 import DataTable from '../components/shared/DataTable';
@@ -17,7 +17,9 @@ import BenchmarkRadarChart from '../components/charts/BenchmarkRadarChart';
 import PlatformBreakdownChart from '../components/charts/PlatformBreakdownChart';
 import ChatMessage from '../components/ai/ChatMessage';
 import TypingIndicator from '../components/ai/TypingIndicator';
-import TrackedArtistPicker from '../components/TrackedArtistPicker';
+import FollowArtistPicker from '../components/FollowArtistPicker';
+import GroupsManager from '../components/groups/GroupsManager';
+import GroupsSidebarList from '../components/groups/GroupsSidebarList';
 import {
   getArtist,
   generateStreamingTrend,
@@ -28,12 +30,13 @@ import {
   getTopTracksAcrossRoster,
   getRecentReleases,
 } from '../data/artists';
-import { getRosterPlaylistStats } from '../data/playlistData';
+import { fetchPlacements, fetchPlaylists } from '../data/playlistsRemote';
+import { useAsync } from '../hooks/useAsync';
 import { getRosterTrackStats } from '../data/trackData';
 import { generateInsights } from '../utils/insights';
 import { useChat } from '../hooks/useChat';
 import { useFavorites } from '../hooks/useFavorites';
-import { useTrackedArtists } from '../hooks/useTrackedArtists';
+import { useFollowedArtists } from '../hooks/useFollowedArtists';
 import { useActions } from '../hooks/useActions';
 import { formatNumber, formatCurrency } from '../utils/formatters';
 
@@ -50,7 +53,7 @@ const WIDGET_CATALOG = [
   { id: 'forecast',              title: 'Stream Forecast',       subtitle: '60d actual + 30d predicted' },
   { id: 'geography',             title: 'Audience Geography',    subtitle: 'Listener hotspots map' },
   { id: 'platform-breakdown',    title: 'Platform Breakdown',    subtitle: 'Streams by platform' },
-  { id: 'benchmark',             title: 'Benchmark Radar',       subtitle: 'Artist vs roster average' },
+  { id: 'benchmark',             title: 'Benchmark Radar',       subtitle: 'Artist vs followed-artist average' },
   { id: 'trending',              title: 'Trending Artists',      subtitle: 'High popularity artists' },
   { id: 'genre-distribution',    title: 'Genre Distribution',    subtitle: 'Artists across genres' },
   { id: 'leaderboard-listeners', title: 'Top by Listeners',      subtitle: 'Spotify monthly' },
@@ -111,12 +114,16 @@ function StaticInsight({ type, text }) {
   );
 }
 
-// Artist selector scoped to the user's tracked artists.
+// Artist selector scoped to the user's followed artists, with group shortcuts.
 function ArtistMultiSelect({ value, onChange, options }) {
+  const { groups } = useFollowedArtists();
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   const isAll = value[0] === '__all__';
-  const label = isAll ? 'All tracked'
+  const groupId = value[0]?.startsWith(GROUP_TOKEN) ? value[0].slice(GROUP_TOKEN.length) : null;
+  const activeGroup = groupId ? groups.find(g => g.id === groupId) : null;
+  const label = isAll ? 'All following'
+    : groupId ? (activeGroup?.name || 'All following')
     : value.length === 1 ? (getArtist(value[0])?.name || value[0])
     : `${value.length} artists`;
 
@@ -132,7 +139,11 @@ function ArtistMultiSelect({ value, onChange, options }) {
       onChange(['__all__']);
       return;
     }
-    const cur = value.filter(s => s !== '__all__');
+    if (slug.startsWith(GROUP_TOKEN)) {
+      onChange(value[0] === slug ? ['__all__'] : [slug]);
+      return;
+    }
+    const cur = value.filter(s => s !== '__all__' && !s.startsWith(GROUP_TOKEN));
     const next = cur.includes(slug) ? cur.filter(s => s !== slug) : [...cur, slug];
     onChange(next.length > 0 ? next : ['__all__']);
   };
@@ -156,12 +167,29 @@ function ArtistMultiSelect({ value, onChange, options }) {
               <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 ${isAll ? 'bg-[#DA7756] border-[#DA7756]' : 'border-[#3D3B37]'}`}>
                 {isAll && <Check size={8} className="text-[#0D0C0B]" />}
               </div>
-              <span className="font-medium">All tracked artists</span>
+              <span className="font-medium">All following</span>
               <span className="ml-auto text-[#6B6560]">{options.length}</span>
             </button>
+            {groups.filter(g => g.slugs.length > 0).map(g => {
+              const on = groupId === g.id;
+              return (
+                <button
+                  key={g.id}
+                  onClick={() => toggle(GROUP_TOKEN + g.id)}
+                  className={`w-full flex items-center gap-2 px-3 py-1.5 text-left text-[10px] hover:bg-[#2C2B28]/50 transition-colors cursor-pointer ${on ? 'text-[#F5F0E8]' : 'text-[#9B9590]'}`}
+                >
+                  <div className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 ${on ? 'bg-[#DA7756] border-[#DA7756]' : 'border-[#3D3B37]'}`}>
+                    {on && <Check size={8} className="text-[#0D0C0B]" />}
+                  </div>
+                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: g.color }} />
+                  <span className="truncate">{g.name}</span>
+                  <span className="ml-auto text-[#6B6560]">{g.slugs.length}</span>
+                </button>
+              );
+            })}
             <div className="border-t border-[#2C2B28] my-1" />
             {options.map(a => {
-              const checked = !isAll && value.includes(a.slug);
+              const checked = !isAll && !groupId && value.includes(a.slug);
               return (
                 <button
                   key={a.slug}
@@ -215,20 +243,33 @@ function WidgetCard({ id, title, subtitle, headerRight, children, onDragStart, o
   );
 }
 
-// --- Resolve a per-widget selection to artist objects (scoped to tracked set) ---
-function resolveArtists(slugs, trackedArtists) {
-  if (slugs[0] === '__all__') return trackedArtists;
-  const resolved = slugs.map(s => getArtist(s)).filter(Boolean);
-  // A selected artist may have been untracked (getArtist now returns null
-  // outside the roster) — fall back to the full tracked set rather than
-  // rendering aggregates over an empty list.
-  return resolved.length > 0 ? resolved : trackedArtists;
-}
+// --- Resolve a per-widget selection to artist objects (scoped to followed set) ---
+// A selection is ['__all__'], ['__group:<id>'] (live — follows group edits),
+// or a list of artist slugs.
+const GROUP_TOKEN = '__group:';
 
-function selectionLabel(slugs) {
-  if (slugs[0] === '__all__') return 'All tracked';
-  if (slugs.length === 1) return getArtist(slugs[0])?.name || slugs[0];
-  return `${slugs.length} artists`;
+function useArtistSelection(slugs, followedArtists) {
+  const { groups } = useFollowedArtists();
+  return useMemo(() => {
+    if (slugs[0] === '__all__') return { artists: followedArtists, label: 'All following' };
+    if (slugs[0].startsWith(GROUP_TOKEN)) {
+      const group = groups.find(g => g.id === slugs[0].slice(GROUP_TOKEN.length));
+      const members = group ? followedArtists.filter(a => group.slugs.includes(a.slug)) : [];
+      // Deleted or empty group — fall back to everyone followed.
+      return members.length > 0
+        ? { artists: members, label: group.name }
+        : { artists: followedArtists, label: 'All following' };
+    }
+    const resolved = slugs.map(s => getArtist(s)).filter(Boolean);
+    // A selected artist may have been unfollowed (getArtist now returns null
+    // outside the followed set) — fall back to everyone followed rather than
+    // rendering aggregates over an empty list.
+    if (resolved.length === 0) return { artists: followedArtists, label: 'All following' };
+    return {
+      artists: resolved,
+      label: resolved.length === 1 ? resolved[0].name : `${resolved.length} artists`,
+    };
+  }, [slugs, followedArtists, groups]);
 }
 
 // --- Aggregate helpers ---
@@ -296,16 +337,16 @@ function aggBenchmark(artists) {
   return { dimensions: dims, artist: { normalized: avgNorm }, benchmark: all[0].benchmark };
 }
 
-// --- Artist-selectable widget components (scoped to tracked set) ---
+// --- Artist-selectable widget components (scoped to followed set) ---
 
-function StreamingWidget({ dragProps, trackedArtists, options }) {
+function StreamingWidget({ dragProps, followedArtists, options }) {
   const [slugs, setSlugs] = useState(['__all__']);
-  const artists = useMemo(() => resolveArtists(slugs, trackedArtists), [slugs, trackedArtists]);
+  const { artists, label } = useArtistSelection(slugs, followedArtists);
   const data = useMemo(() => aggStreaming(artists), [artists]);
   const insight = useMemo(() => generateInsights(artists[0]).streaming[0], [artists]);
 
   return (
-    <WidgetCard id="streaming" title="Streaming Trends" subtitle={`${selectionLabel(slugs)} — 90 days`}
+    <WidgetCard id="streaming" title="Streaming Trends" subtitle={`${label} — 90 days`}
       headerRight={<ArtistMultiSelect value={slugs} onChange={setSlugs} options={options} />} {...dragProps}>
       <StreamingTrendChart data={data} />
       <WidgetInsight insight={insight} />
@@ -313,14 +354,14 @@ function StreamingWidget({ dragProps, trackedArtists, options }) {
   );
 }
 
-function SocialWidget({ dragProps, trackedArtists, options }) {
+function SocialWidget({ dragProps, followedArtists, options }) {
   const [slugs, setSlugs] = useState(['__all__']);
-  const artists = useMemo(() => resolveArtists(slugs, trackedArtists), [slugs, trackedArtists]);
+  const { artists, label } = useArtistSelection(slugs, followedArtists);
   const data = useMemo(() => aggSocial(artists), [artists]);
   const insight = useMemo(() => generateInsights(artists[0]).social[0], [artists]);
 
   return (
-    <WidgetCard id="social" title="Social Growth" subtitle={`${selectionLabel(slugs)} — 90 days`}
+    <WidgetCard id="social" title="Social Growth" subtitle={`${label} — 90 days`}
       headerRight={<ArtistMultiSelect value={slugs} onChange={setSlugs} options={options} />} {...dragProps}>
       <SocialGrowthChart data={data} />
       <WidgetInsight insight={insight} />
@@ -328,14 +369,14 @@ function SocialWidget({ dragProps, trackedArtists, options }) {
   );
 }
 
-function ForecastWidget({ dragProps, trackedArtists, options }) {
+function ForecastWidget({ dragProps, followedArtists, options }) {
   const [slugs, setSlugs] = useState(['__all__']);
-  const artists = useMemo(() => resolveArtists(slugs, trackedArtists), [slugs, trackedArtists]);
+  const { artists, label } = useArtistSelection(slugs, followedArtists);
   const data = useMemo(() => aggForecast(artists), [artists]);
   const insight = useMemo(() => generateInsights(artists[0]).streaming[0], [artists]);
 
   return (
-    <WidgetCard id="forecast" title="Stream Forecast" subtitle={`${selectionLabel(slugs)} — 60d + 30d predicted`}
+    <WidgetCard id="forecast" title="Stream Forecast" subtitle={`${label} — 60d + 30d predicted`}
       headerRight={<ArtistMultiSelect value={slugs} onChange={setSlugs} options={options} />} {...dragProps}>
       <ForecastChart data={data} todayIndex={59} />
       <WidgetInsight insight={insight} />
@@ -343,15 +384,17 @@ function ForecastWidget({ dragProps, trackedArtists, options }) {
   );
 }
 
-function BenchmarkWidget({ dragProps, trackedArtists, options }) {
+function BenchmarkWidget({ dragProps, followedArtists, options }) {
   const [slugs, setSlugs] = useState(['__all__']);
-  const artists = useMemo(() => resolveArtists(slugs, trackedArtists), [slugs, trackedArtists]);
+  const { artists, label } = useArtistSelection(slugs, followedArtists);
   const data = useMemo(() => aggBenchmark(artists), [artists]);
   const insight = useMemo(() => generateInsights(artists[0]).streaming[0], [artists]);
-  const name = slugs[0] === '__all__' ? 'Tracked avg' : artists.length === 1 ? artists[0].name : `${artists.length} artists avg`;
+  const name = slugs[0] === '__all__' ? 'Following avg'
+    : slugs[0].startsWith(GROUP_TOKEN) ? `${label} avg`
+    : artists.length === 1 ? artists[0].name : `${artists.length} artists avg`;
 
   return (
-    <WidgetCard id="benchmark" title="Benchmark Radar" subtitle={`${name} vs roster average`}
+    <WidgetCard id="benchmark" title="Benchmark Radar" subtitle={`${name} vs your followed-artist average`}
       headerRight={<ArtistMultiSelect value={slugs} onChange={setSlugs} options={options} />} {...dragProps}>
       <BenchmarkRadarChart
         artist={data.artist}
@@ -364,15 +407,15 @@ function BenchmarkWidget({ dragProps, trackedArtists, options }) {
   );
 }
 
-function RevenueWidget({ dragProps, trackedArtists, options }) {
+function RevenueWidget({ dragProps, followedArtists, options }) {
   const [slugs, setSlugs] = useState(['__all__']);
-  const artists = useMemo(() => resolveArtists(slugs, trackedArtists), [slugs, trackedArtists]);
+  const { artists, label } = useArtistSelection(slugs, followedArtists);
   const data = useMemo(() => aggRevenue(artists), [artists]);
   const total = data.reduce((s, r) => s + r.amount, 0);
   const insight = useMemo(() => generateInsights(artists[0]).revenue[0], [artists]);
 
   return (
-    <WidgetCard id="revenue" title="Revenue Breakdown" subtitle={`${selectionLabel(slugs)} — ${formatCurrency(total)}`}
+    <WidgetCard id="revenue" title="Revenue Breakdown" subtitle={`${label} — ${formatCurrency(total)}`}
       headerRight={<ArtistMultiSelect value={slugs} onChange={setSlugs} options={options} />} {...dragProps}>
       <RevenueDonutChart data={data} totalRevenue={total} />
       <WidgetInsight insight={insight} />
@@ -380,14 +423,14 @@ function RevenueWidget({ dragProps, trackedArtists, options }) {
   );
 }
 
-function GeographyWidget({ dragProps, trackedArtists, options }) {
+function GeographyWidget({ dragProps, followedArtists, options }) {
   const [slugs, setSlugs] = useState(['__all__']);
-  const artists = useMemo(() => resolveArtists(slugs, trackedArtists), [slugs, trackedArtists]);
+  const { artists, label } = useArtistSelection(slugs, followedArtists);
   const data = useMemo(() => aggGeography(artists), [artists]);
   const insight = useMemo(() => generateInsights(artists[0]).geography[0], [artists]);
 
   return (
-    <WidgetCard id="geography" title="Audience Geography" subtitle={`${selectionLabel(slugs)} — listener hotspots`}
+    <WidgetCard id="geography" title="Audience Geography" subtitle={`${label} — listener hotspots`}
       headerRight={<ArtistMultiSelect value={slugs} onChange={setSlugs} options={options} />} {...dragProps}>
       <GeographyHeatMap data={data} />
       <WidgetInsight insight={insight} />
@@ -395,14 +438,14 @@ function GeographyWidget({ dragProps, trackedArtists, options }) {
   );
 }
 
-function PlatformWidget({ dragProps, trackedArtists, options }) {
+function PlatformWidget({ dragProps, followedArtists, options }) {
   const [slugs, setSlugs] = useState(['__all__']);
-  const artists = useMemo(() => resolveArtists(slugs, trackedArtists), [slugs, trackedArtists]);
+  const { artists, label } = useArtistSelection(slugs, followedArtists);
   const data = useMemo(() => aggStreaming(artists, 12), [artists]);
   const insight = useMemo(() => generateInsights(artists[0]).playlists[0], [artists]);
 
   return (
-    <WidgetCard id="platform-breakdown" title="Platform Breakdown" subtitle={`${selectionLabel(slugs)} — streams by platform`}
+    <WidgetCard id="platform-breakdown" title="Platform Breakdown" subtitle={`${label} — streams by platform`}
       headerRight={<ArtistMultiSelect value={slugs} onChange={setSlugs} options={options} />} {...dragProps}>
       <PlatformBreakdownChart data={data} />
       <WidgetInsight insight={insight} />
@@ -410,44 +453,54 @@ function PlatformWidget({ dragProps, trackedArtists, options }) {
   );
 }
 
-function PlaylistWidget({ dragProps, trackedArtists }) {
-  // Playlist stats derive from the tracked roster, which is fetched async —
-  // scope by the loaded roster so this re-derives whenever it changes.
-  const plStats = useMemo(
-    () => getRosterPlaylistStats(trackedArtists.map(a => a.slug)),
-    [trackedArtists],
+function PlaylistWidget({ dragProps, followedArtists }) {
+  // Real placements of the tracked roster on crawled playlists.
+  const slugs = useMemo(() => followedArtists.map((a) => a.slug), [followedArtists]);
+  const { data } = useAsync(
+    () => Promise.all([
+      fetchPlacements({ slugs, limit: 1 }),
+      fetchPlaylists({ slugs, sort: 'roster', perPage: 5 }),
+    ]),
+    [slugs.join(',')],
   );
+  const s = data?.[0]?.summary;
+  const top = data?.[1]?.playlists || [];
+  const editorialRate = s?.playlists ? Math.round((s.editorialPlaylists / s.playlists) * 100) : 0;
 
   return (
-    <WidgetCard id="playlist-overview" title="Playlist Intelligence" subtitle={`${plStats.totalPlacements} placements · ${plStats.editorialRate}% editorial`} {...dragProps}>
+    <WidgetCard id="playlist-overview" title="Playlist Intelligence"
+      subtitle={s ? `${formatNumber(s.playlists)} playlists · ${editorialRate}% editorial/chart` : 'Loading placements…'} {...dragProps}>
       <div className="grid grid-cols-2 gap-2 mb-3">
         <div className="bg-[#0D0C0B] rounded p-2 text-center">
-          <p className="text-xs font-mono text-[#F5F0E8]">{formatNumber(plStats.totalPlacements)}</p>
+          <p className="text-xs font-mono text-[#F5F0E8]">{formatNumber(s?.placements ?? 0)}</p>
           <p className="text-[9px] text-[#6B6560]">Placements</p>
         </div>
         <div className="bg-[#0D0C0B] rounded p-2 text-center">
-          <p className="text-xs font-mono text-[#F5F0E8]">{formatNumber(plStats.totalReach)}</p>
-          <p className="text-[9px] text-[#6B6560]">Total Reach</p>
+          <p className="text-xs font-mono text-[#F5F0E8]">{formatNumber(s?.reach ?? 0)}</p>
+          <p className="text-[9px] text-[#6B6560]">Playlist Reach</p>
         </div>
       </div>
       <div className="space-y-0.5">
-        {plStats.topPlaylists.slice(0, 5).map((pl) => (
+        {top.map((pl) => (
           <Link key={pl.id} to={`/app/playlist/${pl.id}`} className="block">
             <div className="group flex items-center gap-2.5 px-2 py-1.5 rounded hover:bg-[#0D0C0B] transition-all">
-              <div className="w-7 h-7 rounded bg-[#2C2B28] flex items-center justify-center shrink-0">
-                <ListMusic size={11} className="text-[#6B6560]" />
-              </div>
+              {pl.imageUrl
+                ? <img src={pl.imageUrl} alt="" className="w-7 h-7 rounded object-cover shrink-0" loading="lazy" />
+                : <div className="w-7 h-7 rounded bg-[#2C2B28] flex items-center justify-center shrink-0"><ListMusic size={11} className="text-[#6B6560]" /></div>}
               <div className="flex-1 min-w-0">
                 <p className="text-xs text-[#F5F0E8] truncate group-hover:text-[#DA7756] transition-colors">{pl.name}</p>
-                <p className="text-[9px] text-[#6B6560] truncate">{pl.rosterTracks} artist{pl.rosterTracks === 1 ? '' : 's'}</p>
+                <p className="text-[9px] text-[#6B6560] truncate">{pl.rosterArtists} followed artist{pl.rosterArtists === 1 ? '' : 's'} · {pl.curator}</p>
               </div>
-              <span className="text-[10px] font-mono text-[#9B9590] shrink-0">{formatNumber(pl.totalStreamAttribution)}</span>
+              <span className="text-[10px] font-mono text-[#9B9590] shrink-0">{pl.followers != null ? formatNumber(pl.followers) : '—'}</span>
             </div>
           </Link>
         ))}
+        {data && top.length === 0 && <p className="text-[10px] text-[#6B6560] px-2 py-2">None of the artists you follow are on tracked playlists yet.</p>}
       </div>
-      <StaticInsight type="success"
-        text={`${plStats.editorialPlacements} editorial placements across your tracked artists — ${plStats.editorialRate}% editorial rate with ${formatNumber(plStats.totalStreamAttribution)} total attributed streams.`} />
+      {s && s.playlists > 0 && (
+        <StaticInsight type="success"
+          text={`Artists you follow are on ${formatNumber(s.playlists)} tracked playlists (${formatNumber(s.editorialPlaylists)} editorial/chart) reaching ${formatNumber(s.reach)} followers — +${formatNumber(s.added30d)} adds and −${formatNumber(s.removed30d)} drops in the last 30 days.`} />
+      )}
     </WidgetCard>
   );
 }
@@ -510,13 +563,13 @@ function TrackIntelligenceWidget({ dragProps, trackedSlugs }) {
 
 // --- Onboarding / empty-state ---
 
-function EmptyState({ tracked, count, onToggle, onDone }) {
+function EmptyState({ followed, count, onToggle, onDone }) {
   return (
     <div className="max-w-2xl mx-auto pt-12 sm:pt-20 pb-32">
       <div className="mb-8">
         <p className="text-[11px] uppercase tracking-[0.2em] text-[#DA7756] mb-3">Get started</p>
         <h1 className="text-3xl sm:text-4xl font-light text-[#F5F0E8] tracking-tight">
-          Who are you tracking?
+          Who do you want to follow?
         </h1>
         <p className="text-sm text-[#9B9590] mt-3 leading-relaxed">
           Your dashboard is built around the artists you follow. Add a few to get started —
@@ -524,7 +577,7 @@ function EmptyState({ tracked, count, onToggle, onDone }) {
         </p>
       </div>
 
-      <TrackedArtistPicker tracked={tracked} onToggle={onToggle} size="lg" />
+      <FollowArtistPicker followed={followed} onToggle={onToggle} size="lg" />
 
       {/* Sticky continue bar — appears once something is selected */}
       <AnimatePresence>
@@ -560,7 +613,7 @@ function EmptyState({ tracked, count, onToggle, onDone }) {
 export default function Dashboard() {
   const navigate = useNavigate();
   const { favorites, toggleFavorite, isFavorite } = useFavorites();
-  const { tracked, trackedArtists, toggleTracked, loading } = useTrackedArtists();
+  const { followed, followedArtists, toggleFollow, loading, groups } = useFollowedArtists();
   const { artistSummary, counts: actionCounts } = useActions();
   const { messages, state: chatState, suggestions, sendMessage, pendingAction, clearAction } = useChat();
 
@@ -568,17 +621,22 @@ export default function Dashboard() {
   const [entered, setEntered] = useState(false);
   const [dragId, setDragId] = useState(null);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [manageOpen, setManageOpen] = useState(false);
+  // Following modal: null = closed, else { tab: 'artists' | 'groups', groupId }
+  const [manage, setManage] = useState(null);
+  const manageOpen = manage !== null;
+  const openGroups = (groupId = null) => setManage({ tab: 'groups', groupId });
+  // Sidebar card tab: favorites | groups
+  const [sideTab, setSideTab] = useState('favorites');
   const [chatOpen, setChatOpen] = useState(false);
   const [chatQuery, setChatQuery] = useState('');
   const chatEndRef = useRef(null);
   const chatInputRef = useRef(null);
-  // Capture (once loaded) whether this session started with an empty tracked set,
+  // Capture (once loaded) whether this session started with no followed artists,
   // so a new user stays in the onboarding picker until they click "Go to dashboard"
-  // — instead of being kicked out the moment they track their first artist.
+  // — instead of being kicked out the moment they follow their first artist.
   const [startedEmpty, setStartedEmpty] = useState(undefined);
   if (!loading && startedEmpty === undefined) {
-    setStartedEmpty(trackedArtists.length === 0);
+    setStartedEmpty(followedArtists.length === 0);
   }
 
   // Handle navigation actions from chat
@@ -596,7 +654,7 @@ export default function Dashboard() {
 
   // --- Aggregate stats over the tracked set ---
   const stats = useMemo(() => {
-    const list = trackedArtists;
+    const list = followedArtists;
     return {
       total: list.length,
       totalListeners: list.reduce((s, a) => s + a.spotify.monthlyListeners, 0),
@@ -604,43 +662,43 @@ export default function Dashboard() {
       totalPlaylists: list.reduce((s, a) => s + (a.playlists?.spotify?.total || 0), 0),
       totalPlaylistReach: list.reduce((s, a) => s + (a.playlists?.spotify?.reach || 0), 0),
     };
-  }, [trackedArtists]);
+  }, [followedArtists]);
 
   const avgPopularity = useMemo(() =>
-    trackedArtists.length > 0
-      ? Math.round(trackedArtists.reduce((s, a) => s + a.spotify.popularity, 0) / trackedArtists.length)
+    followedArtists.length > 0
+      ? Math.round(followedArtists.reduce((s, a) => s + a.spotify.popularity, 0) / followedArtists.length)
       : 0,
-  [trackedArtists]);
+  [followedArtists]);
 
   const rosterAvg = useMemo(() => {
-    const n = trackedArtists.length || 1;
+    const n = followedArtists.length || 1;
     return {
-      listeners: trackedArtists.reduce((s, a) => s + a.spotify.monthlyListeners, 0) / n,
-      social: trackedArtists.reduce((s, a) => s + a.social.instagram + a.social.tiktok + a.social.youtube, 0) / n,
+      listeners: followedArtists.reduce((s, a) => s + a.spotify.monthlyListeners, 0) / n,
+      social: followedArtists.reduce((s, a) => s + a.social.instagram + a.social.tiktok + a.social.youtube, 0) / n,
     };
-  }, [trackedArtists]);
+  }, [followedArtists]);
 
   const top6 = useMemo(() =>
-    [...trackedArtists].sort((a, b) => a.rank - b.rank).slice(0, 6),
-  [trackedArtists]);
+    [...followedArtists].sort((a, b) => a.rank - b.rank).slice(0, 6),
+  [followedArtists]);
 
   const byListeners = useMemo(() =>
-    [...trackedArtists].sort((a, b) => b.spotify.monthlyListeners - a.spotify.monthlyListeners)
+    [...followedArtists].sort((a, b) => b.spotify.monthlyListeners - a.spotify.monthlyListeners)
       .slice(0, 8).map((a, i) => ({ pos: i + 1, name: a.name, slug: a.slug, stat: a.spotify.monthlyListeners })),
-  [trackedArtists]);
+  [followedArtists]);
 
   const bySocial = useMemo(() =>
-    [...trackedArtists].sort((a, b) =>
+    [...followedArtists].sort((a, b) =>
       (b.social.instagram + b.social.tiktok + b.social.youtube) -
       (a.social.instagram + a.social.tiktok + a.social.youtube))
       .slice(0, 8).map((a, i) => ({
         pos: i + 1, name: a.name, slug: a.slug,
         stat: a.social.instagram + a.social.tiktok + a.social.youtube,
       })),
-  [trackedArtists]);
+  [followedArtists]);
 
   const trendingArtists = useMemo(() =>
-    trackedArtists
+    followedArtists
       .filter(a => a.spotify.popularity >= 70)
       .sort((a, b) => b.spotify.popularity - a.spotify.popularity)
       .slice(0, 8)
@@ -648,15 +706,15 @@ export default function Dashboard() {
         pos: i + 1, name: a.name, slug: a.slug,
         listeners: a.spotify.monthlyListeners,
       })),
-  [trackedArtists]);
+  [followedArtists]);
 
   const trendingTotal = useMemo(() =>
-    trackedArtists.filter(a => a.spotify.popularity >= 70).length,
-  [trackedArtists]);
+    followedArtists.filter(a => a.spotify.popularity >= 70).length,
+  [followedArtists]);
 
   const genreDistribution = useMemo(() => {
     const counts = {};
-    trackedArtists.forEach(a => {
+    followedArtists.forEach(a => {
       const genre = a.genres?.primary?.name || 'Other';
       counts[genre] = (counts[genre] || 0) + 1;
     });
@@ -664,31 +722,31 @@ export default function Dashboard() {
       .sort((a, b) => b[1] - a[1])
       .slice(0, 10)
       .map(([name, count]) => ({ name, count }));
-  }, [trackedArtists]);
+  }, [followedArtists]);
   const maxGenreCount = genreDistribution[0]?.count || 1;
 
   const [topTracks, setTopTracks] = useState([]);
   useEffect(() => {
     let cancelled = false;
-    getTopTracksAcrossRoster(8, tracked)
+    getTopTracksAcrossRoster(8, followed)
       .then((tracks) => { if (!cancelled) setTopTracks(tracks); })
       .catch(() => { if (!cancelled) setTopTracks([]); });
     return () => { cancelled = true; };
-  }, [tracked]);
+  }, [followed]);
 
   const [recentReleases, setRecentReleases] = useState([]);
   useEffect(() => {
     let cancelled = false;
-    getRecentReleases(6, tracked)
+    getRecentReleases(6, followed)
       .then((albums) => { if (!cancelled) setRecentReleases(albums); })
       .catch(() => { if (!cancelled) setRecentReleases([]); });
     return () => { cancelled = true; };
-  }, [tracked]);
+  }, [followed]);
 
   // getArtist resolves from the roster cache, so re-derive once summaries land.
   const favoriteArtists = useMemo(() =>
     favorites.map(slug => getArtist(slug)).filter(a => a && favorites.includes(a.slug)),
-  [favorites, trackedArtists]); // eslint-disable-line react-hooks/exhaustive-deps
+  [favorites, followedArtists]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // --- Drag reorder ---
   const persist = useCallback((list) => {
@@ -751,7 +809,7 @@ export default function Dashboard() {
 
   // --- Widget definitions ---
   const dragProps = { onDragStart: setDragId, onDragOver: handleDragOver, onDrop: handleDrop, onRemove: removeWidget };
-  const widgetArtistProps = { trackedArtists, options: trackedArtists };
+  const widgetArtistProps = { followedArtists, options: followedArtists };
 
   const widgets = {
     'top-artists': (
@@ -811,7 +869,7 @@ export default function Dashboard() {
             </Link>
           ))}
           {topTracks.length === 0 && (
-            <p className="text-[10px] text-[#6B6560] text-center py-4">No tracks for your tracked artists yet.</p>
+            <p className="text-[10px] text-[#6B6560] text-center py-4">No tracks for the artists you follow yet.</p>
           )}
         </div>
       </WidgetCard>
@@ -838,7 +896,7 @@ export default function Dashboard() {
             </Link>
           ))}
           {recentReleases.length === 0 && (
-            <p className="text-[10px] text-[#6B6560] col-span-3 text-center py-4">No recent releases for your tracked artists.</p>
+            <p className="text-[10px] text-[#6B6560] col-span-3 text-center py-4">No recent releases from the artists you follow.</p>
           )}
         </div>
       </WidgetCard>
@@ -855,7 +913,7 @@ export default function Dashboard() {
         <DataTable columns={leaderboardCols} data={byListeners} />
         {byListeners.length > 0 && (
           <StaticInsight type="info"
-            text={`#1 ${byListeners[0]?.name} has ${formatNumber(byListeners[0]?.stat)} monthly listeners — ${(byListeners[0]?.stat / (rosterAvg.listeners || 1)).toFixed(1)}x your tracked average of ${formatNumber(Math.round(rosterAvg.listeners))}.`} />
+            text={`#1 ${byListeners[0]?.name} has ${formatNumber(byListeners[0]?.stat)} monthly listeners — ${(byListeners[0]?.stat / (rosterAvg.listeners || 1)).toFixed(1)}x your followed-artist average of ${formatNumber(Math.round(rosterAvg.listeners))}.`} />
         )}
       </WidgetCard>
     ),
@@ -864,7 +922,7 @@ export default function Dashboard() {
         <DataTable columns={socialCols} data={bySocial} />
         {bySocial.length > 0 && (
           <StaticInsight type="info"
-            text={`#1 ${bySocial[0]?.name} has ${formatNumber(bySocial[0]?.stat)} combined social following — ${(bySocial[0]?.stat / (rosterAvg.social || 1)).toFixed(1)}x your tracked average.`} />
+            text={`#1 ${bySocial[0]?.name} has ${formatNumber(bySocial[0]?.stat)} combined social following — ${(bySocial[0]?.stat / (rosterAvg.social || 1)).toFixed(1)}x your followed-artist average.`} />
         )}
       </WidgetCard>
     ),
@@ -884,17 +942,17 @@ export default function Dashboard() {
             </Link>
           ))}
           {trendingArtists.length === 0 && (
-            <p className="text-[10px] text-[#6B6560] text-center py-4">None of your tracked artists are at 70+ popularity yet.</p>
+            <p className="text-[10px] text-[#6B6560] text-center py-4">None of the artists you follow are at 70+ popularity yet.</p>
           )}
         </div>
-        {trackedArtists.length > 0 && (
+        {followedArtists.length > 0 && (
           <StaticInsight type="success"
-            text={`${trendingTotal} of ${trackedArtists.length} tracked artists (${(trendingTotal / trackedArtists.length * 100).toFixed(0)}%) with 70+ popularity — strong algorithmic visibility.`} />
+            text={`${trendingTotal} of ${followedArtists.length} followed artists (${(trendingTotal / followedArtists.length * 100).toFixed(0)}%) with 70+ popularity — strong algorithmic visibility.`} />
         )}
       </WidgetCard>
     ),
     'genre-distribution': (
-      <WidgetCard id="genre-distribution" title="Genre Distribution" subtitle={`${trackedArtists.length} artists across genres`} {...dragProps}>
+      <WidgetCard id="genre-distribution" title="Genre Distribution" subtitle={`${followedArtists.length} artists across genres`} {...dragProps}>
         <div className="space-y-1.5 pt-1">
           {genreDistribution.map((g) => (
             <div key={g.name} className="flex items-center gap-2.5">
@@ -911,12 +969,12 @@ export default function Dashboard() {
         </div>
         {genreDistribution.length > 0 && (
           <StaticInsight type="info"
-            text={`${genreDistribution[0]?.name} leads with ${genreDistribution[0]?.count} artists (${(genreDistribution[0]?.count / trackedArtists.length * 100).toFixed(0)}% of your tracked set). ${genreDistribution.length >= 2 ? `${genreDistribution[1]?.name} follows with ${genreDistribution[1]?.count}.` : ''}`} />
+            text={`${genreDistribution[0]?.name} leads with ${genreDistribution[0]?.count} artists (${(genreDistribution[0]?.count / followedArtists.length * 100).toFixed(0)}% of your tracked set). ${genreDistribution.length >= 2 ? `${genreDistribution[1]?.name} follows with ${genreDistribution[1]?.count}.` : ''}`} />
         )}
       </WidgetCard>
     ),
-    'playlist-overview': <PlaylistWidget dragProps={dragProps} trackedArtists={trackedArtists} />,
-    'track-intelligence': <TrackIntelligenceWidget dragProps={dragProps} trackedSlugs={tracked} />,
+    'playlist-overview': <PlaylistWidget dragProps={dragProps} followedArtists={followedArtists} />,
+    'track-intelligence': <TrackIntelligenceWidget dragProps={dragProps} trackedSlugs={followed} />,
   };
 
   // --- Wait for the persisted slug list + roster summaries before deciding what to render ---
@@ -929,13 +987,13 @@ export default function Dashboard() {
   }
 
   // --- Onboarding: empty set, or still picking during first-run onboarding ---
-  const showOnboarding = trackedArtists.length === 0 || (startedEmpty && !entered);
+  const showOnboarding = followedArtists.length === 0 || (startedEmpty && !entered);
   if (showOnboarding) {
     return (
       <EmptyState
-        tracked={tracked}
-        count={trackedArtists.length}
-        onToggle={toggleTracked}
+        followed={followed}
+        count={followedArtists.length}
+        onToggle={toggleFollow}
         onDone={() => setEntered(true)}
       />
     );
@@ -949,15 +1007,15 @@ export default function Dashboard() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-light text-[#F5F0E8]">Dashboard</h1>
-            <p className="text-xs text-[#9B9590] mt-1">{trackedArtists.length} artists tracked — {activeWidgets.length} of {WIDGET_CATALOG.length} widgets active</p>
+            <p className="text-xs text-[#9B9590] mt-1">Following {followedArtists.length} artists — {activeWidgets.length} of {WIDGET_CATALOG.length} widgets active</p>
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setManageOpen(true)}
+              onClick={() => setManage({ tab: 'artists', groupId: null })}
               className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] text-[#DA7756] border border-[#DA7756]/20 hover:border-[#DA7756]/40 rounded transition-colors cursor-pointer"
             >
               <Users size={10} />
-              Manage artists
+              Following
             </button>
             <button
               onClick={() => setPickerOpen(!pickerOpen)}
@@ -1028,7 +1086,7 @@ export default function Dashboard() {
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2">
           <KpiCard title="Total Listeners" value={stats.totalListeners} index={0} />
           <KpiCard title="Total Followers" value={stats.totalFollowers} index={1} />
-          <KpiCard title="Artists Tracked" value={stats.total} index={2} />
+          <KpiCard title="Artists Followed" value={stats.total} index={2} />
           <KpiCard title="Avg Popularity" value={avgPopularity} suffix="/100" index={3} />
           <KpiCard title="Total Playlists" value={stats.totalPlaylists} index={4} />
           <KpiCard title="Playlist Reach" value={stats.totalPlaylistReach} index={5} />
@@ -1063,15 +1121,29 @@ export default function Dashboard() {
       <div className="w-56 shrink-0 hidden lg:block">
         <div className="sticky top-20">
           <div className="bg-[#171614] border border-[#2C2B28] rounded p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <Star size={13} className="text-[#DA7756]" />
-              <span className="text-xs font-medium text-[#9B9590]">Favorites</span>
-              {favoriteArtists.length > 0 && (
-                <span className="text-[10px] text-[#6B6560] ml-auto">{favoriteArtists.length}</span>
-              )}
+            {/* Favorites | Groups */}
+            <div className="flex items-center gap-1 mb-3 p-0.5 rounded-md bg-[#0D0C0B] border border-[#2C2B28]">
+              {[
+                ['favorites', Star, 'Favorites', favoriteArtists.length],
+                ['groups', FolderTree, 'Groups', groups.length],
+              ].map(([key, Icon, label, n]) => (
+                <button
+                  key={key}
+                  onClick={() => setSideTab(key)}
+                  className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1 rounded text-[11px] transition-colors cursor-pointer ${
+                    sideTab === key ? 'bg-[#2C2B28] text-[#F5F0E8]' : 'text-[#6B6560] hover:text-[#9B9590]'
+                  }`}
+                >
+                  <Icon size={11} className={sideTab === key ? 'text-[#DA7756]' : ''} />
+                  {label}
+                  {n > 0 && <span className="text-[9px] font-mono text-[#6B6560]">{n}</span>}
+                </button>
+              ))}
             </div>
 
-            {favoriteArtists.length === 0 ? (
+            {sideTab === 'groups' ? (
+              <GroupsSidebarList onOpen={openGroups} />
+            ) : favoriteArtists.length === 0 ? (
               <div className="text-center py-4">
                 <Star size={16} className="mx-auto mb-1.5 text-[#2C2B28]" />
                 <p className="text-[10px] text-[#6B6560] leading-relaxed">
@@ -1156,7 +1228,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Manage tracked artists modal */}
+      {/* Manage followed artists + groups modal */}
       <AnimatePresence>
         {manageOpen && (
           <motion.div
@@ -1164,7 +1236,7 @@ export default function Dashboard() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 flex items-start justify-center p-4 sm:p-8 bg-black/60 overflow-y-auto"
-            onClick={() => setManageOpen(false)}
+            onClick={() => setManage(null)}
           >
             <motion.div
               initial={{ y: 20, opacity: 0 }}
@@ -1175,17 +1247,40 @@ export default function Dashboard() {
             >
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h2 className="text-lg font-light text-[#F5F0E8]">Manage tracked artists</h2>
-                  <p className="text-xs text-[#9B9590] mt-0.5">{trackedArtists.length} tracked — add or remove to reshape your dashboard.</p>
+                  <h2 className="text-lg font-light text-[#F5F0E8]">{manage.tab === 'groups' ? 'Groups' : 'Following'}</h2>
+                  <p className="text-xs text-[#9B9590] mt-0.5">
+                    {manage.tab === 'groups'
+                      ? `${groups.length} group${groups.length === 1 ? '' : 's'} — create, rename, delete, and choose which artists belong to each.`
+                      : `${followedArtists.length} artists — follow or unfollow to reshape your dashboard.`}
+                  </p>
                 </div>
                 <button
-                  onClick={() => setManageOpen(false)}
+                  onClick={() => setManage(null)}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-[#DA7756] border border-[#DA7756]/20 hover:border-[#DA7756]/40 rounded transition-colors cursor-pointer"
                 >
                   <Check size={12} /> Done
                 </button>
               </div>
-              <TrackedArtistPicker tracked={tracked} onToggle={toggleTracked} />
+              {/* Tabs */}
+              <div className="flex items-center gap-1 mb-5 border-b border-[#2C2B28]">
+                {[
+                  ['artists', `Artists (${followedArtists.length})`],
+                  ['groups', `Groups (${groups.length})`],
+                ].map(([key, label]) => (
+                  <button
+                    key={key}
+                    onClick={() => setManage({ tab: key, groupId: null })}
+                    className={`px-3 py-2 -mb-px text-xs border-b-2 transition-colors cursor-pointer ${
+                      manage.tab === key ? 'border-[#DA7756] text-[#F5F0E8]' : 'border-transparent text-[#6B6560] hover:text-[#9B9590]'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {manage.tab === 'groups'
+                ? <GroupsManager key={manage.groupId || 'all'} initialExpandedId={manage.groupId} />
+                : <FollowArtistPicker followed={followed} onToggle={toggleFollow} />}
             </motion.div>
           </motion.div>
         )}

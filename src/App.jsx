@@ -1,5 +1,6 @@
 import { Outlet } from 'react-router';
 import AppBar from './components/layout/AppBar';
+import NotificationToasts from './components/notifications/NotificationToasts';
 
 export default function App() {
   return (
@@ -8,6 +9,7 @@ export default function App() {
       <main className="max-w-[1400px] mx-auto px-6 lg:px-10 pt-6 pb-10">
         <Outlet />
       </main>
+      <NotificationToasts />
     </div>
   );
 }

@@ -8,7 +8,8 @@ import ChartCard from '../components/shared/ChartCard';
 import KpiCard from '../components/shared/KpiCard';
 import Badge from '../components/shared/Badge';
 import { getTrackAsync, getArtistAsync, loadArtistDetail } from '../data/artists';
-import { generateTrackStreamingTrend, generateTrackPerformance, getTrackPlaylists } from '../data/trackData';
+import { generateTrackStreamingTrend, generateTrackPerformance } from '../data/trackData';
+import { PlaylistPlacements } from '../components/playlists/PlaylistBits';
 import StreamingTrendChart from '../components/charts/StreamingTrendChart';
 import { formatNumber, formatDelta } from '../utils/formatters';
 
@@ -286,41 +287,12 @@ export default function TrackProfile() {
         </ChartCard>
       </CollapsibleSection>
 
-      {/* Active Playlist Placements */}
-      {(() => {
-        const placements = getTrackPlaylists(track);
-        if (placements.length === 0) return null;
-        const shown = placements.slice(0, 10);
-        return (
-          <CollapsibleSection title="Playlist Placements" icon={ListMusic}>
-            <ChartCard title={`${placements.length} playlist${placements.length === 1 ? '' : 's'} featuring ${artistName}`}>
-              <div className="space-y-1">
-                {shown.map((p, i) => (
-                  <Link key={`${p.playlistId}-${i}`} to={`/app/playlist/${p.playlistId}`} className="block">
-                    <div className="flex items-center gap-3 px-2 py-2 rounded hover:bg-[#1C1B18] transition-colors group">
-                      <span className="text-[10px] font-mono text-[#6B6560] w-5 text-right shrink-0">{i + 1}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-[#F5F0E8] truncate group-hover:text-[#DA7756] transition-colors">{p.playlistName}</p>
-                        <p className="text-[10px] text-[#6B6560] truncate">{p.curator}</p>
-                      </div>
-                      <Badge variant={p.type === 'editorial' ? 'success' : p.type === 'algorithmic' ? 'info' : 'warning'}>{p.type}</Badge>
-                      {p.position && (
-                        <span className="hidden sm:inline text-[10px] font-mono text-[#9B9590] w-8 text-right shrink-0">#{p.position}</span>
-                      )}
-                      <span className="text-xs font-mono text-[#F5F0E8] w-16 text-right shrink-0">{formatNumber(p.streamsFromPlaylist)}</span>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-              {placements.length > 10 && (
-                <p className="text-[10px] text-[#6B6560] mt-3 text-center">
-                  Showing 10 of {placements.length} playlists
-                </p>
-              )}
-            </ChartCard>
-          </CollapsibleSection>
-        );
-      })()}
+      {/* Playlist placements (crawled) */}
+      <CollapsibleSection title="Playlist Placements" icon={ListMusic}>
+        <ChartCard title="Tracked playlists featuring this track" subtitle="Current and past placements, with position and days on playlist">
+          <PlaylistPlacements track={id} limit={10} />
+        </ChartCard>
+      </CollapsibleSection>
 
       {/* Similar tracks (same artist) */}
       {similar.length > 0 && (

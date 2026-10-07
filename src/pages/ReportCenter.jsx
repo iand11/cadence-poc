@@ -25,7 +25,7 @@ import {
   getBenchmarkComparison,
 } from '../data/artists';
 import { fetchArtistsBySlugs } from '../data/artistsRemote';
-import { useTrackedArtists } from '../hooks/useTrackedArtists';
+import { useFollowedArtists } from '../hooks/useFollowedArtists';
 import { formatNumber, formatCurrency } from '../utils/formatters';
 
 // --- Column definitions ---
@@ -86,7 +86,7 @@ export default function ReportCenter() {
     return 'Untitled Report';
   });
 
-  const { trackedArtists, loading: rosterLoading } = useTrackedArtists();
+  const { followedArtists, loading: rosterLoading } = useFollowedArtists();
 
   // Selected artists resolve asynchronously: report slug list / ?artists=
   // param / default (tracked roster, else top catalog artists)
@@ -123,15 +123,15 @@ export default function ReportCenter() {
 
     // Default: first 3 tracked artists, else top catalog artists (once)
     if (resolvedForRef.current === 'default' || rosterLoading) return;
-    if (trackedArtists.length > 0) {
-      Promise.resolve(trackedArtists.slice(0, 3)).then((artists) => apply(artists, 'default'));
+    if (followedArtists.length > 0) {
+      Promise.resolve(followedArtists.slice(0, 3)).then((artists) => apply(artists, 'default'));
     } else {
       getTopArtists(3)
         .then((artists) => apply(artists, 'default'))
         .catch(() => apply([], 'default'));
     }
     return () => { cancelled = true; };
-  }, [id, existingReport, searchParams, rosterLoading, trackedArtists]);
+  }, [id, existingReport, searchParams, rosterLoading, followedArtists]);
 
   const [selected, setSelected] = useState(() => {
     if (existingReport) return existingReport.widgets;
@@ -425,7 +425,7 @@ export default function ReportCenter() {
       </ChartCard>
     ),
     'benchmarks': benchmarkData ? () => (
-      <ChartCard title="Benchmark Radar" subtitle={`${selectedArtists[0]?.name || 'Artist'} vs roster average`}>
+      <ChartCard title="Benchmark Radar" subtitle={`${selectedArtists[0]?.name || 'Artist'} vs followed-artist average`}>
         <BenchmarkRadarChart
           artist={benchmarkData.artist}
           benchmark={benchmarkData.benchmark}

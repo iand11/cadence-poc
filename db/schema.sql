@@ -286,12 +286,12 @@ GROUP BY a.id, a.slug, a.name, sc.as_of;
 -- request; an outside service reads pending rows, gathers the artist's data,
 -- ingests it, then marks the request fulfilled (setting artist_id). A
 -- pg_notify('artist_requests', ...) fires on insert so LISTENing services
--- wake without polling. At most one open request per normalized name.
+-- wake without polling. At most one open request per Spotify artist.
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS artist_requests (
   id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   name         text NOT NULL,                    -- artist name as the user typed it
-  spotify_url  text,                             -- optional hint for the fetcher
+  spotify_url  text,                             -- canonical open.spotify.com/artist/<id> url
   notes        text,                             -- optional free-text context
   status       text NOT NULL DEFAULT 'pending',  -- pending | in_progress | fulfilled | rejected
   requested_by text,                             -- user id
@@ -302,8 +302,15 @@ CREATE TABLE IF NOT EXISTS artist_requests (
   artist_id    bigint REFERENCES artists (id) ON DELETE SET NULL,  -- set on fulfillment
   last_error   text
 );
-CREATE UNIQUE INDEX IF NOT EXISTS artist_requests_open_uniq
-  ON artist_requests (lower(name)) WHERE status IN ('pending', 'in_progress');
+-- Requests are picked from Spotify search, so they're keyed by Spotify id
+-- (two different artists can share a name). Older free-text rows have no
+-- spotify_id and are exempt from the uniqueness rule.
+ALTER TABLE artist_requests ADD COLUMN IF NOT EXISTS spotify_id   text;
+ALTER TABLE artist_requests ADD COLUMN IF NOT EXISTS spotify_data jsonb;  -- image/followers/popularity/genres snapshot at request time
+DROP INDEX IF EXISTS artist_requests_open_uniq;
+CREATE UNIQUE INDEX IF NOT EXISTS artist_requests_open_spotify_uniq
+  ON artist_requests (spotify_id)
+  WHERE status IN ('pending', 'in_progress') AND spotify_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS artist_requests_claim_idx
   ON artist_requests (status, requested_at);
 CREATE INDEX IF NOT EXISTS artist_requests_user_idx
@@ -312,7 +319,7 @@ CREATE INDEX IF NOT EXISTS artist_requests_user_idx
 CREATE OR REPLACE FUNCTION notify_artist_request() RETURNS trigger AS $$
 BEGIN
   PERFORM pg_notify('artist_requests', json_build_object(
-    'id', NEW.id, 'name', NEW.name, 'spotify_url', NEW.spotify_url
+    'id', NEW.id, 'name', NEW.name, 'spotify_id', NEW.spotify_id, 'spotify_url', NEW.spotify_url
   )::text);
   RETURN NEW;
 END $$ LANGUAGE plpgsql;
@@ -321,6 +328,103 @@ DROP TRIGGER IF EXISTS artist_requests_notify ON artist_requests;
 CREATE TRIGGER artist_requests_notify
   AFTER INSERT ON artist_requests
   FOR EACH ROW EXECUTE FUNCTION notify_artist_request();
+
+-- Everyone waiting on a request: the original requester plus anyone whose
+-- submit hit the already-open request. All of them get the artist added to
+-- their roster (and a notification) when it's fulfilled.
+CREATE TABLE IF NOT EXISTS artist_request_subscribers (
+  request_id    bigint NOT NULL REFERENCES artist_requests (id) ON DELETE CASCADE,
+  user_id       text   NOT NULL,
+  subscribed_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (request_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS artist_request_subscribers_user_idx
+  ON artist_request_subscribers (user_id);
+-- Backfill requests made before this table existed
+INSERT INTO artist_request_subscribers (request_id, user_id)
+SELECT id, requested_by FROM artist_requests WHERE requested_by IS NOT NULL
+ON CONFLICT DO NOTHING;
+
+-- ---------------------------------------------------------------------------
+-- Notifications — per-user in-app notifications (bell + toasts).
+-- delivered_at: the client has seen it and applied any side effect (e.g.
+--   added the artist to its in-memory roster) — set once, drives toasts.
+-- read_at: the user opened the notification list.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS notifications (
+  id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  user_id      text NOT NULL,
+  type         text NOT NULL,          -- artist_added | artist_request_rejected
+  title        text NOT NULL,
+  body         text,
+  data         jsonb,                  -- type-specific payload (slug, name, imageUrl, requestId)
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  delivered_at timestamptz,
+  read_at      timestamptz
+);
+CREATE INDEX IF NOT EXISTS notifications_user_idx ON notifications (user_id, created_at DESC);
+
+-- When the fulfillment service resolves a request, act for every subscriber:
+--   fulfilled → add the artist to their saved roster (user_data + the
+--               tracked_artists mirror) and notify them;
+--   rejected  → notify them.
+-- Done in the DB so it happens whether or not the user is online, and no
+-- matter which service flips the status.
+CREATE OR REPLACE FUNCTION on_artist_request_resolved() RETURNS trigger AS $$
+DECLARE
+  roster_key constant text := 'musicspace-tracked-artists-v1';
+  a record;
+BEGIN
+  IF NEW.status IS NOT DISTINCT FROM OLD.status THEN
+    RETURN NEW;
+  END IF;
+
+  IF NEW.status = 'fulfilled' AND NEW.artist_id IS NOT NULL THEN
+    SELECT id, slug, name, image_url INTO a FROM artists WHERE id = NEW.artist_id;
+    IF NOT FOUND THEN
+      RETURN NEW;
+    END IF;
+
+    INSERT INTO user_data (user_id, key, data, updated_at)
+    SELECT s.user_id, roster_key, jsonb_build_array(a.slug), now()
+    FROM artist_request_subscribers s WHERE s.request_id = NEW.id
+    ON CONFLICT (user_id, key) DO UPDATE SET
+      data = CASE
+        WHEN jsonb_typeof(user_data.data) <> 'array' OR user_data.data IS NULL
+          THEN jsonb_build_array(a.slug)
+        WHEN user_data.data @> jsonb_build_array(a.slug)
+          THEN user_data.data
+        ELSE user_data.data || jsonb_build_array(a.slug)
+      END,
+      updated_at = now();
+
+    INSERT INTO tracked_artists (user_id, artist_id)
+    SELECT s.user_id, a.id FROM artist_request_subscribers s WHERE s.request_id = NEW.id
+    ON CONFLICT DO NOTHING;
+
+    INSERT INTO notifications (user_id, type, title, body, data)
+    SELECT s.user_id, 'artist_added',
+           a.name || ' is ready',
+           'The artist you requested is ready — you are now following them.',
+           jsonb_build_object('slug', a.slug, 'name', a.name, 'imageUrl', a.image_url, 'requestId', NEW.id)
+    FROM artist_request_subscribers s WHERE s.request_id = NEW.id;
+
+  ELSIF NEW.status = 'rejected' THEN
+    INSERT INTO notifications (user_id, type, title, body, data)
+    SELECT s.user_id, 'artist_request_rejected',
+           'Couldn''t add ' || NEW.name,
+           'We weren''t able to gather data for this artist.',
+           jsonb_build_object('name', NEW.name, 'spotifyUrl', NEW.spotify_url, 'requestId', NEW.id)
+    FROM artist_request_subscribers s WHERE s.request_id = NEW.id;
+  END IF;
+
+  RETURN NEW;
+END $$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS artist_requests_resolved ON artist_requests;
+CREATE TRIGGER artist_requests_resolved
+  AFTER UPDATE OF status ON artist_requests
+  FOR EACH ROW EXECUTE FUNCTION on_artist_request_resolved();
 
 -- ---------------------------------------------------------------------------
 -- Ingest bookkeeping — makes the 200k-file bulk load resumable

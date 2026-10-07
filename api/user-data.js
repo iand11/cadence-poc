@@ -1,7 +1,7 @@
 import { query, queryOne, exec } from './lib/db.js';
 import { withAuth, verifyAuth } from './lib/auth.js';
 
-// Key the TrackedArtistsProvider persists its roster under. Writes to it are
+// Key the FollowedArtistsProvider persists followed artists under (name kept for compatibility). Writes to it are
 // mirrored into the tracked_artists table and newly tracked artists get a
 // refresh_queue job, so outside fetcher services learn about them instantly
 // (pg_notify fires on queue insert).

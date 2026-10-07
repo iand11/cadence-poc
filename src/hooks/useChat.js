@@ -1,16 +1,17 @@
 import { useState, useCallback, useRef } from 'react';
 import { getAggregateStats } from '../data/artists';
 import { getRoster, subscribeRoster } from '../data/rosterStore';
+import { useFollowedArtists } from './useFollowedArtists';
 
 const welcomeMessage = {
   role: 'ai',
-  text: "Hi, I'm Prelude. I'm tracking 100 artists across all major platforms including Spotify, Apple Music, TikTok, Instagram, and YouTube. Ask me anything about the roster — from breakout signals to tour routing to revenue projections. I can also build custom reports for you.",
+  text: "Hi, I'm Prelude. I'm watching the artists you follow across all major platforms including Spotify, Apple Music, TikTok, Instagram, and YouTube. Ask me anything about the artists you follow — from breakout signals to tour routing to revenue projections. I can also build custom reports for you.",
   isStreaming: false,
 };
 
 const suggestedPrompts = [
   "Which city should we route our next tour?",
-  "Show me breakout signals across the roster",
+  "Show me breakout signals across the artists I follow",
   "Predict streams for the next release cycle",
   "What's our sync licensing opportunity?",
   "Compare engagement across the top artists",
@@ -44,12 +45,22 @@ function getArtistContext() {
   });
 
   cachedContext = [
-    `TRACKED ROSTER: ${stats.total} artists, ${fmt(stats.totalListeners)} total monthly listeners, ${fmt(stats.totalFollowers)} followers`,
+    `FOLLOWED ARTISTS: ${stats.total} artists, ${fmt(stats.totalListeners)} total monthly listeners, ${fmt(stats.totalFollowers)} followers`,
     '',
     ...lines,
   ].join('\n');
 
   return cachedContext;
+}
+
+// The user's named groups of followed artists, so questions like "how is my
+// Priority group doing?" resolve. Not cached — groups change independently.
+function getGroupContext(groups) {
+  const names = new Map(getRoster().map(a => [a.slug, a.name]));
+  const lines = (groups || [])
+    .filter(g => g.slugs.length > 0)
+    .map(g => `${g.name}: ${g.slugs.map(s => names.get(s) || s).join(', ')}`);
+  return lines.length ? ['', 'USER GROUPS (named by the user):', ...lines].join('\n') : '';
 }
 
 function getRandomSuggestions(exclude, count = 3) {
@@ -65,6 +76,9 @@ export function useChat({ onCreateAction } = {}) {
   const [pendingAction, setPendingAction] = useState(null);
   const conversationRef = useRef([]); // API-format history
   const abortRef = useRef(null);
+  const { groups } = useFollowedArtists();
+  const groupsRef = useRef(groups);
+  groupsRef.current = groups;
   const onCreateActionRef = useRef(onCreateAction);
   onCreateActionRef.current = onCreateAction;
 
@@ -113,7 +127,7 @@ export function useChat({ onCreateAction } = {}) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: conversationRef.current,
-          artistContext: getArtistContext(),
+          artistContext: getArtistContext() + getGroupContext(groupsRef.current),
         }),
         signal: abortController.signal,
       });

@@ -1,7 +1,6 @@
 import { getTopTracksAcrossRoster, getArtist } from './artists';
 import { fetchTracks } from './artistsRemote';
 import { getRoster, subscribeRoster } from './rosterStore';
-import { getArtistPlaylists } from './playlistData';
 
 // --- Seeded random (same pattern as playlistData.js) ---
 function seededRandom(seed) {
@@ -70,13 +69,6 @@ export function generateTrackPerformance(track) {
     weeksTrending,
     playlistConversion,
   };
-}
-
-// --- Track playlist placements (proxy: artist's playlists) ---
-
-export function getTrackPlaylists(track) {
-  if (!track?.artistSlug) return [];
-  return getArtistPlaylists(track.artistSlug);
 }
 
 // --- Track comparison helper ---

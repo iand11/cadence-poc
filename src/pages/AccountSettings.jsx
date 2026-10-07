@@ -4,9 +4,9 @@ import { motion } from 'motion/react';
 import { User, Shield, Users, Star, LogOut, Check, Loader2, Mail, Music } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useFavorites } from '../hooks/useFavorites';
-import { useTrackedArtists } from '../hooks/useTrackedArtists';
+import { useFollowedArtists } from '../hooks/useFollowedArtists';
 import { fetchArtistsBySlugs } from '../data/artistsRemote';
-import TrackedArtistPicker from '../components/TrackedArtistPicker';
+import FollowArtistPicker from '../components/FollowArtistPicker';
 
 const PROVIDER_LABELS = {
   password: 'Email & password',
@@ -172,7 +172,7 @@ function FavoritesSection() {
     <Section
       icon={Star}
       title="Favorites"
-      description="Artists you've starred. Adding an artist to your roster favorites it automatically."
+      description="Artists you've starred. Following an artist favorites it automatically."
     >
       {favorites.length === 0 ? (
         <p className="text-xs text-[#6B6560]">No favorites yet — star an artist from their profile.</p>
@@ -211,7 +211,7 @@ function FavoritesSection() {
 
 export default function AccountSettings() {
   const { user, signOut, updateProfile, sendPasswordReset } = useAuth();
-  const { tracked, toggleTracked } = useTrackedArtists();
+  const { followed, toggleFollow, groups } = useFollowedArtists();
   const navigate = useNavigate();
 
   const handleSignOut = async () => {
@@ -232,10 +232,10 @@ export default function AccountSettings() {
 
       <Section
         icon={Users}
-        title="Tracked artists"
-        description={`${tracked.length} artist${tracked.length === 1 ? '' : 's'} on your roster — this scopes your dashboard, lists, and reports.`}
+        title="Following"
+        description={`${followed.length} artist${followed.length === 1 ? '' : 's'}${groups.length ? ` in ${groups.length} group${groups.length === 1 ? '' : 's'}` : ''} — the artists you follow scope your dashboard, lists, and reports.`}
       >
-        <TrackedArtistPicker tracked={tracked} onToggle={toggleTracked} />
+        <FollowArtistPicker followed={followed} onToggle={toggleFollow} />
       </Section>
 
       <FavoritesSection />
@@ -243,7 +243,7 @@ export default function AccountSettings() {
       <div className="flex items-center justify-between gap-4 px-5 py-4 rounded-lg border border-[#2C2B28]">
         <div>
           <p className="text-sm text-[#F5F0E8]">Sign out</p>
-          <p className="text-xs text-[#9B9590] mt-0.5">Your roster and favorites are saved to your account.</p>
+          <p className="text-xs text-[#9B9590] mt-0.5">The artists you follow, your groups, and favorites are saved to your account.</p>
         </div>
         <button
           onClick={handleSignOut}

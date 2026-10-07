@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router';
 import { motion } from 'motion/react';
-import { Music, TrendingUp, Users, DollarSign, Radio, Globe, Disc3, MapPin, Tag, Star, ListMusic, FileText } from 'lucide-react';
+import { Music, TrendingUp, Users, DollarSign, Radio, Globe, Disc3, MapPin, Tag, Star, ListMusic, FileText, Headphones } from 'lucide-react';
 import Badge from '../components/shared/Badge';
 import ProfileLayout from '../components/profile/ProfileLayout';
 import CollapsibleSection from '../components/profile/CollapsibleSection';
@@ -24,11 +24,14 @@ import {
   generateRevenue,
   getBenchmarkComparison,
 } from '../data/artists';
-import { getArtistPlaylists } from '../data/playlistData';
+import { PlaylistPlacements, DiscoveredOn } from '../components/playlists/PlaylistBits';
 import { formatNumber, formatCurrency } from '../utils/formatters';
 import { generateInsights } from '../utils/insights';
 import InsightCallout from '../components/shared/InsightCallout';
 import { useFavorites } from '../hooks/useFavorites';
+import { FollowButton, GroupMenu } from '../components/groups/ArtistGroups';
+import SpotifyPlayer from '../components/profile/SpotifyPlayer';
+import TopSocialPosts from '../components/profile/TopSocialPosts';
 import { getCountryName } from '../utils/countryNames';
 import { buildAISummary } from '../utils/buildAISummary';
 
@@ -105,6 +108,8 @@ export default function ArtistProfile() {
       aiSummary={aiSummary}
       headerRight={
         <div className="flex items-center gap-2">
+          <FollowButton slug={artist.slug} />
+          <GroupMenu slug={artist.slug} size="md" label />
           <Link
             to={`/app/artist/${artist.slug}/sheet`}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded border border-[#DA7756]/20 bg-[#DA7756]/10 text-[#DA7756] hover:bg-[#DA7756]/20 transition-colors"
@@ -185,6 +190,13 @@ export default function ArtistProfile() {
       </CollapsibleSection>
 
       {/* Streaming Performance */}
+      {/* Spotify player */}
+      {(artist.spotifyUrl || tracks.some(t => t.spotifyTrackId)) && (
+        <CollapsibleSection title="Listen on Spotify" icon={Headphones} defaultOpen={true}>
+          <SpotifyPlayer artist={artist} tracks={tracks} />
+        </CollapsibleSection>
+      )}
+
       <CollapsibleSection title="Streaming Performance" icon={TrendingUp}>
         <div className="space-y-6">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -334,6 +346,9 @@ export default function ArtistProfile() {
         </div>
       </CollapsibleSection>
 
+      {/* Top social posts — boost straight into a campaign (hidden when there are none) */}
+      <TopSocialPosts artist={artist} />
+
       {/* Platform Analytics */}
       <CollapsibleSection title="Platform Analytics" icon={Radio}>
         <div className="space-y-6">
@@ -370,43 +385,17 @@ export default function ArtistProfile() {
             <PlaylistDistributionChart playlists={artist.playlists} />
             <InsightCallout insights={insights.playlists} />
           </ChartCard>
-          {(() => {
-            const activePlaylists = getArtistPlaylists(artist.slug);
-            if (activePlaylists.length === 0) return null;
-            const shown = activePlaylists.slice(0, 15);
-            return (
-              <ChartCard title="Active Playlists" subtitle={`${activePlaylists.length} playlist placement${activePlaylists.length === 1 ? '' : 's'}`}>
-                <div className="space-y-1">
-                  {shown.map((p, i) => (
-                    <Link key={`${p.playlistId}-${i}`} to={`/app/playlist/${p.playlistId}`} className="block">
-                      <div className="flex items-center gap-3 px-2 py-2 rounded hover:bg-[#1C1B18] transition-colors group">
-                        <span className="text-[10px] font-mono text-[#6B6560] w-5 text-right shrink-0">{i + 1}</span>
-                        <div className="w-7 h-7 rounded bg-[#2C2B28] flex items-center justify-center shrink-0">
-                          <ListMusic size={11} className="text-[#6B6560]" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm text-[#F5F0E8] truncate group-hover:text-[#DA7756] transition-colors">{p.playlistName}</p>
-                          <p className="text-[10px] text-[#6B6560] truncate">{p.curator}</p>
-                        </div>
-                        <Badge variant={p.type === 'editorial' ? 'success' : p.type === 'algorithmic' ? 'info' : 'warning'}>{p.type}</Badge>
-                        {p.position && (
-                          <span className="hidden sm:inline text-[10px] font-mono text-[#9B9590] w-8 text-right shrink-0">#{p.position}</span>
-                        )}
-                        <div className="flex flex-col items-end shrink-0 w-16">
-                          <span className="text-xs font-mono text-[#F5F0E8]">{formatNumber(p.streamsFromPlaylist)}</span>
-                        </div>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-                {activePlaylists.length > 15 && (
-                  <p className="text-[10px] text-[#6B6560] mt-3 text-center">
-                    Showing 15 of {activePlaylists.length} playlists
-                  </p>
-                )}
-              </ChartCard>
-            );
-          })()}
+          <ChartCard title="Playlist Placements" subtitle="Tracked editorial, chart and label playlists — current and past">
+            <PlaylistPlacements slugs={[artist.slug]} limit={15} />
+          </ChartCard>
+          {artist.playlists.discoveredOn?.playlists.length > 0 && (
+            <ChartCard
+              title="Discovered On (Spotify)"
+              subtitle={`Where listeners found ${artist.name}, in Spotify's ranking — ${artist.playlists.discoveredOn.total} playlists`}
+            >
+              <DiscoveredOn discoveredOn={artist.playlists.discoveredOn} />
+            </ChartCard>
+          )}
         </div>
       </CollapsibleSection>
 

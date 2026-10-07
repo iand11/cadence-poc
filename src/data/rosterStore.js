@@ -1,6 +1,6 @@
 // Tiny module-level store for the user's tracked-artist roster.
 //
-// TrackedArtistsProvider is the single writer (setRoster on fetch/refresh).
+// FollowedArtistsProvider is the single writer (setRoster on fetch/refresh).
 // Non-React data modules (playlistData, insights, buildAISummary, actions,
 // useChat context) read the roster from here instead of the old static
 // `allArtists` bundle, and can subscribe to invalidate their caches when the
