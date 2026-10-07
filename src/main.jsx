@@ -5,8 +5,9 @@ import './index.css';
 import App from './App.jsx';
 import AppGate from './components/AppGate';
 import { AuthProvider } from './hooks/useAuth';
-import { TrackedArtistsProvider } from './context/TrackedArtistsContext';
+import { FollowedArtistsProvider } from './context/FollowedArtistsContext';
 import { FavoritesProvider } from './context/FavoritesContext';
+import { NotificationsProvider } from './context/NotificationsContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import Landing from './pages/Landing';
 import LoginPage from './pages/LoginPage';
@@ -37,7 +38,8 @@ createRoot(document.getElementById('root')).render(
       <AppGate>
       <AuthProvider>
       <FavoritesProvider>
-      <TrackedArtistsProvider>
+      <FollowedArtistsProvider>
+      <NotificationsProvider>
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/pitch" element={<Pitch />} />
@@ -67,7 +69,8 @@ createRoot(document.getElementById('root')).render(
         </Route>
         </Route>
       </Routes>
-      </TrackedArtistsProvider>
+      </NotificationsProvider>
+      </FollowedArtistsProvider>
       </FavoritesProvider>
       </AuthProvider>
       </AppGate>

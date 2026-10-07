@@ -154,10 +154,10 @@ export default function ActionChecklistRow({
         {/* Remove */}
         {(onDeselect || onDelete) && (
           <button
-            onClick={() => (item.source === 'ai' && onDelete ? onDelete(item.id) : onDeselect?.(item.id))}
+            onClick={() => (item.source !== 'system' && onDelete ? onDelete(item.id) : onDeselect?.(item.id))}
             aria-label="Remove"
             className="shrink-0 text-[#6B6560] opacity-0 group-hover:opacity-100 hover:text-[#C75F4F] transition-all cursor-pointer"
-            title={item.source === 'ai' ? 'Delete action' : 'Remove from list'}
+            title={item.source !== 'system' ? 'Delete action' : 'Remove from list'}
           >
             <X size={15} />
           </button>

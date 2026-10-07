@@ -6,6 +6,7 @@ import { searchArtists } from '../../data/artists';
 import { formatNumber } from '../../utils/formatters';
 import { useFavorites } from '../../hooks/useFavorites';
 import { useAuth } from '../../hooks/useAuth';
+import NotificationBell from '../notifications/NotificationBell';
 
 const LIST_ITEMS = [
   { path: '/app/tracks', label: 'Tracks', icon: Music, match: '/app/track' },
@@ -237,8 +238,9 @@ export default function AppBar() {
               <span className="hidden md:inline">Pages</span>
             </Link>
 
-            {/* User + Sign out */}
+            {/* Notifications + User + Sign out */}
             <div className="flex items-center gap-2 pl-2 ml-1 border-l border-[#2C2B28]">
+              {user && <NotificationBell />}
               {user && (
                 <Link
                   to="/app/account"

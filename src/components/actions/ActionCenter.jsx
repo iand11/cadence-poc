@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { AnimatePresence, motion } from 'motion/react';
-import { ListChecks, ChevronRight, Plus, Music, AlertCircle, UserX, Calendar } from 'lucide-react';
+import { ListChecks, ChevronRight, Plus, Music, AlertCircle, UserX, Calendar, Lightbulb, LayoutTemplate } from 'lucide-react';
 import ActionItem from './ActionItem';
 import { PRIORITY_LABELS, PRIORITY_COLORS, PRIORITY_ORDER, getPriorityLevel } from '../../data/actions';
 import { OWNERS } from '../../hooks/useActions';
@@ -16,7 +16,7 @@ function TriageList({ tasks, kind, today, setOwner }) {
     return (
       <div className="bg-[#171614] border border-[#2C2B28] rounded-lg p-8 text-center text-[11px] font-mono text-[#6B6560]">
         {kind === 'overdue'
-          ? 'Nothing overdue across your roster.'
+          ? 'Nothing overdue across the artists you follow.'
           : 'Every selected action has an owner.'}
       </div>
     );
@@ -90,6 +90,9 @@ export default function ActionCenter({
   restore,
   setOwner,
   onOpenSelector,
+  onNewPlan,
+  onOpenTemplates,
+  templateCount = 0,
 }) {
   const [view, setView] = useState('artists');
   const today = todayISO();
@@ -175,10 +178,27 @@ export default function ActionCenter({
         <div className="flex items-center gap-2">
           <button
             onClick={onOpenSelector}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-medium text-[#DA7756] border border-[#DA7756]/20 hover:border-[#DA7756]/40 rounded transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-medium text-[#9B9590] border border-[#2C2B28] hover:text-[#F5F0E8] hover:border-[#3D3B37] rounded transition-colors cursor-pointer"
+          >
+            <Lightbulb size={11} />
+            Suggestions
+          </button>
+          {templateCount > 0 && (
+            <button
+              onClick={onOpenTemplates}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-medium text-[#9B9590] border border-[#2C2B28] hover:text-[#F5F0E8] hover:border-[#3D3B37] rounded transition-colors cursor-pointer"
+            >
+              <LayoutTemplate size={11} />
+              Templates
+              <span className="text-[#6B6560]">{templateCount}</span>
+            </button>
+          )}
+          <button
+            onClick={onNewPlan}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-medium text-[#0D0C0B] bg-[#DA7756] hover:bg-[#DA7756]/90 rounded transition-colors cursor-pointer"
           >
             <Plus size={11} />
-            Add Actions
+            New Plan
           </button>
         </div>
       </div>
@@ -189,17 +209,26 @@ export default function ActionCenter({
           <div className="w-12 h-12 rounded-full bg-[#DA7756]/10 border border-[#DA7756]/20 flex items-center justify-center mb-4">
             <ListChecks size={20} className="text-[#DA7756]" />
           </div>
-          <p className="text-sm text-[#F5F0E8] mb-1">No actions selected yet</p>
+          <p className="text-sm text-[#F5F0E8] mb-1">No actions yet</p>
           <p className="text-[11px] text-[#6B6560] mb-5 max-w-xs">
-            Browse your roster's generated actions and select the ones you want to focus on.
+            Create a plan for an artist: answer a few guided questions, start from a template, or build your own.
           </p>
-          <button
-            onClick={onOpenSelector}
-            className="flex items-center gap-2 px-5 py-2.5 text-xs font-medium text-[#0D0C0B] bg-[#DA7756] hover:bg-[#DA7756]/90 rounded transition-colors cursor-pointer"
-          >
-            <Plus size={13} />
-            Add Actions
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onNewPlan}
+              className="flex items-center gap-2 px-5 py-2.5 text-xs font-medium text-[#0D0C0B] bg-[#DA7756] hover:bg-[#DA7756]/90 rounded transition-colors cursor-pointer"
+            >
+              <Plus size={13} />
+              Create a Plan
+            </button>
+            <button
+              onClick={onOpenSelector}
+              className="flex items-center gap-2 px-4 py-2.5 text-xs font-medium text-[#9B9590] border border-[#2C2B28] hover:text-[#F5F0E8] hover:border-[#3D3B37] rounded transition-colors cursor-pointer"
+            >
+              <Lightbulb size={13} />
+              Browse Suggestions
+            </button>
+          </div>
         </div>
       )}
 

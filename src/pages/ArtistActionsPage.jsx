@@ -1,11 +1,15 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useParams, Link } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, Plus, History, Music, AlertCircle, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Plus, History, Music, AlertCircle, RotateCcw, Lightbulb, BookmarkPlus, Check } from 'lucide-react';
 import ActionItem from '../components/actions/ActionItem';
 import ActionChecklistRow from '../components/actions/ActionChecklistRow';
 import ActionSelector from '../components/actions/ActionSelector';
+import PlanBuilder from '../components/actions/PlanBuilder';
 import { useActions } from '../hooks/useActions';
+import { useActionTemplates } from '../hooks/useActionTemplates';
+import { useFollowedArtists } from '../hooks/useFollowedArtists';
+import { draftFromActions, templateFromDraft } from '../data/actionPlans';
 import { DATA_TYPE_LABELS } from '../data/actions';
 
 // Section order for grouping actions (mirrors campaign phases).
@@ -17,11 +21,16 @@ export default function ArtistActionsPage() {
     actions, selectedActions, ignoredActions,
     restore, toggleStep,
     editAction, setOwner, editStep, addStep, removeStep,
-    deleteAction, deselectAction, selectActions, addCustomAction,
+    deleteAction, deselectAction, selectActions, addCustomAction, addPlan,
   } = useActions();
+  const { templates, saveTemplate, deleteTemplate } = useActionTemplates();
+  const { followedArtists } = useFollowedArtists();
 
   const [selectorOpen, setSelectorOpen] = useState(false);
+  const [planOpen, setPlanOpen] = useState(false);
   const [showArchive, setShowArchive] = useState(false);
+  // Save-checklist-as-template inline form: null = closed, 'saved' = just saved.
+  const [tplName, setTplName] = useState(null);
 
   // This artist's checklist = selected actions that are active or completed.
   const checklistActions = useMemo(
@@ -31,9 +40,11 @@ export default function ArtistActionsPage() {
 
   // Artist info from any action for this slug.
   const artistInfo = useMemo(() => {
+    const tracked = followedArtists.find(a => a.slug === artistSlug);
+    if (tracked) return { name: tracked.name, imageUrl: tracked.imageUrl };
     const any = actions.find(a => a.artistSlug === artistSlug);
     return any ? { name: any.artistName, imageUrl: any.artistImage } : { name: artistSlug, imageUrl: null };
-  }, [actions, artistSlug]);
+  }, [followedArtists, actions, artistSlug]);
 
   // An action is done only when all of its tasks are complete.
   const isDone = (a) => (a.steps || []).length > 0 && (a.steps || []).every(s => s.completed);
@@ -78,6 +89,18 @@ export default function ArtistActionsPage() {
   const resetChecklist = useCallback(() => {
     checklistActions.forEach(a => (a.steps || []).forEach(s => { if (s.completed) toggleStep(s.id); }));
   }, [checklistActions, toggleStep]);
+
+  const saveChecklistAsTemplate = () => {
+    const name = (tplName || '').trim() || `${artistInfo.name} plan`;
+    saveTemplate(templateFromDraft(draftFromActions(checklistActions, name), { name, artistName: artistInfo.name }));
+    setTplName('saved');
+    setTimeout(() => setTplName(null), 1800);
+  };
+
+  const handleCreatePlan = (artist, draft, systemIds) => {
+    addPlan(artist, draft, systemIds);
+    setPlanOpen(false);
+  };
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
@@ -125,10 +148,17 @@ export default function ArtistActionsPage() {
             </button>
             <button
               onClick={() => setSelectorOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-medium text-[#DA7756] border border-[#DA7756]/20 hover:border-[#DA7756]/40 rounded transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 text-[10px] font-mono px-2.5 py-1.5 rounded border text-[#6B6560] border-[#2C2B28] hover:text-[#9B9590] hover:border-[#3D3B37] transition-colors cursor-pointer"
+            >
+              <Lightbulb size={11} />
+              Suggestions
+            </button>
+            <button
+              onClick={() => setPlanOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-medium text-[#0D0C0B] bg-[#DA7756] hover:bg-[#DA7756]/90 rounded transition-colors cursor-pointer"
             >
               <Plus size={11} />
-              Add Actions
+              New Plan
             </button>
           </div>
         </div>
@@ -147,14 +177,44 @@ export default function ArtistActionsPage() {
                 </span>
               )}
             </div>
-            {progress.hasChecked && (
-              <button
-                onClick={resetChecklist}
-                className="flex items-center gap-1.5 text-[11px] font-mono text-[#6B6560] hover:text-[#DA7756] transition-colors cursor-pointer"
-              >
-                <RotateCcw size={12} /> Reset
-              </button>
-            )}
+            <div className="flex items-center gap-4">
+              {tplName === null && (
+                <button
+                  onClick={() => setTplName(`${artistInfo.name} plan`)}
+                  title="Save these actions and steps as a reusable template"
+                  className="flex items-center gap-1.5 text-[11px] font-mono text-[#6B6560] hover:text-[#DA7756] transition-colors cursor-pointer"
+                >
+                  <BookmarkPlus size={12} /> Save as template
+                </button>
+              )}
+              {tplName === 'saved' && (
+                <span className="flex items-center gap-1.5 text-[11px] font-mono text-[#7BAF73]">
+                  <Check size={12} /> Template saved
+                </span>
+              )}
+              {tplName !== null && tplName !== 'saved' && (
+                <span className="flex items-center gap-2">
+                  <input
+                    value={tplName}
+                    onChange={e => setTplName(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') saveChecklistAsTemplate(); if (e.key === 'Escape') setTplName(null); }}
+                    autoFocus
+                    placeholder="Template name"
+                    className="h-7 w-48 bg-[#0D0C0B] border border-[#2C2B28] rounded-md px-2.5 text-[11px] text-[#F5F0E8] placeholder-[#6B6560] outline-none focus:border-[#DA7756]/40"
+                  />
+                  <button onClick={saveChecklistAsTemplate} className="text-[11px] font-mono text-[#7BAF73] hover:text-[#F5F0E8] cursor-pointer">Save</button>
+                  <button onClick={() => setTplName(null)} className="text-[11px] font-mono text-[#6B6560] hover:text-[#F5F0E8] cursor-pointer">Cancel</button>
+                </span>
+              )}
+              {progress.hasChecked && (
+                <button
+                  onClick={resetChecklist}
+                  className="flex items-center gap-1.5 text-[11px] font-mono text-[#6B6560] hover:text-[#DA7756] transition-colors cursor-pointer"
+                >
+                  <RotateCcw size={12} /> Reset
+                </button>
+              )}
+            </div>
           </div>
           <div className="h-1.5 bg-[#2C2B28] rounded-full overflow-hidden">
             <div className="h-full bg-[#7BAF73] rounded-full transition-all duration-300" style={{ width: `${progress.pct}%` }} />
@@ -191,14 +251,23 @@ export default function ArtistActionsPage() {
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center py-16 text-center mt-4">
-          <p className="text-xs text-[#6B6560] mb-4">No actions selected for this artist yet</p>
-          <button
-            onClick={() => setSelectorOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 text-xs font-medium text-[#0D0C0B] bg-[#DA7756] hover:bg-[#DA7756]/90 rounded transition-colors cursor-pointer"
-          >
-            <Plus size={12} />
-            Add Actions
-          </button>
+          <p className="text-xs text-[#6B6560] mb-4">No actions for this artist yet</p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPlanOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 text-xs font-medium text-[#0D0C0B] bg-[#DA7756] hover:bg-[#DA7756]/90 rounded transition-colors cursor-pointer"
+            >
+              <Plus size={12} />
+              Create a Plan
+            </button>
+            <button
+              onClick={() => setSelectorOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 text-xs font-medium text-[#9B9590] border border-[#2C2B28] hover:text-[#F5F0E8] hover:border-[#3D3B37] rounded transition-colors cursor-pointer"
+            >
+              <Lightbulb size={12} />
+              Browse Suggestions
+            </button>
+          </div>
         </div>
       )}
 
@@ -236,6 +305,19 @@ export default function ArtistActionsPage() {
         onCreateCustom={addCustomAction}
         initialArtistSlug={artistSlug}
       />
+
+      {planOpen && (
+        <PlanBuilder
+          onClose={() => setPlanOpen(false)}
+          artists={followedArtists}
+          actions={actions}
+          initialArtist={{ slug: artistSlug, ...artistInfo }}
+          templates={templates}
+          onSaveTemplate={saveTemplate}
+          onDeleteTemplate={deleteTemplate}
+          onCreate={handleCreatePlan}
+        />
+      )}
     </motion.div>
   );
 }

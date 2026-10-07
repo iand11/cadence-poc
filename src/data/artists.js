@@ -2,7 +2,7 @@
 //
 // The static bundle (artists-index.generated.json / allArtists) is gone.
 // Artist data now comes from two places:
-//   * the tracked roster (rosterStore, populated by TrackedArtistsProvider
+//   * the tracked roster (rosterStore, populated by FollowedArtistsProvider
 //     from /api/artists?slugs=...) — sync lookups against artists the user
 //     tracks;
 //   * the HTTP API (artistsRemote) — async search, browse, and detail across

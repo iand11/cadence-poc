@@ -8,7 +8,7 @@ import DataTable from '../components/shared/DataTable';
 import KpiCard from '../components/shared/KpiCard';
 import Badge from '../components/shared/Badge';
 import { getChartProfile } from '../data/mockProfiles';
-import { useTrackedArtists } from '../hooks/useTrackedArtists';
+import { useFollowedArtists } from '../hooks/useFollowedArtists';
 
 const entryColumns = [
   { key: 'position', label: '#' },
@@ -25,12 +25,12 @@ const entryColumns = [
 
 export default function ChartProfile() {
   const { id } = useParams();
-  const { trackedArtists } = useTrackedArtists();
+  const { followedArtists } = useFollowedArtists();
 
   // Chart entries derive from the tracked roster — recompute when it loads
   // (empty entries until then; getChartProfile handles the empty state)
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- trackedArtists drives the roster getChartProfile reads
-  const profile = useMemo(() => getChartProfile(id), [id, trackedArtists]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- followedArtists drives the roster getChartProfile reads
+  const profile = useMemo(() => getChartProfile(id), [id, followedArtists]);
 
   return (
     <ProfileLayout title={profile.name} subtitle={`${profile.publisher} — ${profile.frequency} — ${profile.region}`} type="chart" aiSummary={profile.aiSummary}>

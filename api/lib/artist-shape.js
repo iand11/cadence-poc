@@ -82,6 +82,12 @@ export function artistRowToSummary(row) {
         reach: s.yt_playlist_total_reach || 0,
         editorialReach: s.yt_editorial_playlist_total_reach || 0,
       },
+      // Spotify "Discovered On": where listeners found the artist, Spotify's rank order
+      // ([{ rank, id (Spotify playlist id), name, curator, type }]) — from music-scrapers.
+      discoveredOn: {
+        total: s.sp_discovered_on_count || 0,
+        playlists: Array.isArray(s.sp_discovered_on) ? s.sp_discovered_on : [],
+      },
     },
 
     rankings: {

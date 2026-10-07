@@ -245,10 +245,10 @@ export default function AlbumProfile() {
               </div>
             )}
 
-            {/* Roster collaborators */}
+            {/* Followed collaborators */}
             {collabs.length > 0 && (
               <div>
-                <span className="text-[10px] uppercase tracking-wider text-[#9B9590] mb-1.5 block">Roster Collaborators</span>
+                <span className="text-[10px] uppercase tracking-wider text-[#9B9590] mb-1.5 block">Collaborators You Follow</span>
                 <div className="flex flex-wrap gap-1.5">
                   {collabs.map(a => (
                     <Link

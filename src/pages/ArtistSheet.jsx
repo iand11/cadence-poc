@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams, useSearchParams, useNavigate } from 'react-router';
+import { Link, useParams, useSearchParams, useNavigate } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   FileText, Download, Eye, Link2, Check, X, ArrowLeft,
@@ -27,7 +27,9 @@ import {
   generateStreamingTrend, generateSocialTimeline,
   generateForecast, generateRevenue, getBenchmarkComparison,
 } from '../data/artists';
-import { getArtistPlaylists } from '../data/playlistData';
+import { fetchPlacements } from '../data/playlistsRemote';
+import { TypeBadge } from '../components/playlists/PlaylistBits';
+import { useAsync } from '../hooks/useAsync';
 import { formatNumber, formatCurrency } from '../utils/formatters';
 import { buildAISummary } from '../utils/buildAISummary';
 import { getCountryName } from '../utils/countryNames';
@@ -109,6 +111,36 @@ function parseSpotifyUrl(url) {
 }
 
 // ─── Main Component ─────────────────────────────────────────────────────────────
+
+// Current placements on crawled playlists (themed for the sheet).
+function SheetActivePlaylists({ slug, max, colors, title, subtitle }) {
+  const { data } = useAsync(() => fetchPlacements({ slugs: [slug], limit: 200 }), [slug]);
+  const rows = data?.placements || [];
+  if (!rows.length) return null;
+  return (
+    <ChartCard title={title} subtitle={subtitle(rows.length)} colors={colors}>
+      <div className="space-y-1">
+        {rows.slice(0, max).map((p, i) => (
+          <Link key={p.entryId} to={`/app/playlist/${p.playlist.id}`} className="flex items-center gap-3 px-2 py-2 rounded transition-colors"
+            onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.surface}
+            onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
+            <span className="text-[10px] font-mono w-5 text-right shrink-0" style={{ color: colors.textMuted }}>{i + 1}</span>
+            {p.playlist.imageUrl
+              ? <img src={p.playlist.imageUrl} alt="" className="w-7 h-7 rounded object-cover shrink-0" loading="lazy" />
+              : <div className="w-7 h-7 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: colors.border }}><ListMusic size={11} style={{ color: colors.textMuted }} /></div>}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm truncate" style={{ color: colors.textPrimary }}>{p.playlist.name}</p>
+              <p className="text-[10px] truncate" style={{ color: colors.textMuted }}>{p.trackName} · {p.playlist.curator}</p>
+            </div>
+            <TypeBadge type={p.playlist.type} />
+            <div className="flex flex-col items-end shrink-0 w-10"><span className="text-xs font-mono" style={{ color: colors.textPrimary }}>{p.position != null ? `#${p.position}` : '—'}</span></div>
+            <div className="flex flex-col items-end shrink-0 w-16"><span className="text-xs font-mono" style={{ color: colors.textMuted }}>{p.playlist.followers != null ? formatNumber(p.playlist.followers) : '—'}</span></div>
+          </Link>
+        ))}
+      </div>
+    </ChartCard>
+  );
+}
 
 export default function ArtistSheet() {
   const { id } = useParams();
@@ -719,7 +751,6 @@ function ArtistSheetContent({ artist }) {
     },
 
     platform: () => {
-      const pl = getArtistPlaylists(artist.slug);
       return (
         <div className="space-y-6">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -735,27 +766,13 @@ function ArtistSheetContent({ artist }) {
           >
             <PlaylistDistributionChart playlists={artist.playlists} />
           </ChartCard>
-          {pl.length > 0 && (
-            <ChartCard
-              title={editableTitle('platform', 'listTitle', 'Active Playlists')}
-              subtitle={editableTitle('platform', 'listSubtitle', `${pl.length} placement${pl.length === 1 ? '' : 's'}`)}
-              colors={colors}
-            >
-              <div className="space-y-1">
-                {pl.slice(0, maxPlaylists).map((p, i) => (
-                  <div key={`${p.playlistId}-${i}`} className="flex items-center gap-3 px-2 py-2 rounded transition-colors"
-                    onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.surface}
-                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
-                    <span className="text-[10px] font-mono w-5 text-right shrink-0" style={{ color: colors.textMuted }}>{i + 1}</span>
-                    <div className="w-7 h-7 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: colors.border }}><ListMusic size={11} style={{ color: colors.textMuted }} /></div>
-                    <div className="flex-1 min-w-0"><p className="text-sm truncate" style={{ color: colors.textPrimary }}>{p.playlistName}</p><p className="text-[10px] truncate" style={{ color: colors.textMuted }}>{p.curator}</p></div>
-                    <Badge variant={p.type === 'editorial' ? 'success' : p.type === 'algorithmic' ? 'info' : 'warning'}>{p.type}</Badge>
-                    <div className="flex flex-col items-end shrink-0 w-16"><span className="text-xs font-mono" style={{ color: colors.textPrimary }}>{formatNumber(p.streamsFromPlaylist)}</span></div>
-                  </div>
-                ))}
-              </div>
-            </ChartCard>
-          )}
+          <SheetActivePlaylists
+            slug={artist.slug}
+            max={maxPlaylists}
+            colors={colors}
+            title={editableTitle('platform', 'listTitle', 'Active Playlists')}
+            subtitle={(n) => editableTitle('platform', 'listSubtitle', `${n} current placement${n === 1 ? '' : 's'} on tracked playlists`)}
+          />
         </div>
       );
     },

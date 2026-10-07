@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { Search, X, Music } from 'lucide-react';
 import { searchArtists, getTopArtists } from '../../data/artists';
-import { useTrackedArtists } from '../../hooks/useTrackedArtists';
+import { useFollowedArtists } from '../../hooks/useFollowedArtists';
 import { formatNumber } from '../../utils/formatters';
 
 export default function ArtistSelector({ selected, onChange }) {
@@ -12,7 +12,7 @@ export default function ArtistSelector({ selected, onChange }) {
   const inputRef = useRef(null);
   const containerRef = useRef(null);
 
-  const { trackedArtists, loading: rosterLoading } = useTrackedArtists();
+  const { followedArtists, loading: rosterLoading } = useFollowedArtists();
 
   // Debounced server-side search across the full catalog
   useEffect(() => {
@@ -28,19 +28,19 @@ export default function ArtistSelector({ selected, onChange }) {
 
   // Fallback suggestions when the tracked roster is empty
   useEffect(() => {
-    if (rosterLoading || trackedArtists.length > 0) return;
+    if (rosterLoading || followedArtists.length > 0) return;
     let cancelled = false;
     getTopArtists(8)
       .then((artists) => { if (!cancelled) setTopArtists(artists); })
       .catch(() => { if (!cancelled) setTopArtists([]); });
     return () => { cancelled = true; };
-  }, [rosterLoading, trackedArtists.length]);
+  }, [rosterLoading, followedArtists.length]);
 
   // Tracked roster by rank (falls back to top catalog artists)
   const rosterByRank = useMemo(() => {
-    const pool = trackedArtists.length > 0 ? trackedArtists : topArtists;
+    const pool = followedArtists.length > 0 ? followedArtists : topArtists;
     return [...pool].sort((a, b) => (a.rank ?? Infinity) - (b.rank ?? Infinity));
-  }, [trackedArtists, topArtists]);
+  }, [followedArtists, topArtists]);
 
   const results = query.length >= 1
     ? searchResults.filter(a => !selected.some(s => s.slug === a.slug))

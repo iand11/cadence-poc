@@ -71,13 +71,13 @@ export function getChartProfile(id) {
     region: chart.region,
     aiSummary: {
       text: topArtist
-        ? `The ${chart.name} features ${chartEntries.length} tracked artists this week. ${topArtist.name} leads at #1 with strong streaming velocity. The roster has multiple entries showing positive movement across the chart.`
-        : `No tracked artists to map onto the ${chart.name} yet — track some artists to see their chart footprint here.`,
+        ? `The ${chart.name} features ${chartEntries.length} artists you follow this week. ${topArtist.name} leads at #1 with strong streaming velocity. The roster has multiple entries showing positive movement across the chart.`
+        : `None of the artists you follow are on the ${chart.name} yet — follow some artists to see their chart footprint here.`,
       keyMetrics: [
         { label: 'Roster Entries', value: String(chartEntries.length) },
         { label: 'Highest Position', value: chartEntries.length ? '#1' : '—' },
         { label: 'Biggest Mover', value: chartEntries.reduce((best, e) => { const c = parseInt(e.change) || 0; return c > (parseInt(best) || 0) ? e.change : best; }, '0') },
-        { label: 'Artists Tracked', value: String(chartEntries.length) },
+        { label: 'Artists Followed', value: String(chartEntries.length) },
       ],
       suggestions: [
         'What drives chart movement this week?',

@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import ChatInterface from '../ai/ChatInterface';
 import { searchArtists, getArtistAsync } from '../../data/artists';
-import { useTrackedArtists } from '../../hooks/useTrackedArtists';
+import { useFollowedArtists } from '../../hooks/useFollowedArtists';
 import { generateCampaignSuggestions } from '../../utils/campaignSuggestions';
 import { generateDirective, PLATFORM_LABELS, OBJECTIVE_LABELS } from '../../data/directives';
 import { recommendBudgetAllocation } from '../../utils/budgetAllocation';
@@ -67,7 +67,7 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, in
   const [artistSearch, setArtistSearch] = useState('');
   const [selectedSuggestion, setSelectedSuggestion] = useState(null);
 
-  const { trackedArtists } = useTrackedArtists();
+  const { followedArtists } = useFollowedArtists();
 
   // Auto-select artist and jump to step 3 when opened from insight
   useEffect(() => {
@@ -480,7 +480,7 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, in
                   searchResults={searchResults}
                   handleSelectArtist={handleSelectArtist}
                   onClearArtist={() => setSelectedArtist(null)}
-                  rosterArtists={trackedArtists}
+                  rosterArtists={followedArtists}
                   topSocial={topSocial}
                 />
               </motion.div>
@@ -649,7 +649,7 @@ function Step1({ selectedArtist, artistSearch, setArtistSearch, searchResults, h
           <input
             value={artistSearch}
             onChange={e => setArtistSearch(e.target.value)}
-            placeholder="Search your roster..."
+            placeholder="Search artists you follow..."
             className="flex-1 bg-transparent text-sm text-[#F5F0E8] placeholder-[#6B6560] outline-none"
             autoFocus
           />
@@ -682,7 +682,7 @@ function Step1({ selectedArtist, artistSearch, setArtistSearch, searchResults, h
       </div>
       {!artistSearch && rosterArtists.length > 0 && (
         <div className="mt-5">
-          <p className="text-[9px] font-mono uppercase tracking-wider text-[#6B6560] mb-2">Your Roster</p>
+          <p className="text-[9px] font-mono uppercase tracking-wider text-[#6B6560] mb-2">Following</p>
           <div className="grid grid-cols-2 gap-2">
             {rosterArtists.slice(0, 8).map(a => (
               <button

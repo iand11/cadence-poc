@@ -217,7 +217,7 @@ export default function SheetsPage() {
                 ))}
                 {query.length < 2 && (
                   <div className="px-4 py-8 text-center text-xs text-[#6B6560]">
-                    Type to search your roster
+                    Type to search artists you follow
                   </div>
                 )}
               </div>

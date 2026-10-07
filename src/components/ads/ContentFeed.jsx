@@ -6,6 +6,7 @@ import { api } from '../../data/api';
 import { searchArtists } from '../../data/artists';
 import { useFavorites } from '../../hooks/useFavorites';
 import { analyzeBoostPotential, generateBoostRecommendations } from '../../utils/boostDetection';
+import { buildBoostPayload } from '../../utils/boostPayload';
 import { PLATFORM_COLORS } from '../../constants/colors';
 import LoadingState from '../shared/LoadingState';
 
@@ -29,14 +30,6 @@ const SORT_OPTIONS = [
 ];
 
 const PAGE_SIZE = 20;
-
-// Map content platform → ads platform for boost CTA
-const ADS_PLATFORM_MAP = {
-  instagram: 'meta',
-  youtube: 'youtube',
-  tiktok: 'tiktok',
-  twitter: 'x',
-};
 
 export default function ContentFeed({ onBoost }) {
   const { favorites } = useFavorites();
@@ -122,35 +115,10 @@ export default function ContentFeed({ onBoost }) {
   const [selectedId, setSelectedId] = useState(null);
 
   const handleBoost = (item) => {
-    const adsPlatform = ADS_PLATFORM_MAP[item.platform];
-    if (!adsPlatform || !onBoost) return;
+    const payload = buildBoostPayload(item, boostMap[item.id]);
+    if (!payload || !onBoost) return;
     setSelectedId(item.id);
-
-    const analysis = boostMap[item.id];
-    const rationale = analysis?.reason
-      ? `Organic content performing ${analysis.reason}. Auto-detected as boost candidate.`
-      : `Boost organic ${item.contentType} from ${item.artistName}`;
-
-    onBoost({
-      artistSlug: item.artistSlug,
-      artistName: item.artistName,
-      artistImage: item.artistImage,
-      platform: adsPlatform,
-      objective: 'engagement',
-      rationale,
-      creative: {
-        type: item.contentType === 'video' ? 'video' : 'image',
-        headline: item.title || '',
-        description: '',
-        callToAction: 'Listen Now',
-        trackUrl: item.permalink || '',
-        postId: item.platformId || null,
-        postSource: item.platform || null,
-        igUserId: item.platform === 'instagram' ? item.ownerPlatformId : null,
-        pageId: item.platform === 'facebook' ? item.ownerPlatformId : null,
-        imageUrl: item.thumbnailUrl || null,
-      },
-    });
+    onBoost(payload);
   };
 
   const totalPages = Math.ceil(total / PAGE_SIZE);

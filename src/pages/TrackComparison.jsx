@@ -7,7 +7,7 @@ import KpiCard from '../components/shared/KpiCard';
 import StreamingTrendChart from '../components/charts/StreamingTrendChart';
 import { getTopTracksAcrossRoster, getArtist } from '../data/artists';
 import { getTrackComparison } from '../data/trackData';
-import { useTrackedArtists } from '../hooks/useTrackedArtists';
+import { useFollowedArtists } from '../hooks/useFollowedArtists';
 import { formatNumber } from '../utils/formatters';
 
 const COLORS = ['#DA7756', '#7BAF73', '#C75F4F', '#D4A574'];
@@ -128,7 +128,7 @@ function mergeStreamingTrends(comparisons) {
 }
 
 export default function TrackComparison() {
-  const { trackedArtists, loading: rosterLoading } = useTrackedArtists();
+  const { followedArtists, loading: rosterLoading } = useFollowedArtists();
   const [allTracks, setAllTracks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState([]);
@@ -143,7 +143,7 @@ export default function TrackComparison() {
       setLoading(false);
     });
     return () => { cancelled = true; };
-  }, [rosterLoading, trackedArtists]);
+  }, [rosterLoading, followedArtists]);
 
   const selectedTracks = useMemo(
     () => allTracks.filter(t => selectedIds.includes(t.id)),

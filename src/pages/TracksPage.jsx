@@ -8,7 +8,7 @@ import Pagination from '../components/shared/Pagination';
 import FilterBar from '../components/shared/FilterBar';
 import { getArtist } from '../data/artists';
 import { getTrackComparison, getRosterTrackStats, loadAllRosterTracks } from '../data/trackData';
-import { useTrackedArtists } from '../hooks/useTrackedArtists';
+import { useFollowedArtists } from '../hooks/useFollowedArtists';
 import { formatNumber } from '../utils/formatters';
 
 const COLORS = ['#DA7756', '#7BAF73', '#C75F4F', '#D4A574'];
@@ -74,7 +74,7 @@ function MultiTrackTrendChart({ data, keys, colors }) {
 }
 
 export default function TracksPage() {
-  const { trackedArtists, loading: rosterLoading } = useTrackedArtists();
+  const { followedArtists, loading: rosterLoading } = useFollowedArtists();
   const [stats, setStats] = useState(null);
   const [allTracks, setAllTracks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -96,7 +96,7 @@ export default function TracksPage() {
         setLoading(false);
       });
     return () => { cancelled = true; };
-  }, [rosterLoading, trackedArtists]);
+  }, [rosterLoading, followedArtists]);
 
   const [query, setQuery] = useState('');
   const [sortKey, setSortKey] = useState('streams');
@@ -234,12 +234,12 @@ export default function TracksPage() {
     );
   }
 
-  if (trackedArtists.length === 0) {
+  if (followedArtists.length === 0) {
     return (
       <div className="text-center py-20">
         <Music size={32} className="mx-auto text-[#2C2B28] mb-3" />
-        <p className="text-sm text-[#9B9590]">No artists tracked yet</p>
-        <p className="text-[11px] text-[#6B6560] mt-1">Track artists from the dashboard to see their tracks here</p>
+        <p className="text-sm text-[#9B9590]">Not following any artists yet</p>
+        <p className="text-[11px] text-[#6B6560] mt-1">Follow artists from the dashboard to see their tracks here</p>
         <Link to="/app/dashboard" className="inline-block mt-4 text-xs text-[#DA7756] hover:underline">
           Go to Dashboard
         </Link>
@@ -257,7 +257,7 @@ export default function TracksPage() {
           </span>
         </div>
         <h1 className="text-3xl font-light text-[#F5F0E8] mt-2">Tracks</h1>
-        <p className="text-sm text-[#9B9590] mt-1">Browse, search, and compare roster tracks</p>
+        <p className="text-sm text-[#9B9590] mt-1">Browse, search, and compare tracks from artists you follow</p>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-5">
           <div className="bg-[#171614] border border-[#2C2B28] rounded p-3">

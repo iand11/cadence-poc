@@ -170,7 +170,7 @@ const PRIORITY_META = {
 
 // The closed-loop ad engine (mirrors the pitch deck flagship)
 const AD_ENGINE_STEPS = [
-  { icon: ListChecks, title: 'Surface', body: 'Prelude scans roster momentum and surfaces prioritized action items — what to promote, where, and why.' },
+  { icon: ListChecks, title: 'Surface', body: 'Prelude scans momentum across the artists you follow and surfaces prioritized action items — what to promote, where, and why.' },
   { icon: Sparkles, title: 'Generate', body: 'Turn any action into a full campaign — objective, budget split, audience, and platform-native creative, drafted for you.' },
   { icon: Rocket, title: 'Launch', body: 'Approve once. Prelude launches natively across every major ad platform from a single directive.' },
   { icon: Activity, title: 'Optimize', body: 'Live results flow back in, reallocating budget to what works and feeding the next round of actions.' },
@@ -448,7 +448,7 @@ export default function Landing() {
               animate={{ opacity: 1, filter: 'blur(0px)' }}
               transition={{ duration: 0.8, delay: 0.3 }}
             >
-              Know your roster.
+              Know your artists.
             </motion.span>
             <br />
             <motion.span
@@ -602,8 +602,8 @@ export default function Landing() {
         <div className="max-w-5xl mx-auto px-6 lg:px-10">
           <div className="space-y-0 divide-y divide-white/[0.04]">
             {[
-              { icon: Sheet, accent: '#9B7ED8', title: 'Artist Pages', body: 'Branded one-pagers for every artist on your roster. Drag blocks, pick colors, edit any field inline, embed Spotify players, and export to PDF — or share a live link with anyone.' },
-              { icon: MessageSquare, accent: '#DA7756', title: 'AI Chat', body: 'Ask anything about your roster in plain English. Prelude answers with live data, renders charts inline, and can build full reports from a single prompt.' },
+              { icon: Sheet, accent: '#9B7ED8', title: 'Artist Pages', body: 'Branded one-pagers for every artist you follow. Drag blocks, pick colors, edit any field inline, embed Spotify players, and export to PDF — or share a live link with anyone.' },
+              { icon: MessageSquare, accent: '#DA7756', title: 'AI Chat', body: 'Ask anything about the artists you follow in plain English. Prelude answers with live data, renders charts inline, and can build full reports from a single prompt.' },
               { icon: BarChart3, accent: '#7BAF73', title: 'Analytics', body: 'Streaming trends, social growth, playlist intelligence, audience geography, and revenue estimates across Spotify, Apple Music, TikTok, YouTube, Instagram, and Shazam.' },
               { icon: FileText, accent: '#4A90D9', title: 'Reports', body: 'Compose reports from 8 widget types. Drag to reorder, select artists, and export. Reports auto-save and can be shared via link.' },
               { icon: ListChecks, accent: '#D4A574', title: 'Action Items', body: 'Prelude turns every signal into prioritized, per-artist next steps — ranked high to low with guided, checkable playbooks so nothing slips.' },
@@ -648,7 +648,7 @@ export default function Landing() {
           >
             <h2 className="font-display text-3xl sm:text-4xl font-light tracking-tight mb-3">From signal to campaign, on autopilot</h2>
             <p className="text-sm text-[#9B9590] max-w-lg mx-auto leading-relaxed">
-              Prelude turns roster data into prioritized action items, then into live ad campaigns — a closed loop that gets smarter with every result.
+              Prelude turns artist data into prioritized action items, then into live ad campaigns — a closed loop that gets smarter with every result.
             </p>
           </motion.div>
 

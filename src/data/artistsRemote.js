@@ -59,21 +59,42 @@ export async function fetchFacets() {
   return getJson('/api/artists/facets');
 }
 
-/**
- * Ask for an artist missing from the catalog to be added. Creates a pending
- * artist_requests row that an outside service fulfills.
- * @returns {Promise<{request?, duplicate?, exists?, artist?}>}
- *   exists:true + artist when the name is already in the catalog;
- *   duplicate:true when someone already has an open request for this name.
- */
-export async function requestArtist({ name, spotifyUrl, notes } = {}) {
-  const headers = { 'Content-Type': 'application/json' };
+async function authHeaders(base = {}) {
+  const headers = { ...base };
   const token = await getIdToken();
   if (token) headers['Authorization'] = `Bearer ${token}`;
+  return headers;
+}
+
+/**
+ * Search Spotify for artists (the missing-artist request flow). Each result:
+ * { spotifyId, name, spotifyUrl, imageUrl, followers, popularity, genres,
+ *   catalogMatch: { slug, name, by: 'spotify'|'name' } | null, requested }.
+ */
+export async function searchSpotifyArtists(q, { signal } = {}) {
+  const res = await fetch(`/api/artists/spotify-search?q=${encodeURIComponent(q)}`, {
+    headers: await authHeaders(),
+    signal,
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || `Spotify search failed (${res.status})`);
+  return body.artists || [];
+}
+
+/**
+ * Ask for an artist missing from the catalog to be added. Takes the Spotify
+ * id picked from searchSpotifyArtists — the server re-validates it and stores
+ * Spotify's name/url. Creates a pending artist_requests row that an outside
+ * service fulfills.
+ * @returns {Promise<{request?, duplicate?, exists?, artist?}>}
+ *   exists:true + artist when that Spotify artist is already in the catalog;
+ *   duplicate:true when someone already has an open request for it.
+ */
+export async function requestArtist({ spotifyId, notes } = {}) {
   const res = await fetch('/api/artists/requests', {
     method: 'POST',
-    headers,
-    body: JSON.stringify({ name, spotifyUrl, notes }),
+    headers: await authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ spotifyId, notes }),
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(body.error || `Request failed (${res.status})`);

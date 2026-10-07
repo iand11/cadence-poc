@@ -6,6 +6,14 @@ function getApp() {
   if (app) return app;
   const json = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
   if (!json) return null;
+  // firebase-admin's app registry is process-wide, but this module can be
+  // loaded more than once (the dev server imports API handlers by different
+  // paths). Reuse the default app — a second initializeApp() throws, and
+  // failing here used to silently skip verification (uid → 'anonymous').
+  if (admin.apps.length) {
+    app = admin.app();
+    return app;
+  }
   try {
     const credential = admin.credential.cert(JSON.parse(json));
     app = admin.initializeApp({ credential });
