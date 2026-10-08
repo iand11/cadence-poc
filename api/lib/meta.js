@@ -128,7 +128,32 @@ export async function getUid(req) {
   return decoded?.uid || decoded?.sub || 'anonymous';
 }
 
+// Created lazily too (mirrors db/schema.sql) so a database that hasn't had
+// `npm run db:schema` re-run since this table was added still works.
+let tableReady;
+function ensureTable() {
+  if (!tableReady) {
+    tableReady = query(`
+      CREATE TABLE IF NOT EXISTS ad_platform_connections (
+        user_id      text NOT NULL,
+        platform     text NOT NULL,
+        token_enc    text NOT NULL,
+        token_type   text,
+        expires_at   timestamptz,
+        scopes       text[],
+        meta_user_id text,
+        selection    jsonb NOT NULL DEFAULT '{}'::jsonb,
+        connected_at timestamptz NOT NULL DEFAULT now(),
+        updated_at   timestamptz NOT NULL DEFAULT now(),
+        PRIMARY KEY (user_id, platform)
+      )
+    `).catch((err) => { tableReady = undefined; throw err; });
+  }
+  return tableReady;
+}
+
 export async function loadConnection(uid) {
+  await ensureTable();
   const row = await queryOne(
     `SELECT * FROM ad_platform_connections WHERE user_id = $1 AND platform = 'meta'`,
     [uid]
@@ -214,6 +239,7 @@ export async function findInstagramPost(token, { permalink, postId }) {
 }
 
 export async function saveConnection(uid, { token, tokenType, expiresAt, scopes, metaUserId }) {
+  await ensureTable();
   await query(
     `INSERT INTO ad_platform_connections
        (user_id, platform, token_enc, token_type, expires_at, scopes, meta_user_id)
