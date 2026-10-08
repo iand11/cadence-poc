@@ -4,6 +4,7 @@
 // enough matters for heavy listeners; anything older than that window is gone.
 import { query, queryOne } from './db.js';
 import { encryptToken, decryptToken } from './meta.js';
+import { spotifyItem } from './spotify-fans.js';
 
 const ACCOUNTS = process.env.SPOTIFY_ACCOUNTS_URL || 'https://accounts.spotify.com';
 const API = process.env.SPOTIFY_API_URL || 'https://api.spotify.com/v1';
@@ -28,6 +29,7 @@ export function ensureSyncTables() {
         )`);
       await query('CREATE INDEX IF NOT EXISTS spotify_plays_track_idx ON spotify_plays (track_id, played_at)');
       await query('ALTER TABLE smart_links ADD COLUMN IF NOT EXISTS spotify_artist_ids text[]');
+      await query('ALTER TABLE smart_links ADD COLUMN IF NOT EXISTS spotify_track_name text');
     })().catch((err) => { tablesReady = undefined; throw err; });
   }
   return tablesReady;
@@ -66,13 +68,15 @@ async function refreshAccess(row) {
   return body.access_token;
 }
 
-/** Copy one fan's recent plays (newer than the cursor) into spotify_plays. Returns plays added. */
+/**
+ * Copy one fan's recent plays into spotify_plays. Returns plays added. Always reads the
+ * latest 50 (no `after` cursor, which can skip plays) and lets the primary key dedupe.
+ */
 export async function syncListener(row, accessToken = null) {
   try {
     const token = accessToken || await refreshAccess(row);
     const url = new URL(`${API}/me/player/recently-played`);
     url.searchParams.set('limit', '50');
-    if (row.last_played_at) url.searchParams.set('after', String(new Date(row.last_played_at).getTime()));
     const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
     if (!res.ok) throw new Error(`recently-played failed (${res.status})`);
     const items = (await res.json()).items || [];
@@ -119,10 +123,23 @@ export async function syncDueListeners({ limit = 200, concurrency = 5, force = f
   return { listeners: rows.length, plays, errors };
 }
 
-/** SQL filter on spotify_plays `p` for plays of a link's release ({ type, id } from its Spotify URL). */
-export function releaseFilter(item) {
+const sqlText = (v) => `'${String(v).replace(/'/g, "''")}'`;
+const SPOTIFY_ID = /^[A-Za-z0-9]{22}$/;
+
+/**
+ * SQL filter on spotify_plays `p` for plays of a link's release. A track matches by id,
+ * or by name + one of its artists, since the same song often has several Spotify ids
+ * (single, album, regional versions) and the app may play a different one.
+ */
+export function releaseFilter(link) {
+  const item = spotifyItem((link?.links || []).find(l => l.service === 'spotify')?.url);
   if (!item) return 'false';
-  return item.type === 'album' ? `p.album_id = '${item.id}'` : `p.track_id = '${item.id}'`;
+  if (item.type === 'album') return `p.album_id = ${sqlText(item.id)}`;
+  const byId = `p.track_id = ${sqlText(item.id)}`;
+  const name = link.spotify_track_name || link.title;
+  const artists = (link.spotify_artist_ids || []).filter(id => SPOTIFY_ID.test(id));
+  if (!name || !artists.length) return byId;
+  return `(${byId} OR (lower(p.track_name) = lower(${sqlText(name)}) AND p.artist_ids && ARRAY[${artists.map(sqlText).join(',')}]::text[]))`;
 }
 
 /**
@@ -130,11 +147,11 @@ export function releaseFilter(item) {
  * fans synced, fans who streamed the release, release plays, plays of the artist,
  * and how many were already listening to the artist before.
  */
-export async function listeningStats({ slug = null, campaign = null, uid, item, artistIds }) {
+export async function listeningStats({ slug = null, campaign = null, uid, link }) {
   await ensureSyncTables();
   const where = slug ? 'f.slug = $1' : 'f.campaign = $1 AND f.slug IN (SELECT slug FROM smart_links WHERE user_id = $2)';
   const params = slug ? [slug] : [campaign, uid];
-  const release = releaseFilter(item);
+  const release = releaseFilter(link);
   const artistIdx = params.length + 1;
   const row = await queryOne(
     `WITH fans AS (
@@ -148,7 +165,7 @@ export async function listeningStats({ slug = null, campaign = null, uid, item, 
        count(*) FILTER (WHERE p.artist_ids && $${artistIdx}::text[] AND p.played_at >= fans.created_at)::int AS artist_plays,
        count(DISTINCT p.spotify_user_id) FILTER (WHERE p.artist_ids && $${artistIdx}::text[] AND p.played_at < fans.created_at)::int AS prior_listeners
      FROM fans LEFT JOIN spotify_plays p ON p.spotify_user_id = fans.spotify_user_id`,
-    [...params, artistIds || []]);
+    [...params, link?.spotify_artist_ids || []]);
   return {
     fansSynced: row.synced,
     fansStreamed: row.streamers,

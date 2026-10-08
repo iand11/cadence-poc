@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link2, Plus, Copy, Check, ExternalLink, Trash2, Loader2, AlertTriangle, ChevronDown, MousePointerClick, Eye, Download, Users, RefreshCw } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { useAsync } from '../../hooks/useAsync';
@@ -101,7 +101,8 @@ function FansSection({ link, version, listening, onSynced }) {
     setSyncNote(null);
     try {
       const r = await syncLinkFans(link.slug);
-      setSyncNote(`${formatNumber(r.plays)} new play${r.plays === 1 ? '' : 's'} from ${formatNumber(r.listeners)} fan${r.listeners === 1 ? '' : 's'}`);
+      const plays = `${formatNumber(r.plays)} new play${r.plays === 1 ? '' : 's'} from ${formatNumber(r.listeners)} fan${r.listeners === 1 ? '' : 's'}`;
+      setSyncNote(r.errors?.length ? `${plays} · sync failed for ${r.errors.length}: ${r.errors[0]}` : plays);
       setSyncVersion(v => v + 1);
       onSynced();
     } catch (e) {
@@ -110,6 +111,15 @@ function FansSection({ link, version, listening, onSynced }) {
       setSyncing(false);
     }
   };
+  // Pull the latest plays once when the section opens, so nobody has to press Sync
+  const hasFans = (data?.fans || []).length > 0;
+  const autoSynced = useRef(false);
+  useEffect(() => {
+    if (hasFans && !autoSynced.current) {
+      autoSynced.current = true;
+      syncNow();
+    }
+  }, [hasFans]); // eslint-disable-line react-hooks/exhaustive-deps
   const fans = data?.fans || [];
   if (!link.fanCapture && !fans.length) return null;
   // Who else these fans listen to
@@ -124,7 +134,7 @@ function FansSection({ link, version, listening, onSynced }) {
         {fans.length > 0 && (
           <div className="flex items-center gap-3">
             {syncNote && <span className="text-[9px] font-mono text-[#6B6560]">{syncNote}</span>}
-            <button onClick={syncNow} disabled={syncing} className="flex items-center gap-1 text-[10px] font-mono text-[#9B9590] hover:text-[#F5F0E8] cursor-pointer" title="Listening syncs daily; pull the latest now">
+            <button onClick={syncNow} disabled={syncing} className="flex items-center gap-1 text-[10px] font-mono text-[#9B9590] hover:text-[#F5F0E8] cursor-pointer" title="Spotify lists a play a few minutes after it ends. Listening also syncs daily.">
               <RefreshCw size={10} className={syncing ? 'animate-spin' : ''} /> Sync plays
             </button>
             <button onClick={() => downloadFansCsv(link, fans)} className="flex items-center gap-1 text-[10px] font-mono text-[#9B9590] hover:text-[#F5F0E8] cursor-pointer">
@@ -155,8 +165,8 @@ function FansSection({ link, version, listening, onSynced }) {
                     <td className="py-1 pr-3">{f.name || '–'}</td><td className="py-1 pr-3 font-mono">{f.email || '–'}</td>
                     <td className="py-1 pr-3">{f.country || '–'}</td><td className="py-1 pr-3">{f.product || '–'}</td>
                     <td className="py-1 pr-3">{f.followed ? 'Yes' : 'No'}</td><td className="py-1 pr-3">{f.saved ? 'Yes' : 'No'}</td>
-                    <td className="py-1 pr-3 font-mono" title={f.lastReleasePlay ? `Last played ${new Date(f.lastReleasePlay).toLocaleString()}` : undefined}>
-                      {f.accessRemoved ? 'access removed' : f.lastSyncedAt ? formatNumber(f.releasePlays) : '–'}
+                    <td className="py-1 pr-3 font-mono" title={f.syncError ? `Sync failed: ${f.syncError}` : f.lastReleasePlay ? `Last played ${new Date(f.lastReleasePlay).toLocaleString()}` : undefined}>
+                      {f.accessRemoved ? 'access removed' : f.syncError ? 'sync failed' : f.lastSyncedAt ? formatNumber(f.releasePlays) : '–'}
                     </td>
                     <td className="py-1 pr-3 font-mono">{f.lastSyncedAt ? formatNumber(f.artistPlays) : '–'}</td>
                     <td className="py-1">{f.fromAd ? 'Yes' : 'No'}</td>

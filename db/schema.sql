@@ -557,3 +557,4 @@ CREATE TABLE IF NOT EXISTS spotify_plays (
 CREATE INDEX IF NOT EXISTS spotify_plays_track_idx ON spotify_plays (track_id, played_at);
 
 ALTER TABLE smart_links ADD COLUMN IF NOT EXISTS spotify_artist_ids text[];
+ALTER TABLE smart_links ADD COLUMN IF NOT EXISTS spotify_track_name text;

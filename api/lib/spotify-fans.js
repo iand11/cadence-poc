@@ -62,10 +62,12 @@ export async function captureFan(token, item) {
   let saved = false;
   let topArtists = null;
   let artistIds = [];
+  let releaseName = null;
   if (item) {
     try {
       const release = await call(token, 'GET', `/${item.type}s/${item.id}`);
       artistIds = (release.artists || []).map(a => a.id).slice(0, 5);
+      releaseName = release.name || null;
       if (artistIds.length) {
         await call(token, 'PUT', `/me/following?type=artist&ids=${artistIds.join(',')}`);
         followed = true;
@@ -90,5 +92,6 @@ export async function captureFan(token, item) {
     saved,
     topArtists,
     artistIds,
+    releaseName,
   };
 }

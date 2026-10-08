@@ -72,8 +72,11 @@ export default async function handler(req, res) {
           [link.slug, fan.spotifyUserId, fan.displayName, fan.email, fan.country, fan.product,
             fan.followed, fan.saved, fan.topArtists ? JSON.stringify(fan.topArtists) : null,
             ctx.c || null, !!ctx.fbclid]);
-        if (fan.artistIds.length && !link.spotify_artist_ids?.length) {
-          await query('UPDATE smart_links SET spotify_artist_ids = $2 WHERE slug = $1', [link.slug, fan.artistIds]);
+        if (fan.artistIds.length && (!link.spotify_artist_ids?.length || !link.spotify_track_name)) {
+          await query(
+            `UPDATE smart_links SET spotify_artist_ids = COALESCE(NULLIF(spotify_artist_ids, '{}'), $2),
+               spotify_track_name = COALESCE(spotify_track_name, $3) WHERE slug = $1`,
+            [link.slug, fan.artistIds, fan.releaseName]);
         }
         // Keep access for listening history and pull what they've played so far
         // (their last 50 plays, from before the click too)

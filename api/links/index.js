@@ -16,14 +16,12 @@ import { getUid, readBody, sendError, loadConnection, graphList, assignedAdAccou
 import {
   ensureTables, resolveLinks, cleanLinks, makeSlug, linkUrl, statsFor, isHttpUrl,
 } from '../lib/smartlinks.js';
-import { spotifyLoginConfigured, spotifyItem } from '../lib/spotify-fans.js';
+import { spotifyLoginConfigured } from '../lib/spotify-fans.js';
 import { ensureSyncTables, listeningStats, releaseFilter, syncListener } from '../lib/spotify-sync.js';
-
-const spotifyUrlOf = (row) => (row.links || []).find(l => l.service === 'spotify')?.url;
 
 /** Plays by this link's fans (null when it has never captured a fan). */
 async function linkListening(row) {
-  return listeningStats({ slug: row.slug, item: spotifyItem(spotifyUrlOf(row)), artistIds: row.spotify_artist_ids });
+  return listeningStats({ slug: row.slug, link: row });
 }
 
 const bad = (message, status = 400) => Object.assign(new Error(message), { status });
@@ -83,10 +81,10 @@ export default async function handler(req, res) {
       if (params.get('fans')) {
         const row = await ownedLink(uid, params.get('fans'));
         await ensureSyncTables();
-        const release = releaseFilter(spotifyItem(spotifyUrlOf(row)));
+        const release = releaseFilter(row);
         const fans = await query(
           `SELECT f.spotify_user_id, f.display_name, f.email, f.country, f.product, f.followed, f.saved,
-                  f.top_artists, f.campaign, f.from_ad, f.created_at, l.last_synced_at, l.revoked,
+                  f.top_artists, f.campaign, f.from_ad, f.created_at, l.last_synced_at, l.revoked, l.sync_error,
                   (SELECT count(*)::int FROM spotify_plays p WHERE p.spotify_user_id = f.spotify_user_id
                      AND p.played_at >= f.created_at AND ${release}) AS release_plays,
                   (SELECT count(*)::int FROM spotify_plays p WHERE p.spotify_user_id = f.spotify_user_id
@@ -101,7 +99,7 @@ export default async function handler(req, res) {
             product: f.product, followed: f.followed, saved: f.saved, topArtists: f.top_artists || [],
             campaign: f.campaign, fromAd: f.from_ad, createdAt: f.created_at,
             releasePlays: f.release_plays, artistPlays: f.artist_plays, lastReleasePlay: f.last_release_play,
-            lastSyncedAt: f.last_synced_at, accessRemoved: !!f.revoked,
+            lastSyncedAt: f.last_synced_at, accessRemoved: !!f.revoked, syncError: f.sync_error || null,
           })),
         });
       }
@@ -117,7 +115,7 @@ export default async function handler(req, res) {
              (SELECT slug FROM smart_link_events WHERE campaign = $1) LIMIT 1`, [params.get('campaign'), uid]);
         const listening = linkRow && stats.fans ? await listeningStats({
           campaign: params.get('campaign'), uid,
-          item: spotifyItem(spotifyUrlOf(linkRow)), artistIds: linkRow.spotify_artist_ids,
+          link: linkRow,
         }) : null;
         return res.status(200).json({ ...stats, listening });
       }
@@ -162,7 +160,10 @@ export default async function handler(req, res) {
              AND l.spotify_user_id IN (SELECT spotify_user_id FROM smart_link_fans WHERE slug = $1)`, [row.slug]);
         let plays = 0;
         for (const l of listeners) plays += await syncListener(l);
-        return res.status(200).json({ listeners: listeners.length, plays });
+        const failed = listeners.length ? await query(
+          `SELECT sync_error FROM spotify_listeners WHERE spotify_user_id = ANY($1) AND sync_error IS NOT NULL`,
+          [listeners.map(l => l.spotify_user_id)]) : [];
+        return res.status(200).json({ listeners: listeners.length, plays, errors: failed.map(f => f.sync_error) });
       }
       if (!isHttpUrl(body.sourceUrl) && !body.links?.length) {
         throw bad('Paste a Spotify, Apple Music or YouTube link to the release.');
