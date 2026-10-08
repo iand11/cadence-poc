@@ -72,13 +72,13 @@ builds, so components need no reshaping. Frontend adapter: `src/data/artistsRemo
 (async drop-ins: `fetchArtists`, `fetchArtist`, `loadArtistDetail`, `fetchContentFeed`).
 Dev middleware for these routes is `dbApiPlugin()` in `vite.config.js`.
 
-Meta ads (Campaigns): a user connects their own Meta business with Facebook Login for
+Campaigns cover Instagram (Meta), TikTok and YouTube only (`CAMPAIGN_PLATFORMS` in `src/data/directives.js`; saved campaigns on other platforms are hidden). Meta ads (Campaigns): a user connects their own Meta business with Facebook Login for
 Business (`api/connect/meta.js`). The token is stored encrypted in
 `ad_platform_connections` and never reaches the client. Each artist's Instagram account is assigned to the ad account its ads run in
 (`selection.accountMap`). `api/campaign/meta-launch.js` turns a Meta directive into a paused
 Campaign → Ad Set → Ad in that ad account: a boost (`creative.postId`, post found by its
-permalink shortcode) or a new image ad (`creative.igUserId` "Run as" account + `imageUrl`,
-uploaded to the ad account, + `trackUrl` destination and CTA). `check: true` validates
+permalink shortcode) or a new image ad (`creative.igUserId` "Run as" account + `creative.images`,
+uploaded in the builder via `AdImagesField` → `/api/ad-images` (Postgres `ad_images`), 2–10 make a carousel in that order, + `trackUrl` destination and CTA). `check: true` validates
 without creating anything and gates "Submit for Approval". `api/campaign/meta-campaign.js` reads status/insights and goes live or
 pauses. The client side is `src/data/metaAds.js`, `useMetaConnection`, `AccountConnector`
 and `MetaCampaignPanel`. Smart links (Campaigns → Links, `SmartLinksPanel`): public

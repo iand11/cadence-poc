@@ -15,8 +15,9 @@ const PLATFORM_FILTERS = [
   { key: 'instagram', label: 'Instagram', color: PLATFORM_COLORS.instagram },
   { key: 'tiktok', label: 'TikTok', color: PLATFORM_COLORS.tiktok },
   { key: 'youtube', label: 'YouTube', color: PLATFORM_COLORS.youtube },
-  { key: 'twitter', label: 'X', color: PLATFORM_COLORS.twitter },
 ];
+
+const FEED_PLATFORMS = PLATFORM_FILTERS.map(f => f.key).filter(Boolean);
 
 const TYPE_FILTERS = [
   { key: null, label: 'All' },
@@ -68,7 +69,9 @@ export default function ContentFeed({ onBoost }) {
     setLoading(true);
 
     const params = { limit: PAGE_SIZE, offset, sort };
+    // Campaigns only covers Instagram, TikTok and YouTube
     if (platform) params.platform = platform;
+    else params.platforms = FEED_PLATFORMS;
     if (type) params.type = type;
     if (artistFilter) params.artist = artistFilter;
     else if (scope === 'favorites') params.artists = favorites;

@@ -187,9 +187,10 @@ export async function loadArtistDetail(slug) {
  * Social content feed from the database — drop-in for api.getContentFeed().
  * @returns {Promise<{items, artistAverages, total}>}
  */
-export async function fetchContentFeed({ platform, type, sort = 'recent', artist, artists, limit = 20, offset = 0 } = {}) {
+export async function fetchContentFeed({ platform, platforms, type, sort = 'recent', artist, artists, limit = 20, offset = 0 } = {}) {
   const params = new URLSearchParams();
   if (platform) params.set('platform', platform);
+  else if (platforms?.length) params.set('platforms', platforms.join(','));
   if (type) params.set('type', type);
   if (sort) params.set('sort', sort);
   if (artist) params.set('artist', artist);

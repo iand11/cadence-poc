@@ -61,3 +61,6 @@ export const fetchMetaCampaign = (id) =>
 /** status: 'ACTIVE' (go live) | 'PAUSED' */
 export const setMetaCampaignStatus = (id, status) =>
   request('/api/campaign/meta-campaign', { method: 'POST', body: { id, status } });
+
+/** Upload an ad image ({ dataUrl, width, height }). Returns { id, url }. */
+export const uploadAdImage = (image) => request('/api/ad-images', { method: 'POST', body: image });

@@ -558,3 +558,14 @@ CREATE INDEX IF NOT EXISTS spotify_plays_track_idx ON spotify_plays (track_id, p
 
 ALTER TABLE smart_links ADD COLUMN IF NOT EXISTS spotify_artist_ids text[];
 ALTER TABLE smart_links ADD COLUMN IF NOT EXISTS spotify_track_name text;
+
+-- Images uploaded for new ads (Campaigns builder); read back when an ad launches
+CREATE TABLE IF NOT EXISTS ad_images (
+  id           uuid PRIMARY KEY,
+  user_id      text NOT NULL,
+  content_type text NOT NULL,
+  bytes        bytea NOT NULL,
+  width        int,
+  height       int,
+  created_at   timestamptz NOT NULL DEFAULT now()
+);

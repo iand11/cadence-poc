@@ -70,10 +70,13 @@ chosen individually.
      `instagram_user_id`, `object_id` = Page) → Ad, **all paused**,
   4. rolls back (deletes) anything already created if a step fails.
 - **New image ad** (no `postId`, builder's "Create New"): the user picks a "Run as"
-  Instagram account (`creative.igUserId`, from the shared accounts). The server downloads
-  `creative.imageUrl`, uploads it to `act_x/adimages` for an `image_hash`, and builds the
-  creative from `object_story_spec` (`page_id`, `instagram_user_id`, `link_data` with the
-  image, `trackUrl` as the link, headline → `name`, description → `message`, CTA Listen
+  Instagram account (`creative.igUserId`, from the shared accounts) and uploads 1–10
+  images (`AdImagesField`: resized to 1440px JPEG in the browser, stored in `ad_images`
+  via `/api/ad-images`, reordered by drag or arrows; `creative.images` keeps the order).
+  The server reads each image, uploads it to `act_x/adimages` for an `image_hash`, and
+  builds the creative from `object_story_spec` (`page_id`, `instagram_user_id`,
+  `link_data` with one image, or `child_attachments` in order for a carousel with
+  `multi_share_optimized: false` so Meta keeps that order, `trackUrl` as the link, headline → `name`, description → `message`, CTA Listen
   Now / Learn More / Watch Now / Shop Now → `LISTEN_NOW` / `LEARN_MORE` / `WATCH_MORE` /
   `SHOP_NOW`). Video ads are rejected for now (boost an existing video post instead).
   The directive gets `platformCampaignId`, `platformAdSetId`, `platformAdId`,

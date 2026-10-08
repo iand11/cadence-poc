@@ -15,10 +15,10 @@ const OBJECTIVE_WEIGHTS = {
 
 // How the end goal steers the whole plan — the strategy behind the weight profile above
 const OBJECTIVE_STRATEGY = {
-  streams: 'Because the goal is to drive streams, Spotify leads — it’s the only channel where a click becomes a play — with TikTok and YouTube funding discovery. Pure social prospecting (Meta, X) is trimmed back.',
-  awareness: 'Because the goal is brand awareness, budget skews to the cheapest-reach channels — Meta, TikTok and YouTube — to maximize new impressions. Spotify is de-emphasized since it mostly re-touches existing fans.',
-  engagement: 'Because the goal is engagement, TikTok and Meta lead — duets, comments and shares compound reach there. Search and Spotify play minor supporting roles.',
-  conversions: 'Because the goal is conversions, spend concentrates on Meta and Google — the pixel- and intent-driven channels that close ticket and merch sales — while discovery channels stay lean.',
+  streams: 'Because the goal is to drive streams, TikTok and YouTube lead — they turn discovery into listening — with Instagram ads sending fans to the release through a smart link.',
+  awareness: 'Because the goal is brand awareness, budget goes to the cheapest reach across Instagram, TikTok and YouTube to maximize new impressions.',
+  engagement: 'Because the goal is engagement, TikTok and Instagram lead — duets, comments and shares compound reach there — with YouTube in support.',
+  conversions: 'Because the goal is conversions, spend concentrates on Instagram, where the Meta Pixel closes ticket and merch sales, with TikTok next.',
 };
 
 // Artist social platform mapping for strength scoring

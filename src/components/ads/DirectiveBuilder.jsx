@@ -1,7 +1,8 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { motion } from 'motion/react';
-import { X, Search, Music, Loader2, Heart, Eye, CheckCircle, Play, Plus, ChevronDown, Image, Link2, Upload, FileAudio, FileVideo, Trash2, AlertTriangle } from 'lucide-react';
+import { X, Search, Music, Loader2, Heart, Eye, CheckCircle, Play, Plus, ChevronDown, Link2, Upload, FileVideo, Trash2, AlertTriangle } from 'lucide-react';
+import AdImagesField from './AdImagesField';
 import { PLATFORM_OBJECTIVES, PLATFORM_CONSTRAINTS, PLATFORM_LABELS, CREATIVE_TYPES } from '../../data/directives';
 import BudgetAllocator from './BudgetAllocator';
 import { PLATFORM_COLORS } from '../../constants/colors';
@@ -35,12 +36,9 @@ const LOCATION_OPTIONS = [
 ];
 
 const PLATFORM_CONTENT_CONFIG = {
-  spotify: { label: 'Select a Track or Album', source: 'artist' },
   meta: { label: 'Boost an Instagram Post', source: 'content-feed', feedPlatform: 'instagram' },
-  google: { label: 'Create a Search Ad', source: 'manual' },
   youtube: { label: 'Select a YouTube Video', source: 'content-feed', feedPlatform: 'youtube' },
   tiktok: { label: 'Boost a TikTok Video', source: 'content-feed', feedPlatform: 'tiktok' },
-  x: { label: 'Promote a Post', source: 'content-feed', feedPlatform: 'twitter' },
 };
 
 function fileToBase64(file) {
@@ -152,7 +150,7 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
   const navigate = useNavigate();
   const editing = !!initialData?.id;
 
-  const [platform, setPlatform] = useState(initialData?.platform || connectedPlatforms?.[0] || 'spotify');
+  const [platform, setPlatform] = useState(initialData?.platform || connectedPlatforms?.[0] || 'meta');
   const [objective, setObjective] = useState(initialData?.objective || '');
   const [budgetAmount, setBudgetAmount] = useState(initialData?.budget?.amount || 500);
   const [budgetPeriod, setBudgetPeriod] = useState(initialData?.budget?.period || 'lifetime');
@@ -178,18 +176,13 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
   const [contentItems, setContentItems] = useState([]);
   const [contentLoading, setContentLoading] = useState(false);
   const [contentLoadingMore, setContentLoadingMore] = useState(false);
-  const [contentTab, setContentTab] = useState('track'); // Spotify: 'track' | 'album'
   const [selectedContentId, setSelectedContentId] = useState(null);
   const [contentTotal, setContentTotal] = useState(0);
   const [contentOffset, setContentOffset] = useState(0);
   const [contentMode, setContentMode] = useState('select'); // 'select' | 'create'
-  const [imageUrl, setImageUrl] = useState(initialData?.creative?.imageUrl || '');
-
-  // Spotify ad creative files
-  const [audioFile, setAudioFile] = useState(null);
-  const [imageFile, setImageFile] = useState(null);
-  const [logoFile, setLogoFile] = useState(null);
-  const [advertiserName, setAdvertiserName] = useState(initialData?.creative?.advertiserName || '');
+  // New-ad images, in the order they appear (2+ make a carousel)
+  const [images, setImages] = useState(() => initialData?.creative?.images
+    || (initialData?.creative?.imageUrl && !initialData?.creative?.postId ? [initialData.creative.imageUrl] : []));
 
   // YouTube ad creative files
   const [videoFile, setVideoFile] = useState(null);
@@ -297,55 +290,7 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
       }
     };
 
-    if (config.source === 'manual') {
-      // Google Search: no content to fetch, go straight to create mode
-      setContentItems([]);
-      setContentTotal(0);
-      setContentLoading(false);
-      setContentMode('create');
-      return;
-    }
-
-    if (config.source === 'artist') {
-      // Spotify: fetch tracks and albums
-      api.getArtist(artistSlug)
-        .then(data => {
-          if (cancelled) return;
-          const items = [];
-          for (const t of (data.tracks || [])) {
-            items.push({
-              _type: 'track',
-              id: `track-${t.id}`,
-              platformId: t.spotifyTrackId,
-              title: t.name,
-              subtitle: t.albumName || '',
-              thumbnailUrl: t.imageUrl,
-              metric: t.streams || 0,
-              metricLabel: 'streams',
-              permalink: t.spotifyTrackId ? `https://open.spotify.com/track/${t.spotifyTrackId}` : null,
-            });
-          }
-          for (const a of (data.albums || [])) {
-            items.push({
-              _type: 'album',
-              id: `album-${a.id}`,
-              platformId: a.spotifyAlbumId,
-              title: a.name,
-              subtitle: a.releaseDate ? new Date(a.releaseDate).getFullYear().toString() : (a.type || ''),
-              thumbnailUrl: a.imageUrl,
-              metric: a.popularity || 0,
-              metricLabel: 'popularity',
-              permalink: a.spotifyAlbumId ? `https://open.spotify.com/album/${a.spotifyAlbumId}` : null,
-            });
-          }
-          setContentItems(items);
-          setContentTotal(items.length);
-          autoSelect(items);
-        })
-        .catch(() => { if (!cancelled) { setContentItems([]); setContentTotal(0); } })
-        .finally(() => { if (!cancelled) setContentLoading(false); });
-    } else {
-      // Social platforms: fetch from content-feed
+    // Fetch the artist's posts on this platform
       api.getContentFeed({ platform: config.feedPlatform, artist: artistSlug, sort: 'engagement', limit: CONTENT_PAGE_SIZE, offset: 0 })
         .then(data => {
           if (cancelled) return;
@@ -357,7 +302,6 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
         })
         .catch(() => { if (!cancelled) { setContentItems([]); setContentTotal(0); } })
         .finally(() => { if (!cancelled) setContentLoading(false); });
-    }
 
     return () => { cancelled = true; };
   }, [platform, artistSlug]);
@@ -365,7 +309,7 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
   // Load more content items
   const loadMoreContent = () => {
     const config = PLATFORM_CONTENT_CONFIG[platform];
-    if (!config || config.source === 'artist' || contentLoadingMore) return;
+    if (!config || contentLoadingMore) return;
 
     setContentLoadingMore(true);
     api.getContentFeed({ platform: config.feedPlatform, artist: artistSlug, sort: 'engagement', limit: CONTENT_PAGE_SIZE, offset: contentOffset })
@@ -378,7 +322,7 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
       .finally(() => setContentLoadingMore(false));
   };
 
-  const hasMoreContent = PLATFORM_CONTENT_CONFIG[platform]?.source !== 'artist' && contentItems.length < contentTotal;
+  const hasMoreContent = contentItems.length < contentTotal;
 
   const selectContent = (item) => {
     setMetaGate(null);
@@ -388,11 +332,7 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
     setTrackUrl(item.permalink || '');
     setPostSource(item.sourcePlatform || null);
     setOwnerPlatformId(item.ownerPlatformId || null);
-    if (item._type === 'track' || item._type === 'album') {
-      setCreativeType('audio');
-    } else {
-      setCreativeType(item.contentType === 'video' ? 'video' : 'image');
-    }
+    setCreativeType(item.contentType === 'video' ? 'video' : 'image');
   };
 
   const clearContentSelection = () => {
@@ -402,12 +342,7 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
     setOwnerPlatformId(null);
   };
 
-  const filteredContentItems = useMemo(() => {
-    if (platform === 'spotify') {
-      return contentItems.filter(c => c._type === contentTab);
-    }
-    return contentItems;
-  }, [contentItems, contentTab, platform]);
+  const filteredContentItems = contentItems;
 
   const budgetError = constraint?.minBudget && budgetAmount < constraint.minBudget
     ? `Minimum budget: $${constraint.minBudget}`
@@ -439,17 +374,7 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
       approvedAt: initialData?.approvedAt || null,
     };
 
-    if (platform === 'spotify') {
-      const creative = {
-        headline,
-        advertiserName: advertiserName || selectedArtist?.name || artistSlug,
-        trackUrl,
-      };
-      if (audioFile) creative.audioFile = await fileToBase64(audioFile);
-      if (imageFile) creative.imageFile = await fileToBase64(imageFile);
-      if (logoFile) creative.logoFile = await fileToBase64(logoFile);
-      base.creative = creative;
-    } else if (platform === 'youtube') {
+    if (platform === 'youtube') {
       const creative = {
         headline,
         description,
@@ -470,7 +395,8 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
         postSource: postSource || null,
         igUserId: postId ? (postSource === 'instagram' ? ownerPlatformId : null) : runAsIgUserId,
         pageId: postSource === 'facebook' ? ownerPlatformId : null,
-        imageUrl: imageUrl || selectedArtist?.imageUrl || initialData?.artistImage || null,
+        images: postId ? [] : images,
+        imageUrl: (!postId && images[0]) || selectedArtist?.imageUrl || initialData?.artistImage || null,
       };
     }
 
@@ -817,9 +743,8 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
 
           {/* Content to Promote */}
           {artistSlug && PLATFORM_CONTENT_CONFIG[platform] && (
-            <Section label={PLATFORM_CONTENT_CONFIG[platform]?.source === 'manual' ? 'Ad Creative' : 'Content to Promote'}>
-              {/* Mode toggle: Select Existing / Create New (hidden for manual/search platforms) */}
-              {PLATFORM_CONTENT_CONFIG[platform]?.source !== 'manual' && (
+            <Section label="Content to Promote">
+              {/* Mode toggle: Select Existing / Create New */}
               <div className="flex gap-1 mb-3">
                 <button
                   onClick={() => { setContentMode('select'); clearContentSelection(); setMetaGate(null); }}
@@ -843,123 +768,11 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
                   Create New
                 </button>
               </div>
-              )}
 
               {contentMode === 'create' ? (
                 /* Create new ad creative */
-                PLATFORM_CONTENT_CONFIG[platform]?.source === 'manual' ? (
-                  /* Google Search: responsive search ad fields */
-                  <div className="space-y-3 bg-[#0D0C0B] border border-[#2C2B28] rounded-lg p-3">
-                    <div>
-                      <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">Headlines <span className="text-[#6B6560]">(30 chars max each)</span></label>
-                      <input
-                        value={headline}
-                        onChange={e => setHeadline(e.target.value)}
-                        maxLength={30}
-                        placeholder={`${selectedArtist?.name || 'Artist'} — New Music Out Now`}
-                        className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none mb-1.5"
-                      />
-                      <input
-                        value={description}
-                        onChange={e => setDescription(e.target.value)}
-                        maxLength={30}
-                        placeholder={`Stream ${selectedArtist?.name || 'Artist'} Now`}
-                        className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none mb-1.5"
-                      />
-                      <input
-                        maxLength={30}
-                        placeholder="Listen on All Platforms"
-                        className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none"
-                      />
-                      <span className="text-[8px] text-[#6B6560] mt-1 block">Google rotates headlines to find the best combination</span>
-                    </div>
-                    <div>
-                      <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">Descriptions <span className="text-[#6B6560]">(90 chars max each)</span></label>
-                      <textarea
-                        maxLength={90}
-                        rows={2}
-                        placeholder={`Discover ${selectedArtist?.name || 'Artist'}'s latest tracks. Stream now on Spotify, Apple Music & more.`}
-                        className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none resize-none mb-1.5"
-                      />
-                      <textarea
-                        maxLength={90}
-                        rows={2}
-                        placeholder="New album available everywhere. Join millions of fans streaming today."
-                        className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none resize-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">
-                        <span className="flex items-center gap-1"><Link2 size={9} /> Final URL</span>
-                      </label>
-                      <input
-                        value={trackUrl}
-                        onChange={e => setTrackUrl(e.target.value)}
-                        placeholder="https://open.spotify.com/artist/..."
-                        className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none font-mono"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">Keywords</label>
-                      <input
-                        placeholder={`${selectedArtist?.name || 'artist name'}, new music, stream ${selectedArtist?.name || 'artist'}`}
-                        className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none"
-                      />
-                      <span className="text-[8px] text-[#6B6560] mt-1 block">Comma-separated search terms that trigger your ad</span>
-                    </div>
-                  </div>
-                ) : (
                 <div className="space-y-3 bg-[#0D0C0B] border border-[#2C2B28] rounded-lg p-3">
-                  {platform === 'x' ? (
-                    /* X (Twitter): promoted tweet */
-                    <>
-                      <div>
-                        <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">Tweet Text <span className="text-[#6B6560]">(280 chars max)</span></label>
-                        <textarea
-                          value={headline}
-                          onChange={e => setHeadline(e.target.value)}
-                          maxLength={280}
-                          rows={3}
-                          placeholder={`🎵 ${selectedArtist?.name || 'Artist'}'s new track just dropped. Stream it now 🔥`}
-                          className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none resize-none"
-                        />
-                        <span className="text-[8px] text-[#6B6560] mt-0.5 block text-right">{(headline || '').length}/280</span>
-                      </div>
-                      <div>
-                        <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">
-                          <span className="flex items-center gap-1"><Image size={9} /> Media URL <span className="text-[#6B6560]">(optional)</span></span>
-                        </label>
-                        <input
-                          value={imageUrl}
-                          onChange={e => setImageUrl(e.target.value)}
-                          placeholder="https://..."
-                          className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none font-mono"
-                        />
-                        {!imageUrl && selectedArtist?.imageUrl && (
-                          <button
-                            onClick={() => setImageUrl(selectedArtist.imageUrl)}
-                            className="text-[9px] text-[#DA7756] hover:text-[#DA7756]/80 mt-1 cursor-pointer"
-                          >
-                            Use artist image
-                          </button>
-                        )}
-                      </div>
-                      <div>
-                        <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">
-                          <span className="flex items-center gap-1"><Link2 size={9} /> Card URL <span className="text-[#6B6560]">(optional)</span></span>
-                        </label>
-                        <input
-                          value={trackUrl}
-                          onChange={e => setTrackUrl(e.target.value)}
-                          placeholder="https://open.spotify.com/track/..."
-                          className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none font-mono"
-                        />
-                        <span className="text-[8px] text-[#6B6560] mt-0.5 block">Link preview card attached to the tweet</span>
-                      </div>
-                    </>
-                  ) : (
-                    /* Meta / TikTok: image or video ad */
-                    <>
+                  <>
                       {platform === 'meta' && (
                         <MetaRunAsPicker value={runAsIgUserId} onChange={(v) => { setRunAsIgUserId(v); setMetaGate(null); }} onOpenAccounts={onOpenAccounts} />
                       )}
@@ -981,25 +794,11 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
                           className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none"
                         />
                       </div>
-                      <div>
-                        <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">
-                          <span className="flex items-center gap-1"><Image size={9} /> Image URL</span>
-                        </label>
-                        <input
-                          value={imageUrl}
-                          onChange={e => setImageUrl(e.target.value)}
-                          placeholder="https://..."
-                          className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none font-mono"
-                        />
-                        {!imageUrl && selectedArtist?.imageUrl && (
-                          <button
-                            onClick={() => setImageUrl(selectedArtist.imageUrl)}
-                            className="text-[9px] text-[#DA7756] hover:text-[#DA7756]/80 mt-1 cursor-pointer"
-                          >
-                            Use artist image
-                          </button>
-                        )}
-                      </div>
+                      <AdImagesField
+                        images={images}
+                        onChange={(next) => { setImages(next); setMetaGate(null); }}
+                        fallbackImage={selectedArtist?.imageUrl}
+                      />
                       <div>
                         <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">
                           <span className="flex items-center gap-1"><Link2 size={9} /> Destination URL</span>
@@ -1030,32 +829,11 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
                           ))}
                         </div>
                       </div>
-                    </>
-                  )}
+                  </>
                 </div>
-                )
               ) : (
                 /* Select existing content */
                 <>
-                  {/* Spotify track/album tabs */}
-                  {platform === 'spotify' && (
-                    <div className="flex gap-1 mb-2">
-                      {['track', 'album'].map(tab => (
-                        <button
-                          key={tab}
-                          onClick={() => setContentTab(tab)}
-                          className={`text-[9px] font-mono px-2 py-1 rounded border transition-colors cursor-pointer ${
-                            contentTab === tab
-                              ? 'border-[#DA7756]/30 bg-[#DA7756]/10 text-[#F5F0E8]'
-                              : 'border-[#2C2B28] text-[#6B6560] hover:text-[#9B9590]'
-                          }`}
-                        >
-                          {tab === 'track' ? 'Tracks' : 'Albums'}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-
                   {contentLoading ? (
                     <div className="flex items-center gap-2 py-3">
                       <Loader2 size={12} className="animate-spin text-[#6B6560]" />
@@ -1144,69 +922,6 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
                   )}
                 </>
               )}
-            </Section>
-          )}
-
-          {/* Spotify Ad Creative — file uploads (only if no existing track selected) */}
-          {platform === 'spotify' && artistSlug && !selectedContentId && (
-            <Section label="Ad Creative">
-              <div className="space-y-3 bg-[#0D0C0B] border border-[#2C2B28] rounded-lg p-3">
-                <FileUploadField
-                  label="Audio File (.mp3, .wav)"
-                  accept=".mp3,.wav,.ogg,.m4a,audio/*"
-                  file={audioFile}
-                  onChange={setAudioFile}
-                  onClear={() => setAudioFile(null)}
-                  icon={FileAudio}
-                  required
-                />
-                <FileUploadField
-                  label="Cover Image (.jpg, .png)"
-                  accept=".jpg,.jpeg,.png,image/*"
-                  file={imageFile}
-                  onChange={setImageFile}
-                  onClear={() => setImageFile(null)}
-                  icon={Image}
-                  required
-                />
-                <FileUploadField
-                  label="Logo (optional)"
-                  accept=".jpg,.jpeg,.png,.svg,image/*"
-                  file={logoFile}
-                  onChange={setLogoFile}
-                  onClear={() => setLogoFile(null)}
-                  icon={Image}
-                />
-                <div>
-                  <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">Headline</label>
-                  <input
-                    value={headline}
-                    onChange={e => setHeadline(e.target.value)}
-                    placeholder="New Album Out Now"
-                    className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">Advertiser Name</label>
-                  <input
-                    value={advertiserName}
-                    onChange={e => setAdvertiserName(e.target.value)}
-                    placeholder={selectedArtist?.name || artistSlug}
-                    className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">
-                    <span className="flex items-center gap-1"><Link2 size={9} /> Track URL</span>
-                  </label>
-                  <input
-                    value={trackUrl}
-                    onChange={e => setTrackUrl(e.target.value)}
-                    placeholder="https://open.spotify.com/track/..."
-                    className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none font-mono"
-                  />
-                </div>
-              </div>
             </Section>
           )}
 

@@ -2,8 +2,9 @@
 //
 // Two kinds of ad, both running as the artist's Instagram account (and its linked Page):
 //   • Boost: creative.postId (+ permalink) — promotes an existing Instagram post.
-//   • New ad: creative.igUserId + imageUrl + trackUrl (destination) — Prelude uploads the
-//     image and builds a link ad with headline, description and call to action.
+//   • New ad: creative.igUserId + images (uploads or URLs, in order) + trackUrl (destination).
+//     One image makes a single-image link ad, 2–10 make a carousel in that order; both get
+//     headline, description and call to action.
 //
 //   body: { directive }            → 200 { platformCampaignId, platformAdSetId, platformAdId,
 //                                          platformCreativeId, adAccountId, igUsername }
@@ -20,10 +21,12 @@ import {
   graph, getUid, requireConnection, readBody, sendError, needs, adAccountFor, findInstagramPost,
   listInstagramAccounts,
 } from '../lib/meta.js';
+import { adImageId, getAdImage } from '../lib/ad-images.js';
 
 // Server-side ceiling per campaign (account currency, major units)
 const MAX_BUDGET = Number(process.env.META_MAX_BUDGET || 10000);
 const MAX_IMAGE_BYTES = 30 * 1024 * 1024;
+const MAX_CAROUSEL = 10;
 
 // Our location codes are mostly ISO-3166 alpha-2; Meta wants GB, not UK.
 const COUNTRY_FIX = { UK: 'GB' };
@@ -92,18 +95,37 @@ async function resolveIdentity(token, directive) {
   if (directive.creative?.type === 'video') {
     throw bad('Video ads on Meta aren\'t supported yet. Use an image, or boost an existing video post.');
   }
-  if (!isHttpUrl(creative.imageUrl)) throw bad('Add an image URL for the ad.');
+  const images = adImages(creative);
+  if (!images.length) throw bad('Add at least one image for the ad.');
+  if (images.length > MAX_CAROUSEL) throw bad(`An Instagram carousel can have at most ${MAX_CAROUSEL} images.`);
+  if (images.some(u => !adImageId(u) && !isHttpUrl(u))) throw bad('One of the ad images is not a valid upload or URL.');
   if (!isHttpUrl(creative.trackUrl)) throw bad('Add a destination URL (where the ad sends people).');
   return { account, mediaId: null };
 }
 
-/** Download the ad image and upload it to the ad account's image library. */
-async function uploadImage(act, token, imageUrl) {
+/** The ad's images in carousel order (`creative.images`), or the single legacy `imageUrl`. */
+function adImages(creative) {
+  const list = Array.isArray(creative?.images) ? creative.images : [creative?.imageUrl];
+  return list.filter(Boolean);
+}
+
+/** Read the ad image (an upload, or any URL) and add it to the ad account's image library. */
+async function uploadImage(act, token, imageUrl, uid) {
+  const uploadId = adImageId(imageUrl);
+  if (uploadId) {
+    const image = await getAdImage(uploadId);
+    if (!image || image.user_id !== uid) throw bad('One of the ad images is missing. Upload it again.');
+    return hashFor(act, token, image.bytes);
+  }
   const res = await fetch(imageUrl);
   const type = res.headers.get('content-type') || '';
   if (!res.ok || !type.startsWith('image/')) throw bad(`Couldn't download the ad image (${res.status}). Check the image URL.`);
   const buf = Buffer.from(await res.arrayBuffer());
   if (buf.length > MAX_IMAGE_BYTES) throw bad('The ad image is larger than 30 MB.');
+  return hashFor(act, token, buf);
+}
+
+async function hashFor(act, token, buf) {
   const uploaded = await graph('POST', `${act}/adimages`, token, { bytes: buf.toString('base64') });
   const hash = Object.values(uploaded.images || {})[0]?.hash;
   if (!hash) throw Object.assign(new Error('Meta did not return an image hash.'), { status: 502 });
@@ -199,22 +221,25 @@ export default async function handler(req, res) {
     // 5. Creative: the existing post for a boost, or an uploaded image + link for a new ad
     const c = directive.creative;
     const destination = isBoost ? null : withCampaign(c.trackUrl, directive.id);
+    let linkData = null;
+    if (!isBoost) {
+      const cta = { type: CTA_TYPES[c.callToAction] || 'LEARN_MORE', value: { link: destination } };
+      const hashes = [];
+      for (const url of adImages(c)) hashes.push(await uploadImage(act, token, url, uid));
+      linkData = hashes.length === 1
+        ? { image_hash: hashes[0], link: destination, name: c.headline || undefined, message: c.description || undefined, call_to_action: cta }
+        // Carousel: one card per image, kept in the order the user set
+        : {
+          link: destination,
+          message: c.description || undefined,
+          child_attachments: hashes.map(hash => ({ image_hash: hash, link: destination, name: c.headline || undefined, call_to_action: cta })),
+          multi_share_optimized: false,
+          multi_share_end_card: false,
+        };
+    }
     const creative = await graph('POST', `${act}/adcreatives`, token, isBoost
       ? { name, object_id: account.pageId, instagram_user_id: igUserId, source_instagram_media_id: mediaId }
-      : {
-        name,
-        object_story_spec: {
-          page_id: account.pageId,
-          instagram_user_id: igUserId,
-          link_data: {
-            image_hash: await uploadImage(act, token, c.imageUrl),
-            link: destination,
-            name: c.headline || undefined,
-            message: c.description || undefined,
-            call_to_action: { type: CTA_TYPES[c.callToAction] || 'LEARN_MORE', value: { link: destination } },
-          },
-        },
-      });
+      : { name, object_story_spec: { page_id: account.pageId, instagram_user_id: igUserId, link_data: linkData } });
     created.creativeId = creative.id;
 
     // 6. Ad

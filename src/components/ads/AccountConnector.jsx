@@ -7,7 +7,7 @@ import { useMetaConnection } from '../../hooks/useMetaConnection';
 import { startMetaConnect, assignMetaAdAccount, disconnectMeta } from '../../data/metaAds';
 
 // Meta is real; the rest are still simulated in the demo.
-const SIMULATED_KEYS = ['spotify', 'google', 'tiktok', 'x'];
+const SIMULATED_KEYS = ['tiktok', 'youtube'];
 
 const PLATFORM_ICON_COLORS = {
   spotify: PLATFORM_COLORS.spotify,
