@@ -1,5 +1,5 @@
-// Meta ads: account connection (/api/connect/meta) and boost execution
-// (/api/campaign/boost, /api/campaign/meta-campaign). Firebase-authed; the Meta
+// Meta ads: account connection (/api/connect/meta) and launching boosts and new ads
+// (/api/campaign/meta-launch, /api/campaign/meta-campaign). Firebase-authed; the Meta
 // token itself stays on the server.
 import { getIdToken } from '../lib/firebase';
 
@@ -37,23 +37,23 @@ export const assignMetaAdAccount = (igUserId, adAccountId) =>
 export const disconnectMeta = () => request('/api/connect/meta', { method: 'DELETE' });
 
 /**
- * Checks a boost can launch (Meta connected, the post's Instagram account shared and
- * assigned to an ad account, post eligible) without creating anything.
+ * Checks a Meta ad can launch (Meta connected, its Instagram account shared and assigned
+ * to an ad account, a boosted post eligible / a new ad's image + link present) without
+ * creating anything.
  * @returns {Promise<{ready: true, igUsername, adAccountId, adAccountName}>} — throws with err.code otherwise
  */
-export const checkMetaBoost = (directive) =>
-  request('/api/campaign/boost', { method: 'POST', body: { directive, check: true } });
+export const checkMetaLaunch = (directive) =>
+  request('/api/campaign/meta-launch', { method: 'POST', body: { directive, check: true } });
 
-/** True for a directive that boosts an Instagram post on Meta (runs for real, never simulated). */
-export const isMetaPostBoost = (directive) =>
-  directive?.platform === 'meta' && !!directive.creative?.postId;
+/** True for a Meta directive (boost or new ad); these run for real, never simulated. */
+export const isMetaDirective = (directive) => directive?.platform === 'meta';
 
 /** Codes the user fixes in the Ad Accounts modal. */
 export const ACCOUNT_FIX_CODES = new Set(['not_connected', 'post_not_found', 'no_ad_account']);
 
-/** Creates the paused Meta campaign for a directive that boosts an Instagram post. */
-export const createMetaBoost = (directive) =>
-  request('/api/campaign/boost', { method: 'POST', body: { directive } });
+/** Creates the paused Meta campaign for a directive (boost or new ad). */
+export const launchMetaCampaign = (directive) =>
+  request('/api/campaign/meta-launch', { method: 'POST', body: { directive } });
 
 export const fetchMetaCampaign = (id) =>
   request(`/api/campaign/meta-campaign?id=${encodeURIComponent(id)}`);

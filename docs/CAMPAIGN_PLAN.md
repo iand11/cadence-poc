@@ -53,13 +53,14 @@ chosen individually.
   platforms say "Simulated · coming soon". `connectedPlatforms` is left as-is so the
   simulated multi-platform demo keeps working.
 - Env: `META_APP_ID`, `META_APP_SECRET`, `META_LOGIN_CONFIG_ID`, `AD_TOKEN_KEY`, plus
-  optional `META_REDIRECT_URI`, `META_GRAPH_VERSION` (default v24.0) and
+  optional `META_REDIRECT_URI`, `META_GRAPH_VERSION` (default v24.0), `META_GRAPH_URL`
+  (Graph API base override, for a local mock) and
   `META_MAX_BUDGET` (default 10000). The login config needs `ads_management`, `ads_read`,
   `business_management`, `pages_show_list`, `pages_read_engagement` and `instagram_basic`.
 
-### 2. Execution (directive → real Meta campaign) — built for boosts
+### 2. Execution (directive → real Meta campaign) — built for boosts and new image ads
 
-- `api/campaign/boost.js` takes a Meta directive that has `creative.postId` and:
+- `api/campaign/meta-launch.js` takes a Meta directive. **Boost** (`creative.postId` set):
   1. finds the post among the shared IG accounts' media by the shortcode in its
      permalink (our feed stores the scraper's post id, not Meta's media id), which also
      gives the linked Facebook Page,
@@ -68,23 +69,32 @@ chosen individually.
   3. creates Campaign → Ad Set → Ad Creative (`source_instagram_media_id` +
      `instagram_user_id`, `object_id` = Page) → Ad, **all paused**,
   4. rolls back (deletes) anything already created if a step fails.
+- **New image ad** (no `postId`, builder's "Create New"): the user picks a "Run as"
+  Instagram account (`creative.igUserId`, from the shared accounts). The server downloads
+  `creative.imageUrl`, uploads it to `act_x/adimages` for an `image_hash`, and builds the
+  creative from `object_story_spec` (`page_id`, `instagram_user_id`, `link_data` with the
+  image, `trackUrl` as the link, headline → `name`, description → `message`, CTA Listen
+  Now / Learn More / Watch Now / Shop Now → `LISTEN_NOW` / `LEARN_MORE` / `WATCH_MORE` /
+  `SHOP_NOW`). Video ads are rejected for now (boost an existing video post instead).
   The directive gets `platformCampaignId`, `platformAdSetId`, `platformAdId`,
   `platformCreativeId`, `adAccountId`, `igUsername` and status `paused`.
-- Field mapping: awareness → `OUTCOME_AWARENESS`/`REACH`; everything else →
-  `OUTCOME_ENGAGEMENT`/`POST_ENGAGEMENT` (`destination_type: ON_POST`). Budget dollars →
+- Field mapping: awareness → `OUTCOME_AWARENESS`/`REACH`; otherwise a boost is
+  `OUTCOME_ENGAGEMENT`/`POST_ENGAGEMENT` (`destination_type: ON_POST`) and a new ad is
+  `OUTCOME_TRAFFIC`/`LINK_CLICKS` (`destination_type: WEBSITE`). Budget dollars →
   cents in the ad account's currency, `period` → daily vs lifetime budget. Locations go
   out as ISO countries (UK → GB), ages are clamped to 18–65, and placements are
   Instagram only.
-- **Confirm gate:** "Submit for Approval" on an Instagram boost calls the same endpoint with
+- **Confirm gate:** "Submit for Approval" on any Meta directive calls the same endpoint with
   `check: true`, which creates nothing. Submission is blocked, with an "Open Ad Accounts"
-  button, until Meta is connected, the artist's IG account is shared, an ad account is
-  assigned to it, and the post is eligible. Execute re-checks the same way.
+  button, until Meta is connected, the IG account is shared, an ad account is assigned to
+  it, and the post is eligible (boost) or the image and destination URL are set (new ad).
+  Execute re-checks the same way.
 - **Go-live is a separate explicit step:** `api/campaign/meta-campaign.js` (POST
   `{ id, status: 'ACTIVE' | 'PAUSED' }`) is driven by `MetaCampaignPanel` on the detail
   page, with a spend confirm. It only touches campaigns in the user's selected ad account.
-- Instagram boosts always run for real. With no Meta credentials on the server they're
+- Meta campaigns always run for real. With no Meta credentials on the server they're
   blocked, not simulated. Other platforms are still simulated.
-- Uploading new image/video assets is still a later phase.
+- Video upload for new ads is still a later phase.
 
 ### 3. Real metrics
 

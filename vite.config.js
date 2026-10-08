@@ -363,7 +363,7 @@ function dbApiPlugin() {
         await handler(req, res);
       });
       // Meta ads: account connection + boost execution
-      for (const route of ['connect/meta', 'campaign/boost', 'campaign/meta-campaign']) {
+      for (const route of ['connect/meta', 'campaign/meta-launch', 'campaign/meta-campaign']) {
         server.middlewares.use(`/api/${route}`, async (req, res) => {
           shim(res);
           const handler = (await import(

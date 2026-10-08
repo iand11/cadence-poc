@@ -34,7 +34,8 @@ export default function MetaCampaignPanel({ directive, updateDirective }) {
       updateDirective(directive.id, {
         platformStatus: data.effectiveStatus,
         lastSyncedAt: new Date().toISOString(),
-        ...(local && local !== directive.status ? { status: local } : {}),
+        // Always written (not compared to directive.status, which is stale in this closure)
+        ...(local ? { status: local } : {}),
       });
     })
     .catch(e => setError(e.message))

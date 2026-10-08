@@ -58,7 +58,7 @@ function MetaAccountCard() {
         <div className="flex-1 min-w-0">
           <p className="text-xs text-[#F5F0E8] font-medium">{PLATFORM_LABELS.meta}</p>
           <p className="text-[9px] text-[#6B6560] line-clamp-1">
-            Boost artists' Instagram posts from your ad accounts. Meta bills each ad account for its spend.
+            Boost posts and run new ads as artists' Instagram accounts. Meta bills each ad account for its spend.
           </p>
         </div>
         {loading ? (
@@ -121,7 +121,7 @@ function MetaAccountCard() {
                           assigned ? 'border-[#2C2B28] text-[#F5F0E8]' : 'border-[#D4A574]/40 text-[#D4A574]'
                         }`}
                       >
-                        <option value="">Not assigned (can't boost)</option>
+                        <option value="">Not assigned (can't run ads)</option>
                         {adAccounts.map(a => (
                           <option key={a.id} value={a.id} disabled={!a.active}>
                             {a.name} ({a.currency}){a.business ? ` · ${a.business}` : ''}{a.active ? '' : ' · inactive'}

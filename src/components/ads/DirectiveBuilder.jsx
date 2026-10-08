@@ -7,7 +7,8 @@ import BudgetAllocator from './BudgetAllocator';
 import { PLATFORM_COLORS } from '../../constants/colors';
 import { searchArtists, getArtist, getArtistAsync } from '../../data/artists';
 import { api } from '../../data/api';
-import { checkMetaBoost, isMetaPostBoost, ACCOUNT_FIX_CODES } from '../../data/metaAds';
+import { checkMetaLaunch, isMetaDirective, ACCOUNT_FIX_CODES } from '../../data/metaAds';
+import { useMetaConnection } from '../../hooks/useMetaConnection';
 
 const PLATFORM_COLOR_MAP = {
   spotify: PLATFORM_COLORS.spotify,
@@ -83,8 +84,43 @@ function FileUploadField({ label, accept, file, onChange, onClear, icon: Icon = 
   );
 }
 
+/** New Meta ads run as one of the Instagram accounts shared with Prelude. */
+function MetaRunAsPicker({ value, onChange, onOpenAccounts }) {
+  const { connection, refresh } = useMetaConnection();
+  useEffect(() => { refresh(true); }, [refresh]);
+
+  const accounts = connection?.instagramAccounts;
+  const accountMap = connection?.selection?.accountMap || {};
+  const selectCls = 'w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] outline-none';
+
+  return (
+    <div>
+      <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">Run as (Instagram account)</label>
+      {connection && !connection.connected ? (
+        <p className="text-[10px] text-[#D4A574]">
+          Connect Meta to choose an account.{' '}
+          {onOpenAccounts && (
+            <button onClick={() => onOpenAccounts()} className="text-[#DA7756] hover:underline cursor-pointer">Open Ad Accounts</button>
+          )}
+        </p>
+      ) : !accounts ? (
+        <p className="flex items-center gap-1.5 text-[10px] text-[#6B6560]"><Loader2 size={10} className="animate-spin" /> Loading accounts…</p>
+      ) : (
+        <select value={value || ''} onChange={e => onChange(e.target.value || null)} className={selectCls}>
+          <option value="">Choose an account…</option>
+          {accounts.map(a => (
+            <option key={a.igUserId} value={a.igUserId}>
+              @{a.username}{accountMap[a.igUserId] ? ` · ${accountMap[a.igUserId].adAccountName}` : ' · no ad account assigned'}
+            </option>
+          ))}
+        </select>
+      )}
+    </div>
+  );
+}
+
 export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, onAcceptAllocation, initialData, connectedPlatforms, launchMode, launchProgress, onOpenAccounts }) {
-  // Instagram boosts can't be submitted until Meta + the artist's ad account are ready
+  // Meta ads can't be submitted until Meta + the artist's ad account are ready
   const [metaGate, setMetaGate] = useState(null); // null | { checking } | { message, fixable }
   const navigate = useNavigate();
   const editing = !!initialData?.id;
@@ -107,6 +143,8 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
   const [postId, setPostId] = useState(initialData?.creative?.postId || null);
   const [postSource, setPostSource] = useState(initialData?.creative?.postSource || null);
   const [ownerPlatformId, setOwnerPlatformId] = useState(initialData?.creative?.igUserId || initialData?.creative?.pageId || null);
+  // Instagram account a new (non-boost) Meta ad runs as
+  const [runAsIgUserId, setRunAsIgUserId] = useState(initialData?.creative?.postId ? null : initialData?.creative?.igUserId || null);
   const [rationale, setRationale] = useState(initialData?.rationale || '');
 
   // Generalized content picker state
@@ -316,6 +354,7 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
   const hasMoreContent = PLATFORM_CONTENT_CONFIG[platform]?.source !== 'artist' && contentItems.length < contentTotal;
 
   const selectContent = (item) => {
+    setMetaGate(null);
     setSelectedContentId(item.id);
     setPostId(item.platformId);
     setHeadline(item.title || '');
@@ -402,7 +441,7 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
         trackUrl,
         postId: postId || null,
         postSource: postSource || null,
-        igUserId: postSource === 'instagram' ? ownerPlatformId : null,
+        igUserId: postId ? (postSource === 'instagram' ? ownerPlatformId : null) : runAsIgUserId,
         pageId: postSource === 'facebook' ? ownerPlatformId : null,
         imageUrl: imageUrl || selectedArtist?.imageUrl || initialData?.artistImage || null,
       };
@@ -420,10 +459,10 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
   const handleSubmit = async () => {
     if (!canSave) return;
     const d = await buildDirective();
-    if (isMetaPostBoost(d)) {
+    if (isMetaDirective(d)) {
       setMetaGate({ checking: true });
       try {
-        const ready = await checkMetaBoost(d);
+        const ready = await checkMetaLaunch(d);
         d.adAccountId = ready.adAccountId;
         d.adAccountName = ready.adAccountName;
         d.igUsername = ready.igUsername;
@@ -756,7 +795,7 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
               {PLATFORM_CONTENT_CONFIG[platform]?.source !== 'manual' && (
               <div className="flex gap-1 mb-3">
                 <button
-                  onClick={() => { setContentMode('select'); clearContentSelection(); }}
+                  onClick={() => { setContentMode('select'); clearContentSelection(); setMetaGate(null); }}
                   className={`text-[9px] font-mono px-2.5 py-1 rounded border transition-colors cursor-pointer ${
                     contentMode === 'select'
                       ? 'border-[#DA7756]/30 bg-[#DA7756]/10 text-[#F5F0E8]'
@@ -766,7 +805,7 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
                   Select Existing
                 </button>
                 <button
-                  onClick={() => { setContentMode('create'); clearContentSelection(); }}
+                  onClick={() => { setContentMode('create'); clearContentSelection(); setMetaGate(null); }}
                   className={`flex items-center gap-1 text-[9px] font-mono px-2.5 py-1 rounded border transition-colors cursor-pointer ${
                     contentMode === 'create'
                       ? 'border-[#DA7756]/30 bg-[#DA7756]/10 text-[#F5F0E8]'
@@ -894,6 +933,9 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
                   ) : (
                     /* Meta / TikTok: image or video ad */
                     <>
+                      {platform === 'meta' && (
+                        <MetaRunAsPicker value={runAsIgUserId} onChange={(v) => { setRunAsIgUserId(v); setMetaGate(null); }} onOpenAccounts={onOpenAccounts} />
+                      )}
                       <div>
                         <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">Headline</label>
                         <input

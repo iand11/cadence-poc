@@ -9,7 +9,7 @@ import CampaignDashboard from '../components/ads/CampaignDashboard';
 import ContentFeed from '../components/ads/ContentFeed';
 import AccountConnector from '../components/ads/AccountConnector';
 import { useMetaConnection } from '../hooks/useMetaConnection';
-import { createMetaBoost, isMetaPostBoost, ACCOUNT_FIX_CODES } from '../data/metaAds';
+import { launchMetaCampaign, isMetaDirective, ACCOUNT_FIX_CODES } from '../data/metaAds';
 import { useDirectives } from '../hooks/useDirectives';
 import { generateDirective, PLATFORM_LABELS } from '../data/directives';
 
@@ -83,11 +83,11 @@ export default function CampaignsPage() {
     setAccountsOpen(true);
   };
 
-  // Meta boosts of an Instagram post run for real in the ad account assigned to
-  // that artist's Instagram; every other platform is still simulated.
+  // Meta ads (boosts and new ads) run for real in the ad account assigned to the
+  // artist's Instagram; every other platform is still simulated.
   const handleExecute = async (id) => {
     const d = directives.find(x => x.id === id);
-    if (!isMetaPostBoost(d)) {
+    if (!isMetaDirective(d)) {
       updateDirective(id, { status: 'active' });
       navigate(`/app/campaigns/${id}`);
       return;
@@ -95,7 +95,7 @@ export default function CampaignsPage() {
     const previousStatus = d.status;
     updateDirective(id, { status: 'executing', executionError: null });
     try {
-      const result = await createMetaBoost(d);
+      const result = await launchMetaCampaign(d);
       updateDirective(id, {
         ...result,
         status: 'paused',

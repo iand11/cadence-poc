@@ -13,13 +13,14 @@
 //                                    system-user token config so it never expires)
 //   META_REDIRECT_URI              — optional; defaults to <origin>/api/connect/meta
 //   META_GRAPH_VERSION             — optional; defaults to GRAPH_VERSION below
+//   META_GRAPH_URL                 — optional Graph API base override (local mock for testing)
 //   AD_TOKEN_KEY                   — secret used to encrypt stored tokens
 import crypto from 'node:crypto';
 import { query, queryOne } from './db.js';
 import { verifyAuth } from './auth.js';
 
 export const GRAPH_VERSION = process.env.META_GRAPH_VERSION || 'v24.0';
-const GRAPH = `https://graph.facebook.com/${GRAPH_VERSION}`;
+const GRAPH = process.env.META_GRAPH_URL || `https://graph.facebook.com/${GRAPH_VERSION}`;
 const STATE_TTL_MS = 10 * 60 * 1000;
 
 export function metaConfigured() {
