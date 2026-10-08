@@ -9,7 +9,7 @@ import CampaignDashboard from '../components/ads/CampaignDashboard';
 import ContentFeed from '../components/ads/ContentFeed';
 import AccountConnector from '../components/ads/AccountConnector';
 import { useMetaConnection } from '../hooks/useMetaConnection';
-import { createMetaBoost, isRealMetaBoost } from '../data/metaAds';
+import { createMetaBoost, isMetaPostBoost, ACCOUNT_FIX_CODES } from '../data/metaAds';
 import { useDirectives } from '../hooks/useDirectives';
 import { generateDirective, PLATFORM_LABELS } from '../data/directives';
 
@@ -76,24 +76,23 @@ export default function CampaignsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run once per redirect
   }, [metaResult]);
 
-  // A directive waiting on the user to connect Meta (Execute opened Ad Accounts)
-  const [pendingExecuteId, setPendingExecuteId] = useState(null);
-
-  const runSimulated = (id) => {
-    updateDirective(id, { status: 'active' });
-    navigate(`/app/campaigns/${id}`);
+  // Why Ad Accounts was opened from a blocked boost (shown at the top of the modal)
+  const [accountsNotice, setAccountsNotice] = useState(null);
+  const openAccounts = (notice = null) => {
+    setAccountsNotice(notice);
+    setAccountsOpen(true);
   };
 
-  // Meta boosts of an Instagram post run for real and need a connected Meta
-  // account; every other platform is still simulated.
+  // Meta boosts of an Instagram post run for real in the ad account assigned to
+  // that artist's Instagram; every other platform is still simulated.
   const handleExecute = async (id) => {
     const d = directives.find(x => x.id === id);
-    if (!(d?.platform === 'meta' && d.creative?.postId)) return runSimulated(id);
-    if (!isRealMetaBoost(d, metaConnection)) {
-      setPendingExecuteId(id);
-      setAccountsOpen(true);
+    if (!isMetaPostBoost(d)) {
+      updateDirective(id, { status: 'active' });
+      navigate(`/app/campaigns/${id}`);
       return;
     }
+    const previousStatus = d.status;
     updateDirective(id, { status: 'executing', executionError: null });
     try {
       const result = await createMetaBoost(d);
@@ -106,8 +105,13 @@ export default function CampaignsPage() {
       });
       navigate(`/app/campaigns/${id}`);
     } catch (e) {
-      updateDirective(id, { status: 'failed', executionError: e.message });
-      if (e.reconnect) setAccountsOpen(true);
+      if (ACCOUNT_FIX_CODES.has(e.code) || e.code === 'not_configured') {
+        // Nothing was created; fix the accounts and execute again
+        updateDirective(id, { status: previousStatus });
+        openAccounts(e.message);
+      } else {
+        updateDirective(id, { status: 'failed', executionError: e.message });
+      }
     }
   };
 
@@ -286,7 +290,7 @@ export default function CampaignsPage() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setAccountsOpen(true)}
+            onClick={() => openAccounts()}
             className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-mono text-[#9B9590] hover:text-[#F5F0E8] border border-[#2C2B28] hover:border-[#3D3B37] rounded transition-colors cursor-pointer"
           >
             <Link2 size={11} />
@@ -448,13 +452,6 @@ export default function CampaignsPage() {
         initialSuggestion={wizardSuggestion}
       />
 
-      <AccountConnector
-        isOpen={accountsOpen}
-        onClose={() => { setAccountsOpen(false); setPendingExecuteId(null); }}
-        pendingLaunch={!!pendingExecuteId}
-        onSimulate={() => { const id = pendingExecuteId; setAccountsOpen(false); setPendingExecuteId(null); runSimulated(id); }}
-      />
-
       <DirectiveBuilder
         key={launchQueue.length > 0 ? `launch-${launchQueueIndex}` : editingDirective?.id || 'builder'}
         isOpen={builderOpen}
@@ -466,6 +463,14 @@ export default function CampaignsPage() {
         connectedPlatforms={connectedPlatforms}
         launchMode={launchQueue.length > 0}
         launchProgress={launchQueue.length > 0 ? { current: launchQueueIndex + 1, total: launchQueue.length } : null}
+        onOpenAccounts={openAccounts}
+      />
+
+      {/* After the builder so it stacks on top when the builder opens it */}
+      <AccountConnector
+        isOpen={accountsOpen}
+        onClose={() => { setAccountsOpen(false); setAccountsNotice(null); }}
+        notice={accountsNotice}
       />
 
     </motion.div>

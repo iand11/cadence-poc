@@ -1,14 +1,22 @@
 // POST /api/campaign/boost — turn a Meta directive into a real, PAUSED Meta campaign
 // that boosts an existing Instagram post.
 //
-//   body: { directive }   (needs creative.postId; objective, budget, schedule, audience)
+//   body: { directive }   (needs creative.postId + permalink; objective, budget, schedule, audience)
 //   200 → { platformCampaignId, platformAdSetId, platformAdId, platformCreativeId,
 //           adAccountId, igUsername }
+//   body: { directive, check: true } → 200 { ready: true, igUsername, adAccountId, adAccountName }
+//         without creating anything. Used to gate "Submit for Approval".
+//   409 { code } when something must be fixed first: not_configured | not_connected |
+//         post_not_found (artist's IG account not shared) | no_ad_account | ineligible
 //
+// The ad account is the one the user assigned to the post's Instagram account in
+// Ad Accounts, so each artist's boosts run (and bill) in that artist's ad account.
 // Creates Campaign → Ad Set → Ad Creative (source_instagram_media_id) → Ad, all paused.
 // Nothing spends until the user goes live through /api/campaign/meta-campaign.
 // If any step fails, the campaign created so far is deleted.
-import { graph, graphList, getUid, requireConnection, readBody, sendError } from '../lib/meta.js';
+import {
+  graph, getUid, requireConnection, readBody, sendError, needs, adAccountFor, findInstagramPost,
+} from '../lib/meta.js';
 
 // Server-side ceiling per boost (account currency, major units)
 const MAX_BUDGET = Number(process.env.META_MAX_BUDGET || 10000);
@@ -38,10 +46,11 @@ export default async function handler(req, res) {
   try {
     const uid = await getUid(req);
     conn = await requireConnection(uid);
-    const { directive } = await readBody(req);
+    const { directive, check } = await readBody(req);
     if (!directive || directive.platform !== 'meta') throw bad('A Meta directive is required.');
 
     const postId = directive.creative?.postId;
+    const permalink = directive.creative?.permalink || directive.creative?.trackUrl;
     if (!postId) throw bad('Only boosting an existing Instagram post is supported. Pick a post from the Content tab.');
 
     const amount = Number(directive.budget?.amount);
@@ -51,23 +60,36 @@ export default async function handler(req, res) {
     const endDate = directive.schedule?.endDate;
     if (!daily && !endDate) throw bad('A lifetime budget needs an end date.');
 
-    const act = conn.selection.adAccountId;
     const token = conn.token;
 
-    // 1. The post: who owns it and can it be boosted (copyrighted music, IGTV, etc. can't)
-    const media = await graph('GET', postId, token, { fields: 'id,owner,username,boost_eligibility_info' });
-    const eligibility = media.boost_eligibility_info;
-    if (eligibility && eligibility.eligible_to_boost === false) {
-      throw bad(`Instagram won't allow this post to be boosted${eligibility.boost_ineligible_reason ? `: ${eligibility.boost_ineligible_reason}` : '.'}`);
+    // 1. Find the post among the shared Instagram accounts (also gives the linked Page)
+    const found = await findInstagramPost(token, { permalink, postId });
+    if (!found) {
+      throw needs('post_not_found', `Prelude can't see ${directive.artistName || 'this artist'}'s Instagram account. In Ad Accounts, use "Add or change accounts" and include their Instagram account and Facebook Page.`);
     }
-    const igUserId = media.owner?.id || directive.creative?.igUserId;
+    const { mediaId, account, eligibility } = found;
 
-    // 2. The Facebook Page linked to that Instagram account (required as the creative's object_id)
-    const pages = await graphList('me/accounts', token, { fields: 'id,instagram_business_account{id,username}' });
-    const page = pages.find(p => p.instagram_business_account?.id === igUserId);
-    if (!page) {
-      throw bad(`Prelude can't see the Facebook Page linked to ${media.username ? `@${media.username}` : 'this Instagram account'}. Reconnect Meta and include that Page and Instagram account.`);
+    // 2. Can it be boosted at all (copyrighted music, IGTV, etc. can't)
+    if (eligibility && eligibility.eligible_to_boost === false) {
+      throw needs('ineligible', `Instagram won't allow this post to be boosted${eligibility.boost_ineligible_reason ? `: ${eligibility.boost_ineligible_reason}` : '.'}`);
     }
+
+    // 3. The ad account assigned to this artist's Instagram account
+    const act = adAccountFor(conn.selection, account.igUserId);
+    if (!act) {
+      throw needs('no_ad_account', `Choose which ad account @${account.username}'s boosts run in (Ad Accounts).`, { igUsername: account.username });
+    }
+
+    if (check) {
+      return res.status(200).json({
+        ready: true,
+        igUsername: account.username,
+        adAccountId: act,
+        adAccountName: conn.selection.accountMap[account.igUserId].adAccountName || null,
+      });
+    }
+    const igUserId = account.igUserId;
+    const page = { id: account.pageId };
 
     const name = `Prelude · ${directive.artistName || directive.artistSlug || 'Boost'} · ${new Date().toISOString().slice(0, 10)}`;
     const goal = objectiveFor(directive.objective);
@@ -118,7 +140,7 @@ export default async function handler(req, res) {
       name,
       object_id: page.id,
       instagram_user_id: igUserId,
-      source_instagram_media_id: postId,
+      source_instagram_media_id: mediaId,
     });
     created.creativeId = creative.id;
 
@@ -136,7 +158,7 @@ export default async function handler(req, res) {
       platformAdId: ad.id,
       platformCreativeId: creative.id,
       adAccountId: act,
-      igUsername: page.instagram_business_account.username || media.username || null,
+      igUsername: account.username || null,
     });
   } catch (err) {
     // Roll back partial work so a failed boost never leaves objects in the ad account.

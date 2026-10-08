@@ -5,11 +5,13 @@
 //   GET ?code=…&state=…      → OAuth callback from Meta (browser redirect, no bearer token);
 //                              stores the token and redirects back to /app/campaigns
 //   POST { action: 'start' } → { url } of the Meta login dialog
-//   POST { action: 'select', adAccountId } → choose the ad account boosts run in
+//   POST { action: 'assign', igUserId, adAccountId } → set which ad account that
+//                            Instagram account's boosts run in (adAccountId null = unassign)
 //   DELETE                   → forget the connection
 import {
   metaConfigured, signState, verifyState, graph, graphList, getUid, loadConnection,
   saveConnection, saveSelection, deleteConnection, readBody, sendError, actId, GRAPH_VERSION,
+  listInstagramAccounts,
 } from '../lib/meta.js';
 
 function redirectUri(req) {
@@ -72,9 +74,9 @@ async function handleCallback(req, res, params) {
 }
 
 async function listAssets(token) {
-  const [adAccounts, pages] = await Promise.all([
+  const [adAccounts, instagramAccounts] = await Promise.all([
     graphList('me/adaccounts', token, { fields: 'id,account_id,name,account_status,currency,business{id,name}' }),
-    graphList('me/accounts', token, { fields: 'id,name,instagram_business_account{id,username,profile_picture_url}' }),
+    listInstagramAccounts(token),
   ]);
   return {
     adAccounts: adAccounts.map(a => ({
@@ -83,15 +85,7 @@ async function listAssets(token) {
       active: a.account_status === 1,
       business: a.business?.name || null,
     })),
-    instagramAccounts: pages
-      .filter(p => p.instagram_business_account)
-      .map(p => ({
-        igUserId: p.instagram_business_account.id,
-        username: p.instagram_business_account.username,
-        imageUrl: p.instagram_business_account.profile_picture_url || null,
-        pageId: p.id,
-        pageName: p.name,
-      })),
+    instagramAccounts,
   };
 }
 
@@ -144,19 +138,28 @@ export default async function handler(req, res) {
         return res.status(200).json({ url: url.toString() });
       }
 
-      if (body.action === 'select') {
+      if (body.action === 'assign') {
         const conn = await loadConnection(uid);
         if (!conn) return res.status(409).json({ error: 'Connect a Meta account first.', reconnect: true });
-        const wanted = actId(body.adAccountId);
-        const { adAccounts } = await listAssets(conn.token);
-        const account = adAccounts.find(a => a.id === wanted);
-        if (!account) return res.status(400).json({ error: 'That ad account is not available to this connection.' });
-        const selection = { adAccountId: account.id, adAccountName: account.name, currency: account.currency };
+        const { adAccounts, instagramAccounts } = await listAssets(conn.token);
+        const ig = instagramAccounts.find(a => a.igUserId === String(body.igUserId));
+        if (!ig) return res.status(400).json({ error: 'That Instagram account is not shared with Prelude.' });
+
+        const accountMap = { ...(conn.selection.accountMap || {}) };
+        if (body.adAccountId) {
+          const account = adAccounts.find(a => a.id === actId(body.adAccountId));
+          if (!account) return res.status(400).json({ error: 'That ad account is not available to this connection.' });
+          if (!account.active) return res.status(400).json({ error: `${account.name} can't run ads right now (check its status in Meta).` });
+          accountMap[ig.igUserId] = { adAccountId: account.id, adAccountName: account.name, currency: account.currency, username: ig.username };
+        } else {
+          delete accountMap[ig.igUserId];
+        }
+        const selection = { ...conn.selection, accountMap };
         await saveSelection(uid, selection);
         return res.status(200).json({ ok: true, selection });
       }
 
-      return res.status(400).json({ error: "action must be 'start' or 'select'" });
+      return res.status(400).json({ error: "action must be 'start' or 'assign'" });
     }
 
     if (req.method === 'DELETE') {

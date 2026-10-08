@@ -43,8 +43,13 @@ chosen individually.
   and stored AES-256-GCM encrypted in `ad_platform_connections` (db/schema.sql). It never
   reaches the browser. Use a **system-user token** login configuration: it doesn't expire,
   so status and metrics sync keep working. A plain user token is swapped for the ~60-day one.
+- **Multiple ad accounts:** a user running campaigns for several artists shares all of
+  their ad accounts and artists' Instagram accounts/Pages in one Meta login, then assigns
+  each Instagram account to the ad account its boosts run (and bill) in
+  (`selection.accountMap: { [igUserId]: { adAccountId, … } }`, `action: 'assign'`).
 - `AccountConnector.jsx` ("Ad Accounts" on the Campaigns page) is real for Meta: connect,
-  pick the ad account, see the shareable Instagram accounts, disconnect. The other
+  "Add or change accounts" (re-runs the login to share more), assign an ad account per
+  Instagram account, disconnect. The other
   platforms say "Simulated · coming soon". `connectedPlatforms` is left as-is so the
   simulated multi-platform demo keeps working.
 - Env: `META_APP_ID`, `META_APP_SECRET`, `META_LOGIN_CONFIG_ID`, `AD_TOKEN_KEY`, plus
@@ -55,9 +60,11 @@ chosen individually.
 ### 2. Execution (directive → real Meta campaign) — built for boosts
 
 - `api/campaign/boost.js` takes a Meta directive that has `creative.postId` and:
-  1. checks the post's `boost_eligibility_info` (posts with copyrighted music, IGTV and
-     some others can't be boosted),
-  2. finds the post owner's IG account and its linked Facebook Page among the shared assets,
+  1. finds the post among the shared IG accounts' media by the shortcode in its
+     permalink (our feed stores the scraper's post id, not Meta's media id), which also
+     gives the linked Facebook Page,
+  2. checks the post's `boost_eligibility_info` (posts with copyrighted music, IGTV and
+     some others can't be boosted) and picks the ad account assigned to that IG account,
   3. creates Campaign → Ad Set → Ad Creative (`source_instagram_media_id` +
      `instagram_user_id`, `object_id` = Page) → Ad, **all paused**,
   4. rolls back (deletes) anything already created if a step fails.
@@ -68,10 +75,15 @@ chosen individually.
   cents in the ad account's currency, `period` → daily vs lifetime budget. Locations go
   out as ISO countries (UK → GB), ages are clamped to 18–65, and placements are
   Instagram only.
+- **Confirm gate:** "Submit for Approval" on an Instagram boost calls the same endpoint with
+  `check: true`, which creates nothing. Submission is blocked, with an "Open Ad Accounts"
+  button, until Meta is connected, the artist's IG account is shared, an ad account is
+  assigned to it, and the post is eligible. Execute re-checks the same way.
 - **Go-live is a separate explicit step:** `api/campaign/meta-campaign.js` (POST
   `{ id, status: 'ACTIVE' | 'PAUSED' }`) is driven by `MetaCampaignPanel` on the detail
   page, with a spend confirm. It only touches campaigns in the user's selected ad account.
-- Without Meta credentials on the server, Meta directives stay simulated as before.
+- Instagram boosts always run for real. With no Meta credentials on the server they're
+  blocked, not simulated. Other platforms are still simulated.
 - Uploading new image/video assets is still a later phase.
 
 ### 3. Real metrics

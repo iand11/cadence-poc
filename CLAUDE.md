@@ -74,12 +74,14 @@ Dev middleware for these routes is `dbApiPlugin()` in `vite.config.js`.
 
 Meta ads (Campaigns): a user connects their own Meta business with Facebook Login for
 Business (`api/connect/meta.js`). The token is stored encrypted in
-`ad_platform_connections` and never reaches the client. `api/campaign/boost.js` turns a
-Meta directive with `creative.postId` into a paused Campaign → Ad Set → Ad that boosts that
-Instagram post, and `api/campaign/meta-campaign.js` reads status/insights and goes live or
+`ad_platform_connections` and never reaches the client. Each artist's Instagram account is assigned to the ad account its boosts run in
+(`selection.accountMap`). `api/campaign/boost.js` finds the post by its permalink
+shortcode, then turns a Meta directive with `creative.postId` into a paused Campaign → Ad
+Set → Ad in that ad account. `check: true` validates without creating anything and gates
+"Submit for Approval". `api/campaign/meta-campaign.js` reads status/insights and goes live or
 pauses. The client side is `src/data/metaAds.js`, `useMetaConnection`, `AccountConnector`
 and `MetaCampaignPanel`. Env: `META_APP_ID`, `META_APP_SECRET`, `META_LOGIN_CONFIG_ID`,
-`AD_TOKEN_KEY`. Without them, Meta directives stay simulated. Details in
+`AD_TOKEN_KEY`. Without them, Instagram boosts are blocked. Details in
 docs/CAMPAIGN_PLAN.md.
 
 ### Data Modules (`src/data/`)

@@ -4,7 +4,7 @@ import { X, CheckCircle, Link2, Loader2, AlertTriangle, AtSign } from 'lucide-re
 import { PLATFORM_LABELS, PLATFORM_CONSTRAINTS } from '../../data/directives';
 import { PLATFORM_COLORS } from '../../constants/colors';
 import { useMetaConnection } from '../../hooks/useMetaConnection';
-import { startMetaConnect, selectMetaAdAccount, disconnectMeta } from '../../data/metaAds';
+import { startMetaConnect, assignMetaAdAccount, disconnectMeta } from '../../data/metaAds';
 
 // Meta is real; the rest are still simulated in the demo.
 const SIMULATED_KEYS = ['spotify', 'google', 'tiktok', 'x'];
@@ -48,7 +48,8 @@ function MetaAccountCard() {
   };
 
   const connected = !!connection?.connected;
-  const selected = connection?.selection?.adAccountId || '';
+  const accountMap = connection?.selection?.accountMap || {};
+  const adAccounts = connection?.adAccounts || [];
 
   return (
     <div className="p-3 rounded border border-[#2C2B28] bg-[#0D0C0B] space-y-3">
@@ -57,7 +58,7 @@ function MetaAccountCard() {
         <div className="flex-1 min-w-0">
           <p className="text-xs text-[#F5F0E8] font-medium">{PLATFORM_LABELS.meta}</p>
           <p className="text-[9px] text-[#6B6560] line-clamp-1">
-            Boost Instagram posts from your own ad account. Meta bills your card for ad spend.
+            Boost artists' Instagram posts from your ad accounts. Meta bills each ad account for its spend.
           </p>
         </div>
         {loading ? (
@@ -87,41 +88,54 @@ function MetaAccountCard() {
 
       {connected && (
         <>
-          <label className="block">
-            <span className="text-[9px] font-mono text-[#6B6560]">Ad account boosts run in</span>
-            <select
-              value={selected}
-              disabled={busy || !connection.adAccounts}
-              onChange={e => run(async () => { await selectMetaAdAccount(e.target.value); await refresh(true); })}
-              className="mt-1 w-full bg-[#171614] border border-[#2C2B28] rounded px-2 py-1.5 text-[11px] text-[#F5F0E8]"
-            >
-              <option value="" disabled>{connection.adAccounts ? 'Choose an ad account' : 'Loading…'}</option>
-              {(connection.adAccounts || []).map(a => (
-                <option key={a.id} value={a.id} disabled={!a.active}>
-                  {a.name} ({a.currency}){a.business ? ` · ${a.business}` : ''}{a.active ? '' : ' · inactive'}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          {connection.instagramAccounts && (
+          {!connection.instagramAccounts ? (
+            <p className="flex items-center gap-1.5 text-[10px] text-[#6B6560]">
+              <Loader2 size={10} className="animate-spin" /> Loading shared accounts…
+            </p>
+          ) : connection.instagramAccounts.length === 0 ? (
+            <p className="text-[10px] text-[#D4A574]">
+              No Instagram accounts shared. Use "Add or change accounts" and include each artist's Instagram account and Facebook Page.
+            </p>
+          ) : (
             <div>
-              <p className="text-[9px] font-mono text-[#6B6560] mb-1">
-                Instagram accounts you can boost ({connection.instagramAccounts.length})
+              <p className="text-[9px] font-mono text-[#6B6560] mb-1.5">
+                Ad account for each artist's Instagram ({adAccounts.filter(a => a.active).length} ad account{adAccounts.filter(a => a.active).length === 1 ? '' : 's'} available)
               </p>
-              {connection.instagramAccounts.length === 0 ? (
-                <p className="text-[10px] text-[#D4A574]">
-                  None shared. Reconnect and include the artists' Facebook Pages and Instagram accounts.
+              <div className="space-y-1.5">
+                {connection.instagramAccounts.map(ig => {
+                  const assigned = accountMap[ig.igUserId]?.adAccountId || '';
+                  return (
+                    <div key={ig.igUserId} className="flex items-center gap-2">
+                      <span className="flex items-center gap-1 text-[10px] text-[#F5F0E8] w-32 shrink-0 truncate" title={ig.pageName}>
+                        <AtSign size={9} className="text-[#6B6560] shrink-0" />
+                        {ig.username}
+                      </span>
+                      <select
+                        value={assigned}
+                        disabled={busy}
+                        onChange={e => run(async () => {
+                          await assignMetaAdAccount(ig.igUserId, e.target.value || null);
+                          await refresh(true);
+                        })}
+                        className={`flex-1 min-w-0 bg-[#171614] border rounded px-2 py-1 text-[10px] ${
+                          assigned ? 'border-[#2C2B28] text-[#F5F0E8]' : 'border-[#D4A574]/40 text-[#D4A574]'
+                        }`}
+                      >
+                        <option value="">Not assigned (can't boost)</option>
+                        {adAccounts.map(a => (
+                          <option key={a.id} value={a.id} disabled={!a.active}>
+                            {a.name} ({a.currency}){a.business ? ` · ${a.business}` : ''}{a.active ? '' : ' · inactive'}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  );
+                })}
+              </div>
+              {adAccounts.length === 0 && (
+                <p className="text-[10px] text-[#D4A574] mt-1.5">
+                  No ad accounts shared. Use "Add or change accounts" and include the ad accounts you run campaigns from.
                 </p>
-              ) : (
-                <div className="flex flex-wrap gap-1.5">
-                  {connection.instagramAccounts.map(ig => (
-                    <span key={ig.igUserId} className="flex items-center gap-1 text-[10px] text-[#9B9590] bg-[#171614] border border-[#2C2B28] rounded px-1.5 py-0.5">
-                      <AtSign size={9} />
-                      {ig.username}
-                    </span>
-                  ))}
-                </div>
               )}
             </div>
           )}
@@ -132,7 +146,7 @@ function MetaAccountCard() {
               disabled={busy}
               className="text-[10px] font-mono text-[#9B9590] hover:text-[#F5F0E8] cursor-pointer"
             >
-              Change shared accounts
+              Add or change accounts
             </button>
             <button
               onClick={() => run(async () => { await disconnectMeta(); await refresh(); })}
@@ -155,7 +169,8 @@ function MetaAccountCard() {
   );
 }
 
-export default function AccountConnector({ isOpen, onClose, pendingLaunch, onSimulate }) {
+/** `notice`: why the modal was opened (e.g. a boost that can't launch yet). */
+export default function AccountConnector({ isOpen, onClose, notice }) {
   if (!isOpen) return null;
 
   return (
@@ -181,16 +196,9 @@ export default function AccountConnector({ isOpen, onClose, pendingLaunch, onSim
         </div>
 
         <div className="p-5 space-y-3">
-          {pendingLaunch && (
+          {notice && (
             <div className="p-3 rounded border border-[#DA7756]/30 bg-[#DA7756]/10">
-              <p className="text-[11px] text-[#F5F0E8]">
-                Connect Meta and choose an ad account to launch this boost, then click Execute again.
-              </p>
-              {onSimulate && (
-                <button onClick={onSimulate} className="mt-1.5 text-[10px] font-mono text-[#9B9590] hover:text-[#F5F0E8] cursor-pointer">
-                  Run it as a simulation instead
-                </button>
-              )}
+              <p className="text-[11px] text-[#F5F0E8]">{notice}</p>
             </div>
           )}
           <MetaAccountCard />

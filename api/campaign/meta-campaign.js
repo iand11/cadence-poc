@@ -4,14 +4,14 @@
 //   POST { id, status: 'ACTIVE' }    → go live (campaign, ad sets and ads)
 //   POST { id, status: 'PAUSED' }    → pause the campaign
 //
-// Only campaigns in the user's selected ad account are reachable here.
-import { graph, graphList, getUid, requireConnection, readBody, sendError } from '../lib/meta.js';
+// Only campaigns in an ad account the user assigned in Ad Accounts are reachable here.
+import { graph, graphList, getUid, requireConnection, readBody, sendError, assignedAdAccounts } from '../lib/meta.js';
 
 async function loadOwnedCampaign(conn, id) {
   if (!/^\d+$/.test(String(id || ''))) throw Object.assign(new Error('Invalid campaign id'), { status: 400 });
   const campaign = await graph('GET', id, conn.token, { fields: 'id,name,account_id,status,effective_status' });
-  if (`act_${campaign.account_id}` !== conn.selection.adAccountId) {
-    throw Object.assign(new Error('That campaign is not in your selected ad account.'), { status: 403 });
+  if (!assignedAdAccounts(conn.selection).has(`act_${campaign.account_id}`)) {
+    throw Object.assign(new Error('That campaign is not in one of your assigned ad accounts.'), { status: 403 });
   }
   return campaign;
 }

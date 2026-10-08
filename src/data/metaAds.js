@@ -13,6 +13,8 @@ async function request(url, { method = 'GET', body } = {}) {
   if (!res.ok) {
     const err = new Error(data.error || `Request failed (${res.status})`);
     err.reconnect = !!data.reconnect;
+    // not_configured | not_connected | post_not_found | no_ad_account | ineligible
+    err.code = data.code || null;
     throw err;
   }
   return data;
@@ -28,10 +30,26 @@ export async function startMetaConnect() {
   window.location.assign(url);
 }
 
-export const selectMetaAdAccount = (adAccountId) =>
-  request('/api/connect/meta', { method: 'POST', body: { action: 'select', adAccountId } });
+/** Set the ad account an Instagram account's boosts run in (null to unassign). */
+export const assignMetaAdAccount = (igUserId, adAccountId) =>
+  request('/api/connect/meta', { method: 'POST', body: { action: 'assign', igUserId, adAccountId } });
 
 export const disconnectMeta = () => request('/api/connect/meta', { method: 'DELETE' });
+
+/**
+ * Checks a boost can launch (Meta connected, the post's Instagram account shared and
+ * assigned to an ad account, post eligible) without creating anything.
+ * @returns {Promise<{ready: true, igUsername, adAccountId, adAccountName}>} — throws with err.code otherwise
+ */
+export const checkMetaBoost = (directive) =>
+  request('/api/campaign/boost', { method: 'POST', body: { directive, check: true } });
+
+/** True for a directive that boosts an Instagram post on Meta (runs for real, never simulated). */
+export const isMetaPostBoost = (directive) =>
+  directive?.platform === 'meta' && !!directive.creative?.postId;
+
+/** Codes the user fixes in the Ad Accounts modal. */
+export const ACCOUNT_FIX_CODES = new Set(['not_connected', 'post_not_found', 'no_ad_account']);
 
 /** Creates the paused Meta campaign for a directive that boosts an Instagram post. */
 export const createMetaBoost = (directive) =>
@@ -43,8 +61,3 @@ export const fetchMetaCampaign = (id) =>
 /** status: 'ACTIVE' (go live) | 'PAUSED' */
 export const setMetaCampaignStatus = (id, status) =>
   request('/api/campaign/meta-campaign', { method: 'POST', body: { id, status } });
-
-/** True when this directive should run on Meta for real rather than simulated. */
-export const isRealMetaBoost = (directive, connection) =>
-  directive?.platform === 'meta' && !!directive.creative?.postId &&
-  !!connection?.connected && !!connection.selection?.adAccountId;

@@ -137,17 +137,80 @@ export async function loadConnection(uid) {
   return { ...row, token: decryptToken(row.token_enc), selection: row.selection || {} };
 }
 
+/** A 4xx the client can act on: `code` says what to fix (open Ad Accounts, pick another post…). */
+export function needs(code, message, extra = {}) {
+  return Object.assign(new Error(message), { status: 409, code, ...extra });
+}
+
 /** Like loadConnection, but throws a 409 the client can act on when not ready. */
 export async function requireConnection(uid) {
-  const conn = await loadConnection(uid);
-  if (!conn) throw Object.assign(new Error('Connect a Meta account first.'), { status: 409, reconnect: true });
-  if (conn.expires_at && new Date(conn.expires_at) <= new Date()) {
-    throw Object.assign(new Error('Your Meta connection expired. Reconnect to continue.'), { status: 409, reconnect: true });
+  if (!metaConfigured()) {
+    throw needs('not_configured', 'Meta is not configured on the server (META_APP_ID, META_APP_SECRET, META_LOGIN_CONFIG_ID).');
   }
-  if (!conn.selection.adAccountId) {
-    throw Object.assign(new Error('Choose an ad account in Ad Accounts first.'), { status: 409 });
+  const conn = await loadConnection(uid);
+  if (!conn) throw needs('not_connected', 'Connect your Meta account in Ad Accounts first.', { reconnect: true });
+  if (conn.expires_at && new Date(conn.expires_at) <= new Date()) {
+    throw needs('not_connected', 'Your Meta connection expired. Reconnect in Ad Accounts.', { reconnect: true });
   }
   return conn;
+}
+
+// ── Ad account per Instagram account ────────────────────────────────────────
+// selection = { accountMap: { [igUserId]: { adAccountId, adAccountName, username } } }
+// A user running campaigns for several artists assigns each artist's Instagram
+// account to the ad account its boosts should run (and bill) in.
+
+/** The ad account assigned to an Instagram account, or null. */
+export function adAccountFor(selection, igUserId) {
+  return selection?.accountMap?.[igUserId]?.adAccountId || null;
+}
+
+/** Every ad account this user has assigned to something. */
+export function assignedAdAccounts(selection) {
+  return new Set(Object.values(selection?.accountMap || {}).map(a => a.adAccountId));
+}
+
+/** The Instagram accounts (with their linked Page) this connection can boost from. */
+export async function listInstagramAccounts(token) {
+  const pages = await graphList('me/accounts', token, {
+    fields: 'id,name,instagram_business_account{id,username,profile_picture_url}',
+  });
+  return pages
+    .filter(p => p.instagram_business_account)
+    .map(p => ({
+      igUserId: p.instagram_business_account.id,
+      username: p.instagram_business_account.username,
+      imageUrl: p.instagram_business_account.profile_picture_url || null,
+      pageId: p.id,
+      pageName: p.name,
+    }));
+}
+
+/** Instagram shortcode from a post URL (instagram.com/p/<code>/, /reel/<code>/, /tv/<code>/). */
+export function shortcodeFrom(url) {
+  return String(url || '').match(/instagram\.com\/(?:[^/]+\/)?(?:p|reel|reels|tv)\/([A-Za-z0-9_-]+)/)?.[1] || null;
+}
+
+/**
+ * Find a post among the connected Instagram accounts. Our feed stores the
+ * scraper's post id and the public permalink, not Meta's media id, so match by
+ * shortcode against each account's recent media.
+ * @returns {Promise<{mediaId, account, eligibility} | null>}
+ */
+export async function findInstagramPost(token, { permalink, postId }) {
+  const accounts = await listInstagramAccounts(token);
+  const code = shortcodeFrom(permalink);
+  for (const account of accounts) {
+    const media = await graphList(`${account.igUserId}/media`, token, { fields: 'id,shortcode,permalink' }, 3);
+    const hit = media.find(m =>
+      (code && (m.shortcode === code || shortcodeFrom(m.permalink) === code)) || (postId && m.id === String(postId))
+    );
+    if (hit) {
+      const detail = await graph('GET', hit.id, token, { fields: 'id,boost_eligibility_info' });
+      return { mediaId: hit.id, account, eligibility: detail.boost_eligibility_info || null };
+    }
+  }
+  return null;
 }
 
 export async function saveConnection(uid, { token, tokenType, expiresAt, scopes, metaUserId }) {
@@ -192,6 +255,7 @@ export function sendError(res, err) {
   if (!err.status || err.status >= 500) console.error('[meta]', err.message, err.meta || '');
   return res.status(err.status || 500).json({
     error: err.message || 'Something went wrong',
+    code: err.code || null,
     reconnect: !!err.reconnect,
     meta: err.meta,
   });

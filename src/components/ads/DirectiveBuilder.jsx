@@ -1,12 +1,13 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router';
 import { motion } from 'motion/react';
-import { X, Search, Music, Loader2, Heart, Eye, CheckCircle, Play, Plus, ChevronDown, Image, Link2, Upload, FileAudio, FileVideo, Trash2 } from 'lucide-react';
+import { X, Search, Music, Loader2, Heart, Eye, CheckCircle, Play, Plus, ChevronDown, Image, Link2, Upload, FileAudio, FileVideo, Trash2, AlertTriangle } from 'lucide-react';
 import { PLATFORM_OBJECTIVES, PLATFORM_CONSTRAINTS, PLATFORM_LABELS, CREATIVE_TYPES } from '../../data/directives';
 import BudgetAllocator from './BudgetAllocator';
 import { PLATFORM_COLORS } from '../../constants/colors';
 import { searchArtists, getArtist, getArtistAsync } from '../../data/artists';
 import { api } from '../../data/api';
+import { checkMetaBoost, isMetaPostBoost, ACCOUNT_FIX_CODES } from '../../data/metaAds';
 
 const PLATFORM_COLOR_MAP = {
   spotify: PLATFORM_COLORS.spotify,
@@ -82,7 +83,9 @@ function FileUploadField({ label, accept, file, onChange, onClear, icon: Icon = 
   );
 }
 
-export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, onAcceptAllocation, initialData, connectedPlatforms, launchMode, launchProgress }) {
+export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, onAcceptAllocation, initialData, connectedPlatforms, launchMode, launchProgress, onOpenAccounts }) {
+  // Instagram boosts can't be submitted until Meta + the artist's ad account are ready
+  const [metaGate, setMetaGate] = useState(null); // null | { checking } | { message, fixable }
   const navigate = useNavigate();
   const editing = !!initialData?.id;
 
@@ -417,6 +420,19 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
   const handleSubmit = async () => {
     if (!canSave) return;
     const d = await buildDirective();
+    if (isMetaPostBoost(d)) {
+      setMetaGate({ checking: true });
+      try {
+        const ready = await checkMetaBoost(d);
+        d.adAccountId = ready.adAccountId;
+        d.adAccountName = ready.adAccountName;
+        d.igUsername = ready.igUsername;
+        setMetaGate(null);
+      } catch (e) {
+        setMetaGate({ message: e.message, fixable: ACCOUNT_FIX_CODES.has(e.code) || e.code === 'not_configured' });
+        return;
+      }
+    }
     d.status = 'pending_approval';
     onSubmit(d);
   };
@@ -1196,6 +1212,21 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
           </Section>
         </div>
 
+        {metaGate?.message && (
+          <div className="px-5 py-2.5 border-t border-[#C75F4F]/30 bg-[#C75F4F]/10 shrink-0 flex items-start gap-2">
+            <AlertTriangle size={12} className="text-[#C75F4F] mt-0.5 shrink-0" />
+            <p className="flex-1 text-[11px] text-[#F5F0E8]">{metaGate.message}</p>
+            {metaGate.fixable && onOpenAccounts && (
+              <button
+                onClick={() => onOpenAccounts(metaGate.message)}
+                className="text-[10px] font-medium text-[#0D0C0B] bg-[#DA7756] hover:bg-[#DA7756]/90 rounded px-2.5 py-1 shrink-0 cursor-pointer"
+              >
+                Open Ad Accounts
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Footer */}
         <div className="px-5 py-3 border-t border-[#2C2B28] shrink-0 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -1239,10 +1270,10 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
                 </button>
                 <button
                   onClick={handleSubmit}
-                  disabled={!canSave}
+                  disabled={!canSave || metaGate?.checking}
                   className="px-4 py-2 text-xs font-medium bg-[#DA7756] text-[#0D0C0B] rounded hover:bg-[#DA7756]/90 disabled:bg-[#2C2B28] disabled:text-[#6B6560] transition-colors cursor-pointer"
                 >
-                  Submit for Approval
+                  {metaGate?.checking ? 'Checking ad account…' : 'Submit for Approval'}
                 </button>
               </>
             )}
