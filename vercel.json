@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/l/:slug/:view",
+      "destination": "/api/l?slug=:slug&view=:view"
+    },
+    {
       "source": "/l/:slug",
       "destination": "/api/l?slug=:slug"
     },

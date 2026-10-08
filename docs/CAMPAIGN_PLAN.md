@@ -120,10 +120,27 @@ the way feature.fm does, without depending on it.
   redirect sends the same `DSPClick` through the Conversions API with the link owner's
   Meta token (`event_id` shared, so Meta deduplicates; `fbc` from `fbclid` or the `_fbc`
   cookie). `META_TEST_EVENT_CODE` routes them to Test Events.
+- **Spotify fan capture** (per link, "Ask Spotify listeners to follow and save"): the
+  Spotify button opens a consent page (`/l/<slug>/spotify`) with "Continue with Spotify"
+  and "Just listen". Continue runs Spotify's authorization code flow
+  (`api/spotify-fan.js`, `api/lib/spotify-fans.js`; scopes `user-read-email`,
+  `user-read-private`, `user-follow-modify`, `user-library-modify`, `user-top-read`):
+  we read the profile and top artists, follow the release's artist, save the release,
+  upsert the fan into `smart_link_fans` (name, email, country, plan, followed/saved, top
+  artists, campaign, from-ad) and redirect to the release. The Spotify token is not
+  kept. Declining, errors and a missing config all still land the fan on Spotify. The
+  click's Conversions API event carries the hashed email and country for better
+  matching. Links tab shows fans, "fans also listen to", and a CSV export; the campaign
+  page shows fans captured. Needs the existing `SPOTIFY_CLIENT_ID`/`SECRET` app with
+  `<origin>/api/spotify-fan` (or `SPOTIFY_REDIRECT_URI`) added as a redirect URI.
+  Caveats: Spotify's development mode only allows allow-listed test users, so real fans
+  need the app's extended quota approved; Spotify's developer terms limit how user data
+  may be used; and fans who tap from Instagram's in-app browser usually aren't logged in
+  to Spotify there, so they'll see a login form rather than a one-tap Agree.
 - Next: once a Pixel has enough `DSPClick` volume, create a custom conversion on it and
   launch new ads with `OFFSITE_CONVERSIONS` optimization (`promoted_object` = pixel +
   custom event), so Meta optimizes for streaming clicks rather than link clicks. Also
-  next: pre-saves (needs a Spotify login flow) and a custom short domain
+  next: pre-saves for unreleased tracks and a custom short domain
   (`SMART_LINK_BASE_URL`).
 - Vercel Deployment Protection, if on, blocks public visitors on preview URLs. Smart links
   need to be served from production or an unprotected domain.

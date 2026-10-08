@@ -46,6 +46,16 @@ export function ensureTables() {
           from_ad boolean NOT NULL DEFAULT false, created_at timestamptz NOT NULL DEFAULT now()
         )`);
       await query('CREATE INDEX IF NOT EXISTS smart_link_events_slug_idx ON smart_link_events (slug, created_at)');
+      await query('ALTER TABLE smart_links ADD COLUMN IF NOT EXISTS fan_capture boolean NOT NULL DEFAULT false');
+      await query(`
+        CREATE TABLE IF NOT EXISTS smart_link_fans (
+          slug text NOT NULL REFERENCES smart_links (slug) ON DELETE CASCADE,
+          spotify_user_id text NOT NULL, display_name text, email text, country text, product text,
+          followed boolean NOT NULL DEFAULT false, saved boolean NOT NULL DEFAULT false,
+          top_artists jsonb, campaign text, from_ad boolean NOT NULL DEFAULT false,
+          created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(),
+          PRIMARY KEY (slug, spotify_user_id)
+        )`);
     })().catch((err) => { tablesReady = undefined; throw err; });
   }
   return tablesReady;
@@ -113,6 +123,8 @@ export function cookies(req) {
   }));
 }
 
+const sha256 = (v) => crypto.createHash('sha256').update(v).digest('hex');
+
 function clientIp(req) {
   return String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket?.remoteAddress || null;
 }
@@ -142,7 +154,7 @@ export async function recordEvent(req, slug, { kind, service = null, campaign = 
  * connection. Shares `eventId` with the Pixel event fired in the page so Meta
  * counts it once. Never throws.
  */
-export async function sendMetaEvent(req, link, { eventName, eventId, service, campaign, sourceUrl, fbclid }) {
+export async function sendMetaEvent(req, link, { eventName, eventId, service, campaign, sourceUrl, fbclid, email, country }) {
   if (!link.pixel_id || isBot(req)) return;
   try {
     const conn = await loadConnection(link.user_id);
@@ -161,6 +173,9 @@ export async function sendMetaEvent(req, link, { eventName, eventId, service, ca
           client_user_agent: req.headers['user-agent'] || undefined,
           fbc,
           fbp: c._fbp || undefined,
+          // Hashed, as Meta requires; only present for fans who logged in with Spotify
+          em: email ? [sha256(email.trim().toLowerCase())] : undefined,
+          country: country ? [sha256(country.trim().toLowerCase())] : undefined,
         },
         custom_data: { service, link: link.slug, title: link.title, campaign: campaign || undefined },
       }],
@@ -187,6 +202,7 @@ export async function statsFor(where, params) {
     clicks: totals.clicks,
     adClicks: totals.ad_clicks,
     clickRate: totals.views ? totals.clicks / totals.views : 0,
+    fans: (await query(`SELECT count(*)::int AS n FROM smart_link_fans WHERE ${where}`, params))[0].n,
     byService: byService.map(r => ({ service: r.service, label: SERVICES[r.service]?.label || r.service, clicks: r.clicks })),
   };
 }

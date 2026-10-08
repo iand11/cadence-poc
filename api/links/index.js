@@ -4,15 +4,17 @@
 //   GET ?slug=x               → { link, stats, daily: [{ day, views, clicks }], byCampaign }
 //   GET ?campaign=<id>        → stats for one Prelude campaign across links (from ?c= on the link)
 //   GET ?pixels=1             → { pixels: [{ id, name, adAccountId }] } from the user's assigned ad accounts
-//   POST { sourceUrl, artistSlug?, artistName?, title?, imageUrl?, links?, pixelId? }
+//   GET ?fans=<slug>          → { fans: [...] } Spotify fans captured by that link (newest first)
+//   POST { sourceUrl, artistSlug?, artistName?, title?, imageUrl?, links?, pixelId?, fanCapture? }
 //        → creates a link; service links are looked up from sourceUrl unless given
-//   PATCH { slug, title?, links?, pixelId? }
+//   PATCH { slug, title?, links?, pixelId?, fanCapture? }
 //   DELETE ?slug=x
 import { query, queryOne } from '../lib/db.js';
 import { getUid, readBody, sendError, loadConnection, graphList, assignedAdAccounts } from '../lib/meta.js';
 import {
   ensureTables, resolveLinks, cleanLinks, makeSlug, linkUrl, statsFor, isHttpUrl,
 } from '../lib/smartlinks.js';
+import { spotifyLoginConfigured } from '../lib/spotify-fans.js';
 
 const bad = (message, status = 400) => Object.assign(new Error(message), { status });
 
@@ -27,6 +29,7 @@ function shape(req, row, counts = {}) {
     sourceUrl: row.source_url,
     links: row.links || [],
     pixelId: row.pixel_id,
+    fanCapture: !!row.fan_capture,
     createdAt: row.created_at,
     views: counts.views ?? 0,
     clicks: counts.clicks ?? 0,
@@ -67,6 +70,21 @@ export default async function handler(req, res) {
     if (req.method === 'GET') {
       if (params.get('pixels')) return res.status(200).json({ pixels: await listPixels(uid) });
 
+      if (params.get('fans')) {
+        const row = await ownedLink(uid, params.get('fans'));
+        const fans = await query(
+          `SELECT spotify_user_id, display_name, email, country, product, followed, saved, top_artists,
+                  campaign, from_ad, created_at
+           FROM smart_link_fans WHERE slug = $1 ORDER BY created_at DESC LIMIT 5000`, [row.slug]);
+        return res.status(200).json({
+          fans: fans.map(f => ({
+            spotifyUserId: f.spotify_user_id, name: f.display_name, email: f.email, country: f.country,
+            product: f.product, followed: f.followed, saved: f.saved, topArtists: f.top_artists || [],
+            campaign: f.campaign, fromAd: f.from_ad, createdAt: f.created_at,
+          })),
+        });
+      }
+
       if (params.get('campaign')) {
         // Only campaigns that point at this user's links
         const stats = await statsFor(
@@ -100,7 +118,7 @@ export default async function handler(req, res) {
            FROM smart_link_events e WHERE e.slug = l.slug
          ) c ON true
          WHERE l.user_id = $1 ORDER BY l.created_at DESC`, [uid]);
-      return res.status(200).json({ links: rows.map(r => shape(req, r, r)) });
+      return res.status(200).json({ links: rows.map(r => shape(req, r, r)), spotifyLogin: spotifyLoginConfigured() });
     }
 
     if (req.method === 'POST') {
@@ -117,12 +135,12 @@ export default async function handler(req, res) {
       if (!title) throw bad('Give the link a title.');
       const slug = makeSlug(title);
       const row = await queryOne(
-        `INSERT INTO smart_links (slug, user_id, artist_slug, artist_name, title, image_url, source_url, links, pixel_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+        `INSERT INTO smart_links (slug, user_id, artist_slug, artist_name, title, image_url, source_url, links, pixel_id, fan_capture)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
         [slug, uid, body.artistSlug || null, body.artistName || found.artistName || null, title,
           (isHttpUrl(body.imageUrl) && body.imageUrl) || found.imageUrl || null,
           isHttpUrl(body.sourceUrl) ? body.sourceUrl : null,
-          JSON.stringify(found.links), await validPixel(uid, body.pixelId)]);
+          JSON.stringify(found.links), await validPixel(uid, body.pixelId), !!body.fanCapture]);
       return res.status(201).json({ link: shape(req, row) });
     }
 
@@ -133,9 +151,10 @@ export default async function handler(req, res) {
       if (!links.length) throw bad('A link needs at least one streaming service.');
       const pixelId = 'pixelId' in body ? await validPixel(uid, body.pixelId) : row.pixel_id;
       const updated = await queryOne(
-        `UPDATE smart_links SET title = $3, links = $4, pixel_id = $5, updated_at = now()
+        `UPDATE smart_links SET title = $3, links = $4, pixel_id = $5, fan_capture = $6, updated_at = now()
          WHERE slug = $1 AND user_id = $2 RETURNING *`,
-        [row.slug, uid, String(body.title || row.title).trim(), JSON.stringify(links), pixelId]);
+        [row.slug, uid, String(body.title || row.title).trim(), JSON.stringify(links), pixelId,
+          'fanCapture' in body ? !!body.fanCapture : row.fan_capture]);
       return res.status(200).json({ link: shape(req, updated) });
     }
 

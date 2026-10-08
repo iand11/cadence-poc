@@ -51,17 +51,18 @@ export function decryptToken(blob) {
 
 // ── OAuth state (binds the browser redirect back to the Prelude user) ───────
 
-export function signState(uid) {
+/** HMAC-signed, expiring payload (OAuth state for Meta and the smart link Spotify flow). */
+export function signData(payload, ttlMs = STATE_TTL_MS) {
   const data = Buffer.from(JSON.stringify({
-    uid, n: crypto.randomBytes(8).toString('hex'), exp: Date.now() + STATE_TTL_MS,
+    ...payload, n: crypto.randomBytes(8).toString('hex'), exp: Date.now() + ttlMs,
   })).toString('base64url');
   const mac = crypto.createHmac('sha256', secretKey()).update(data).digest('base64url');
   return `${data}.${mac}`;
 }
 
-export function verifyState(state) {
-  if (!state || !state.includes('.')) return null;
-  const [data, mac] = state.split('.');
+export function verifyData(signed) {
+  if (!signed || !signed.includes('.')) return null;
+  const [data, mac] = signed.split('.');
   const expected = crypto.createHmac('sha256', secretKey()).update(data).digest('base64url');
   const a = Buffer.from(mac);
   const b = Buffer.from(expected);
@@ -73,6 +74,9 @@ export function verifyState(state) {
     return null;
   }
 }
+
+export const signState = (uid) => signData({ uid });
+export const verifyState = (state) => verifyData(state);
 
 // ── Graph API ───────────────────────────────────────────────────────────────
 

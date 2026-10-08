@@ -502,3 +502,27 @@ CREATE TABLE IF NOT EXISTS smart_link_events (
 );
 CREATE INDEX IF NOT EXISTS smart_link_events_slug_idx ON smart_link_events (slug, created_at);
 CREATE INDEX IF NOT EXISTS smart_link_events_campaign_idx ON smart_link_events (campaign) WHERE campaign IS NOT NULL;
+
+-- Spotify fan capture: when a link has fan_capture on, its Spotify button opens a
+-- consent page; fans who continue log in with Spotify, follow the artist, save the
+-- release, and are stored here (one row per link per Spotify user). Prelude does not
+-- keep their Spotify token.
+ALTER TABLE smart_links ADD COLUMN IF NOT EXISTS fan_capture boolean NOT NULL DEFAULT false;
+
+CREATE TABLE IF NOT EXISTS smart_link_fans (
+  slug             text NOT NULL REFERENCES smart_links (slug) ON DELETE CASCADE,
+  spotify_user_id  text NOT NULL,
+  display_name     text,
+  email            text,
+  country          text,
+  product          text,                -- premium | free | open
+  followed         boolean NOT NULL DEFAULT false,
+  saved            boolean NOT NULL DEFAULT false,
+  top_artists      jsonb,               -- [name, …] (medium term)
+  campaign         text,
+  from_ad          boolean NOT NULL DEFAULT false,
+  created_at       timestamptz NOT NULL DEFAULT now(),
+  updated_at       timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (slug, spotify_user_id)
+);
+CREATE INDEX IF NOT EXISTS smart_link_fans_campaign_idx ON smart_link_fans (campaign) WHERE campaign IS NOT NULL;

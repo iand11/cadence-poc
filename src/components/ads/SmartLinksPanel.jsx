@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { Link2, Plus, Copy, Check, ExternalLink, Trash2, Loader2, AlertTriangle, ChevronDown, MousePointerClick, Eye } from 'lucide-react';
+import { Link2, Plus, Copy, Check, ExternalLink, Trash2, Loader2, AlertTriangle, ChevronDown, MousePointerClick, Eye, Download, Users } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { useAsync } from '../../hooks/useAsync';
 import { useFollowedArtists } from '../../context/FollowedArtistsContext';
 import { useDirectives } from '../../hooks/useDirectives';
 import {
-  fetchSmartLinks, fetchSmartLink, fetchPixels, createSmartLink, updateSmartLink, deleteSmartLink,
+  fetchSmartLinks, fetchSmartLink, fetchPixels, createSmartLink, updateSmartLink, deleteSmartLink, fetchLinkFans,
   SERVICE_LABELS, SERVICE_COLORS,
 } from '../../data/smartLinks';
 import { AXIS_STYLE, TOOLTIP_STYLE } from '../../utils/chartTheme';
@@ -40,12 +40,105 @@ function PixelSelect({ value, onChange, pixels, disabled }) {
   );
 }
 
-function NewLinkForm({ pixels, onCreated, onCancel }) {
+function FanCaptureToggle({ checked, onChange, disabled, spotifyLogin }) {
+  return (
+    <label className="flex items-start gap-2 cursor-pointer">
+      <input type="checkbox" checked={checked} disabled={disabled} onChange={e => onChange(e.target.checked)} className="mt-0.5 accent-[#DA7756]" />
+      <span>
+        <span className="text-[11px] text-[#F5F0E8]">Ask Spotify listeners to follow and save</span>
+        <span className="block text-[9px] text-[#6B6560]">
+          Before Spotify opens, fans can continue with Spotify to follow the artist and save the release. You get their name, email, country and top artists. "Just listen" skips it.
+        </span>
+        {checked && spotifyLogin === false && (
+          <span className="block text-[9px] text-[#D4A574] mt-0.5">Spotify login isn't configured on the server (SPOTIFY_CLIENT_ID / SECRET), so the button goes straight to Spotify for now.</span>
+        )}
+      </span>
+    </label>
+  );
+}
+
+function downloadFansCsv(link, fans) {
+  const cols = ['name', 'email', 'country', 'product', 'followed', 'saved', 'topArtists', 'campaign', 'fromAd', 'createdAt'];
+  const cell = (v) => {
+    const t = Array.isArray(v) ? v.join('; ') : v == null ? '' : String(v);
+    return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+  };
+  const csv = [cols.join(','), ...fans.map(f => cols.map(c => cell(f[c])).join(','))].join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = `${link.slug}-fans.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function FansSection({ link, version }) {
+  const { data } = useAsync(() => fetchLinkFans(link.slug), [link.slug, version]);
+  const fans = data?.fans || [];
+  if (!link.fanCapture && !fans.length) return null;
+  // Who else these fans listen to
+  const counts = {};
+  for (const f of fans) for (const a of f.topArtists || []) if (a !== link.artistName) counts[a] = (counts[a] || 0) + 1;
+  const alsoLike = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 8);
+
+  return (
+    <div className="lg:col-span-3 pt-4 border-t border-[#2C2B28]">
+      <div className="flex items-center justify-between mb-2">
+        <p className="flex items-center gap-1.5 text-[10px] font-mono text-[#9B9590]"><Users size={10} /> Spotify fans ({formatNumber(fans.length)})</p>
+        {fans.length > 0 && (
+          <button onClick={() => downloadFansCsv(link, fans)} className="flex items-center gap-1 text-[10px] font-mono text-[#9B9590] hover:text-[#F5F0E8] cursor-pointer">
+            <Download size={10} /> Download CSV
+          </button>
+        )}
+      </div>
+      {!fans.length ? (
+        <p className="text-[10px] text-[#6B6560]">No fans yet. They appear here when a listener continues with Spotify.</p>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+          <div className="lg:col-span-2 overflow-x-auto">
+            <table className="w-full text-[10px]">
+              <thead>
+                <tr className="text-left font-mono text-[#6B6560]">
+                  <th className="py-1 pr-3 font-normal">Name</th><th className="py-1 pr-3 font-normal">Email</th>
+                  <th className="py-1 pr-3 font-normal">Country</th><th className="py-1 pr-3 font-normal">Plan</th>
+                  <th className="py-1 pr-3 font-normal">Followed</th><th className="py-1 pr-3 font-normal">Saved</th>
+                  <th className="py-1 font-normal">From ad</th>
+                </tr>
+              </thead>
+              <tbody>
+                {fans.slice(0, 10).map(f => (
+                  <tr key={f.spotifyUserId} className="border-t border-[#2C2B28] text-[#F5F0E8]">
+                    <td className="py-1 pr-3">{f.name || '–'}</td><td className="py-1 pr-3 font-mono">{f.email || '–'}</td>
+                    <td className="py-1 pr-3">{f.country || '–'}</td><td className="py-1 pr-3">{f.product || '–'}</td>
+                    <td className="py-1 pr-3">{f.followed ? 'Yes' : 'No'}</td><td className="py-1 pr-3">{f.saved ? 'Yes' : 'No'}</td>
+                    <td className="py-1">{f.fromAd ? 'Yes' : 'No'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {fans.length > 10 && <p className="text-[9px] text-[#6B6560] mt-1">Showing the latest 10. Download the CSV for all {formatNumber(fans.length)}.</p>}
+          </div>
+          <div>
+            <p className={labelCls}>Fans also listen to</p>
+            {alsoLike.length ? alsoLike.map(([name, n]) => (
+              <div key={name} className="flex items-center justify-between text-[10px] py-0.5">
+                <span className="text-[#F5F0E8] truncate mr-2">{name}</span>
+                <span className="font-mono text-[#9B9590]">{n}</span>
+              </div>
+            )) : <p className="text-[10px] text-[#6B6560]">Not enough data yet.</p>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NewLinkForm({ pixels, spotifyLogin, onCreated, onCancel }) {
   const { followedArtists } = useFollowedArtists();
   const [sourceUrl, setSourceUrl] = useState('');
   const [title, setTitle] = useState('');
   const [artistSlug, setArtistSlug] = useState('');
   const [pixelId, setPixelId] = useState(null);
+  const [fanCapture, setFanCapture] = useState(false);
   const [manual, setManual] = useState(false);
   const [manualLinks, setManualLinks] = useState({});
   const [busy, setBusy] = useState(false);
@@ -63,6 +156,7 @@ function NewLinkForm({ pixels, onCreated, onCancel }) {
         artistName: artist?.name || null,
         imageUrl: manual ? artist?.imageUrl || null : null,
         pixelId,
+        fanCapture,
         links: manual ? Object.entries(manualLinks).filter(([, url]) => url).map(([service, url]) => ({ service, url })) : undefined,
       });
       onCreated(link);
@@ -117,6 +211,7 @@ function NewLinkForm({ pixels, onCreated, onCancel }) {
         <label className={labelCls}>Meta Pixel (sends streaming clicks to Meta)</label>
         <PixelSelect value={pixelId} onChange={setPixelId} pixels={pixels} />
       </div>
+      <FanCaptureToggle checked={fanCapture} onChange={setFanCapture} spotifyLogin={spotifyLogin} />
       {error && (
         <p className="flex items-start gap-1 text-[10px] text-[#C75F4F]"><AlertTriangle size={10} className="mt-0.5 shrink-0" />{error}</p>
       )}
@@ -154,7 +249,7 @@ function ServiceBars({ byService, total }) {
 
 export { ServiceBars };
 
-function LinkDetail({ slug, pixels, onChanged, onDeleted }) {
+function LinkDetail({ slug, pixels, spotifyLogin, onChanged, onDeleted }) {
   const [version, setVersion] = useState(0);
   const { data, loading, error } = useAsync(() => fetchSmartLink(slug), [slug, version]);
   const { directives } = useDirectives();
@@ -181,6 +276,14 @@ function LinkDetail({ slug, pixels, onChanged, onDeleted }) {
         <p className={labelCls}>Clicks by service</p>
         <ServiceBars byService={stats.byService} total={stats.clicks} />
         <p className="text-[9px] text-[#6B6560] mt-2">{formatNumber(stats.adClicks)} of {formatNumber(stats.clicks)} clicks came from Meta ads.</p>
+        <div className="mt-3">
+          <FanCaptureToggle
+            checked={link.fanCapture}
+            disabled={busy}
+            spotifyLogin={spotifyLogin}
+            onChange={(fanCapture) => run(async () => { await updateSmartLink(slug, { fanCapture }); setVersion(v => v + 1); })}
+          />
+        </div>
       </div>
       <div>
         <p className={labelCls}>Last 30 days</p>
@@ -233,6 +336,7 @@ function LinkDetail({ slug, pixels, onChanged, onDeleted }) {
         </button>
         {actionError && <p className="text-[10px] text-[#C75F4F]">{actionError}</p>}
       </div>
+      <FansSection link={link} version={version} />
     </div>
   );
 }
@@ -268,6 +372,7 @@ export default function SmartLinksPanel() {
       {creating && (
         <NewLinkForm
           pixels={pixels}
+          spotifyLogin={data?.spotifyLogin}
           onCancel={() => setCreating(false)}
           onCreated={(link) => { setCreating(false); setOpen(link.slug); reload(); }}
         />
@@ -308,7 +413,7 @@ export default function SmartLinksPanel() {
                 </div>
               </div>
               {open === l.slug && (
-                <LinkDetail slug={l.slug} pixels={pixels} onChanged={reload} onDeleted={() => { setOpen(null); reload(); }} />
+                <LinkDetail slug={l.slug} pixels={pixels} spotifyLogin={data?.spotifyLogin} onChanged={reload} onDeleted={() => { setOpen(null); reload(); }} />
               )}
             </div>
           ))}

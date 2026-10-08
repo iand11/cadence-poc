@@ -15,11 +15,12 @@ function StreamingClicks({ directive, spend, version }) {
   return (
     <div className="pt-3 border-t border-[#2C2B28]">
       <p className="text-[10px] font-mono text-[#9B9590] mb-2">Streaming clicks (smart link)</p>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+      <div className={`grid grid-cols-2 ${data.fans ? 'md:grid-cols-5' : 'md:grid-cols-4'} gap-2 mb-3`}>
         <Stat label="Link views" value={formatNumber(data.views)} />
         <Stat label="Streaming clicks" value={formatNumber(data.clicks)} />
         <Stat label="Click rate" value={data.views ? `${(data.clickRate * 100).toFixed(1)}%` : '–'} />
         <Stat label="Cost / streaming click" value={data.clicks && spend ? formatDollar(spend / data.clicks) : '–'} />
+        {data.fans > 0 && <Stat label="Spotify fans captured" value={formatNumber(data.fans)} />}
       </div>
       <ServiceBars byService={data.byService} total={data.clicks} />
     </div>

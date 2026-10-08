@@ -12,10 +12,13 @@ export const fetchSmartLink = (slug) => request(`/api/links?slug=${encodeURIComp
 export const fetchCampaignLinkStats = (campaignId) =>
   request(`/api/links?campaign=${encodeURIComponent(campaignId)}`);
 
+/** Spotify fans a link captured: { fans: [{ name, email, country, product, followed, saved, topArtists, campaign, fromAd, createdAt }] } */
+export const fetchLinkFans = (slug) => request(`/api/links?fans=${encodeURIComponent(slug)}`);
+
 /** Meta Pixels in the user's assigned ad accounts. */
 export const fetchPixels = () => request('/api/links?pixels=1');
 
-/** body: { sourceUrl, artistSlug?, artistName?, title?, imageUrl?, links?, pixelId? } */
+/** body: { sourceUrl, artistSlug?, artistName?, title?, imageUrl?, links?, pixelId?, fanCapture? } */
 export const createSmartLink = (body) => request('/api/links', { method: 'POST', body });
 
 export const updateSmartLink = (slug, patch) =>
