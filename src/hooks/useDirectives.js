@@ -119,7 +119,7 @@ export function useDirectives() {
   }, [directives]);
 
   const directivesByStatus = useMemo(() => {
-    const map = { draft: [], pending_approval: [], approved: [], executing: [], active: [], completed: [], failed: [], rejected: [] };
+    const map = { draft: [], pending_approval: [], approved: [], executing: [], paused: [], active: [], completed: [], failed: [], rejected: [] };
     for (const d of directives) {
       if (map[d.status]) map[d.status].push(d);
     }
@@ -167,7 +167,7 @@ export function useDirectives() {
     total: directives.length,
     drafts: directivesByStatus.draft.length,
     pending: directivesByStatus.pending_approval.length,
-    active: directivesByStatus.active.length + directivesByStatus.executing.length + directivesByStatus.approved.length,
+    active: directivesByStatus.active.length + directivesByStatus.paused.length + directivesByStatus.executing.length + directivesByStatus.approved.length,
     completed: directivesByStatus.completed.length,
     failed: directivesByStatus.failed.length,
   }), [directives, directivesByStatus]);

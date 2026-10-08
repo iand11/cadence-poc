@@ -446,3 +446,22 @@ CREATE TABLE IF NOT EXISTS user_data (
   updated_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (user_id, key)
 );
+
+-- ---------------------------------------------------------------------------
+-- Ad platform connections — one row per user per platform. The access token
+-- is AES-256-GCM encrypted by api/lib/meta.js (AD_TOKEN_KEY) and never leaves
+-- the server. `selection` holds the chosen ad account ({ adAccountId }).
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS ad_platform_connections (
+  user_id        text NOT NULL,
+  platform       text NOT NULL,          -- meta
+  token_enc      text NOT NULL,
+  token_type     text,                   -- system_user | user (from debug_token)
+  expires_at     timestamptz,            -- null = never expires
+  scopes         text[],
+  meta_user_id   text,                   -- the Meta user/system user behind the token
+  selection      jsonb NOT NULL DEFAULT '{}'::jsonb,
+  connected_at   timestamptz NOT NULL DEFAULT now(),
+  updated_at     timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, platform)
+);

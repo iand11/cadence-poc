@@ -1,12 +1,15 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
-import { Megaphone, Plus, BarChart3, Rss, ChevronDown } from 'lucide-react';
+import { Megaphone, Plus, BarChart3, Rss, ChevronDown, Link2, AlertTriangle, X } from 'lucide-react';
 import DirectiveCard from '../components/ads/DirectiveCard';
 import DirectiveBuilder from '../components/ads/DirectiveBuilder';
 import CampaignWizard from '../components/ads/CampaignWizard';
 import CampaignDashboard from '../components/ads/CampaignDashboard';
 import ContentFeed from '../components/ads/ContentFeed';
+import AccountConnector from '../components/ads/AccountConnector';
+import { useMetaConnection } from '../hooks/useMetaConnection';
+import { createMetaBoost, isRealMetaBoost } from '../data/metaAds';
 import { useDirectives } from '../hooks/useDirectives';
 import { generateDirective, PLATFORM_LABELS } from '../data/directives';
 
@@ -57,6 +60,53 @@ export default function CampaignsPage() {
 
   const [wizardSuggestion, setWizardSuggestion] = useState(null);
 
+  const { connection: metaConnection, refresh: refreshMeta } = useMetaConnection();
+  // Back from Meta's login dialog (a full page load): /app/campaigns?meta=connected|error&reason=…
+  const metaResult = new URLSearchParams(location.search).get('meta');
+  const [accountsOpen, setAccountsOpen] = useState(metaResult === 'connected');
+  const [metaNotice, setMetaNotice] = useState(() =>
+    metaResult && metaResult !== 'connected'
+      ? new URLSearchParams(location.search).get('reason') || 'Meta connection failed.'
+      : null
+  );
+  useEffect(() => {
+    if (!metaResult) return;
+    if (metaResult === 'connected') refreshMeta(true);
+    navigate(location.pathname, { replace: true, state: location.state });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once per redirect
+  }, [metaResult]);
+
+  // Meta boosts run for real once Meta is set up on the server; everything else
+  // (and Meta in a demo without credentials) stays simulated.
+  const handleExecute = async (id) => {
+    const d = directives.find(x => x.id === id);
+    const wantsRealMeta = d?.platform === 'meta' && d.creative?.postId && metaConnection?.configured;
+    if (!wantsRealMeta) {
+      updateDirective(id, { status: 'active' });
+      navigate(`/app/campaigns/${id}`);
+      return;
+    }
+    if (!isRealMetaBoost(d, metaConnection)) {
+      setAccountsOpen(true);
+      return;
+    }
+    updateDirective(id, { status: 'executing', executionError: null });
+    try {
+      const result = await createMetaBoost(d);
+      updateDirective(id, {
+        ...result,
+        status: 'paused',
+        platformStatus: 'PAUSED',
+        metricsSource: 'meta',
+        lastSyncedAt: new Date().toISOString(),
+      });
+      navigate(`/app/campaigns/${id}`);
+    } catch (e) {
+      updateDirective(id, { status: 'failed', executionError: e.message });
+      if (e.reconnect) setAccountsOpen(true);
+    }
+  };
+
   // Auto-open wizard when navigated from artist profile
   useEffect(() => {
     if (location.state?.openWizard) {
@@ -70,7 +120,7 @@ export default function CampaignsPage() {
 
   const filteredDirectives = useMemo(() => {
     if (tab === 'all') return directives;
-    if (tab === 'active') return directives.filter(d => ['approved', 'executing', 'active', 'pending_approval'].includes(d.status));
+    if (tab === 'active') return directives.filter(d => ['approved', 'executing', 'paused', 'active', 'pending_approval'].includes(d.status));
     if (tab === 'drafts') return directives.filter(d => d.status === 'draft');
     if (tab === 'completed') return directives.filter(d => ['completed', 'failed', 'rejected'].includes(d.status));
     return directives;
@@ -232,6 +282,14 @@ export default function CampaignsPage() {
         </div>
         <div className="flex items-center gap-2">
           <button
+            onClick={() => setAccountsOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-mono text-[#9B9590] hover:text-[#F5F0E8] border border-[#2C2B28] hover:border-[#3D3B37] rounded transition-colors cursor-pointer"
+          >
+            <Link2 size={11} />
+            Ad Accounts
+            {metaConnection?.connected && <span className="w-1.5 h-1.5 rounded-full bg-[#7BAF73]" />}
+          </button>
+          <button
             onClick={handleNewCampaign}
             className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-medium text-[#DA7756] border border-[#DA7756]/20 hover:border-[#DA7756]/40 rounded transition-colors cursor-pointer"
           >
@@ -241,6 +299,16 @@ export default function CampaignsPage() {
         </div>
       </div>
 
+
+      {metaNotice && (
+        <div className="flex items-start gap-2 mb-4 p-3 rounded border border-[#C75F4F]/30 bg-[#C75F4F]/10">
+          <AlertTriangle size={12} className="text-[#C75F4F] mt-0.5 shrink-0" />
+          <p className="flex-1 text-[11px] text-[#F5F0E8]">Couldn't connect Meta: {metaNotice}</p>
+          <button onClick={() => setMetaNotice(null)} className="text-[#6B6560] hover:text-[#F5F0E8] cursor-pointer">
+            <X size={12} />
+          </button>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex items-center gap-1 mb-4">
@@ -335,7 +403,7 @@ export default function CampaignsPage() {
                       onEdit={handleEdit}
                       onApprove={approveDirective}
                       onReject={rejectDirective}
-                      onExecute={(id) => { updateDirective(id, { status: 'active' }); navigate(`/app/campaigns/${id}`); }}
+                      onExecute={handleExecute}
                       onDelete={deleteDirective}
                       onClick={() => navigate(`/app/campaigns/${d.id}`)}
                     />
@@ -375,6 +443,8 @@ export default function CampaignsPage() {
         initialArtistSlug={wizardArtistSlug}
         initialSuggestion={wizardSuggestion}
       />
+
+      <AccountConnector isOpen={accountsOpen} onClose={() => setAccountsOpen(false)} />
 
       <DirectiveBuilder
         key={launchQueue.length > 0 ? `launch-${launchQueueIndex}` : editingDirective?.id || 'builder'}

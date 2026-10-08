@@ -72,6 +72,16 @@ builds, so components need no reshaping. Frontend adapter: `src/data/artistsRemo
 (async drop-ins: `fetchArtists`, `fetchArtist`, `loadArtistDetail`, `fetchContentFeed`).
 Dev middleware for these routes is `dbApiPlugin()` in `vite.config.js`.
 
+Meta ads (Campaigns): a user connects their own Meta business with Facebook Login for
+Business (`api/connect/meta.js`). The token is stored encrypted in
+`ad_platform_connections` and never reaches the client. `api/campaign/boost.js` turns a
+Meta directive with `creative.postId` into a paused Campaign → Ad Set → Ad that boosts that
+Instagram post, and `api/campaign/meta-campaign.js` reads status/insights and goes live or
+pauses. The client side is `src/data/metaAds.js`, `useMetaConnection`, `AccountConnector`
+and `MetaCampaignPanel`. Env: `META_APP_ID`, `META_APP_SECRET`, `META_LOGIN_CONFIG_ID`,
+`AD_TOKEN_KEY`. Without them, Meta directives stay simulated. Details in
+docs/CAMPAIGN_PLAN.md.
+
 ### Data Modules (`src/data/`)
 
 The app is scoped to the artists a user **follows** (user-facing copy never says "roster" or

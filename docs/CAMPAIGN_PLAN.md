@@ -23,44 +23,62 @@ launched, its budget/status/metrics live on Meta and we read them back. Clearing
 browser loses drafts, never live campaigns — and a "sync from Meta" import makes even
 that recoverable.
 
-### 1. Account connection (Meta OAuth)
+### 1. Account connection (Meta OAuth) — built
 
-- New serverless endpoints (same style as `api/auth.js`):
-  - `api/connect/meta.js` — OAuth start + callback. Token exchange happens server-side
-    (needs the app secret), then we store the long-lived user token (~60 days) in an
-    HMAC-signed **HttpOnly cookie**, exactly the pattern `api/auth.js` already uses.
-    No DB needed; token never touches client JS or localStorage.
-  - `api/connect/status.js` — which platforms are connected + selected ad account.
-- `AccountConnector.jsx` becomes real for Meta. All other platforms show **"coming
-  soon"** instead of pretending to be connected. `useDirectives.connectedPlatforms`
-  derives from `api/connect/status`.
-- Selected ad account ID + page ID stored in localStorage (not secret).
+**Decided 2026-10-08:** each Prelude user connects their *own* Meta business with
+**Facebook Login for Business**. Ads run in their ad account and Meta bills their card.
+Prelude makes money with its own per-boost fee and subscription, charged separately
+(Stripe, not built yet). A "Prelude-managed" mode comes later for indie artists without
+an ad account: Prelude's Business Manager gets partner access to the artist's Page + IG
+account and runs the ads from Prelude's own ad account. Same Meta app, same App Review.
 
-### 2. Execution (directive → real Meta campaign)
+What a connection can see: everything the person shares in the login dialog, within
+the granted permissions. Ad accounts are all-or-nothing, so if one ad account runs ads for
+several artists, Prelude can read all of those campaigns. Pages and IG accounts are
+chosen individually.
 
-- `api/campaign/execute.js` — takes a directive + the auth cookie, creates
-  Campaign → Ad Set → Ad via the Meta Marketing API, **always paused**, returns
-  `{platformCampaignId, platformAdSetId, platformAdId}` which get merged onto the
-  directive in localStorage.
-- Field mapping:
-  - objective: awareness → `OUTCOME_AWARENESS`, engagement → `OUTCOME_ENGAGEMENT`,
-    conversions → `OUTCOME_TRAFFIC` (sales needs pixel — out of scope v1)
-  - budget: dollars → cents; `period` → daily_budget vs lifetime_budget on the ad set
-  - schedule/audience: map directly (geo codes, age range)
-  - **creative: v1 = boost an existing post** (`creative.postId` is already in the
-    directive schema and ContentFeed already has the Boost flow). Uploading new
-    image/video assets to Meta is a later phase — boosting sidesteps asset upload,
-    creative review headaches, and most of the mapping surface.
-- **Go-live is a separate explicit step**: after execute succeeds, the detail page
-  shows the paused campaign with a spend summary and a "Go live" confirm that calls
-  `api/campaign/activate.js`. Real money never moves on a single click.
-- New directive fields: `platformCampaignId`, `platformAdSetId`, `platformAdId`,
-  `executionError`, `lastSyncedAt`, `metricsSource`. Update `docs/DATA_SCHEMA.md` §2.4.
+- `api/connect/meta.js` handles the OAuth start and callback, status, the asset list, the
+  ad-account choice and disconnect. The browser redirect is bound to the Prelude user by
+  an HMAC-signed `state`. The token is exchanged server-side, checked with `debug_token`,
+  and stored AES-256-GCM encrypted in `ad_platform_connections` (db/schema.sql). It never
+  reaches the browser. Use a **system-user token** login configuration: it doesn't expire,
+  so status and metrics sync keep working. A plain user token is swapped for the ~60-day one.
+- `AccountConnector.jsx` ("Ad Accounts" on the Campaigns page) is real for Meta: connect,
+  pick the ad account, see the shareable Instagram accounts, disconnect. The other
+  platforms say "Simulated · coming soon". `connectedPlatforms` is left as-is so the
+  simulated multi-platform demo keeps working.
+- Env: `META_APP_ID`, `META_APP_SECRET`, `META_LOGIN_CONFIG_ID`, `AD_TOKEN_KEY`, plus
+  optional `META_REDIRECT_URI`, `META_GRAPH_VERSION` (default v24.0) and
+  `META_MAX_BUDGET` (default 10000). The login config needs `ads_management`, `ads_read`,
+  `business_management`, `pages_show_list`, `pages_read_engagement` and `instagram_basic`.
+
+### 2. Execution (directive → real Meta campaign) — built for boosts
+
+- `api/campaign/boost.js` takes a Meta directive that has `creative.postId` and:
+  1. checks the post's `boost_eligibility_info` (posts with copyrighted music, IGTV and
+     some others can't be boosted),
+  2. finds the post owner's IG account and its linked Facebook Page among the shared assets,
+  3. creates Campaign → Ad Set → Ad Creative (`source_instagram_media_id` +
+     `instagram_user_id`, `object_id` = Page) → Ad, **all paused**,
+  4. rolls back (deletes) anything already created if a step fails.
+  The directive gets `platformCampaignId`, `platformAdSetId`, `platformAdId`,
+  `platformCreativeId`, `adAccountId`, `igUsername` and status `paused`.
+- Field mapping: awareness → `OUTCOME_AWARENESS`/`REACH`; everything else →
+  `OUTCOME_ENGAGEMENT`/`POST_ENGAGEMENT` (`destination_type: ON_POST`). Budget dollars →
+  cents in the ad account's currency, `period` → daily vs lifetime budget. Locations go
+  out as ISO countries (UK → GB), ages are clamped to 18–65, and placements are
+  Instagram only.
+- **Go-live is a separate explicit step:** `api/campaign/meta-campaign.js` (POST
+  `{ id, status: 'ACTIVE' | 'PAUSED' }`) is driven by `MetaCampaignPanel` on the detail
+  page, with a spend confirm. It only touches campaigns in the user's selected ad account.
+- Without Meta credentials on the server, Meta directives stay simulated as before.
+- Uploading new image/video assets is still a later phase.
 
 ### 3. Real metrics
 
-- `api/campaign/metrics.js` — Insights API proxy: daily breakdown (spend, impressions,
-  clicks, results) for a platform campaign ID.
+- `api/campaign/meta-campaign.js` GET already returns status + lifetime insights (spend,
+  impressions, reach, clicks, post engagements), shown in `MetaCampaignPanel`, which also
+  reconciles local status with Meta's on load. Still to do: daily breakdown for the charts.
 - `CampaignDetail.jsx` already has the seam for this (`metricsSource`,
   `platformStatus`, mock fallback) — wire it up: real data for Meta-executed
   campaigns, simulated for everything else with a visible **"Simulated"** badge.
@@ -94,9 +112,11 @@ budget** — that's why it's phase 5, not phase 1.
 | Phase | Deliverable | Depends on |
 |---|---|---|
 | 0 | Meta app created, App Review submitted, test ad account wired | — |
-| 1 | Real Meta OAuth connect; honest `connectedPlatforms`; "coming soon" for the rest | 0 (dev mode ok) |
-| 2 | Execute pipeline: directive → paused Meta campaign (boost-post creative); go-live confirm; error surfacing | 1 |
-| 3 | Real metrics + status sync in CampaignDetail; "Simulated" badges elsewhere; import-from-Meta | 2 |
+| 1 | Real Meta OAuth connect; "coming soon" for the rest. **Code done; needs the Meta app + login config** | 0 (dev mode ok) |
+| 2 | Execute pipeline: directive → paused Meta campaign (boost-post creative); go-live confirm; error surfacing. **Code done** | 1 |
+| 3 | Real metrics + status sync in CampaignDetail (lifetime totals + status sync done; daily charts, "Simulated" badges, import-from-Meta left) | 2 |
+| 3b | Prelude per-boost fee + subscription billing (Stripe) | 2 |
+| 6 | Prelude-managed boosting (partner access + Prelude's ad account) for artists without an ad account | 2 |
 | 4 | Image-upload creative (new assets, not just boosts) | 2 |
 | 5 | TikTok: connect + execute + metrics (Spark Ads mirror the boost-post model) | TikTok approval |
 
@@ -109,7 +129,8 @@ Client-demoable milestone is end of phase 3: connect a real ad account, launch a
   import sync, but a client using two browsers sees two draft sets. When this bites,
   the fix is the DB migration already sketched in DATA_SCHEMA.md — the directive
   shape is designed for it.
-- **Single shared app password** (`api/auth.js`) + per-client ad tokens in per-browser
-  cookies is fine for a handful of clients, not for general availability.
+- Meta tokens are stored per Prelude (Firebase) user in Postgres, but directives are still
+  per-browser localStorage. A campaign launched from one browser can't be seen from
+  another until directives move to the DB.
 - **Non-Meta platforms stay simulated.** The demo stays impressive, but every
   simulated surface must be labeled once real data exists side-by-side.

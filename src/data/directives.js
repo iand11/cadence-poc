@@ -65,6 +65,7 @@ export const STATUS_CONFIG = {
   pending_approval: { label: 'Pending Approval', color: '#D4A574' },
   approved: { label: 'Approved', color: '#7BAF73' },
   executing: { label: 'Executing...', color: '#DA7756' },
+  paused: { label: 'Paused on Meta', color: '#D4A574' },
   active: { label: 'Active', color: '#1DB954' },
   completed: { label: 'Completed', color: '#9B9590' },
   failed: { label: 'Failed', color: '#C75F4F' },
