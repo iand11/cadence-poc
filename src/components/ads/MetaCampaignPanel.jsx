@@ -2,6 +2,29 @@ import { useEffect, useState, useCallback } from 'react';
 import { Rocket, Pause, Loader2, AlertTriangle, RefreshCw } from 'lucide-react';
 import { fetchMetaCampaign, setMetaCampaignStatus } from '../../data/metaAds';
 import { formatNumber, formatDollar } from '../../utils/formatters';
+import { useAsync } from '../../hooks/useAsync';
+import { fetchCampaignLinkStats } from '../../data/smartLinks';
+import { ServiceBars } from './SmartLinksPanel';
+
+const usesSmartLink = (directive) => /\/l\/[\w-]+\/?(\?|$)/.test(directive.creative?.trackUrl || '');
+
+/** Views and streaming-service clicks this campaign drove through its smart link. */
+function StreamingClicks({ directive, spend, version }) {
+  const { data } = useAsync(() => fetchCampaignLinkStats(directive.id), [directive.id, version]);
+  if (!data) return null;
+  return (
+    <div className="pt-3 border-t border-[#2C2B28]">
+      <p className="text-[10px] font-mono text-[#9B9590] mb-2">Streaming clicks (smart link)</p>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+        <Stat label="Link views" value={formatNumber(data.views)} />
+        <Stat label="Streaming clicks" value={formatNumber(data.clicks)} />
+        <Stat label="Click rate" value={data.views ? `${(data.clickRate * 100).toFixed(1)}%` : '–'} />
+        <Stat label="Cost / streaming click" value={data.clicks && spend ? formatDollar(spend / data.clicks) : '–'} />
+      </div>
+      <ServiceBars byService={data.byService} total={data.clicks} />
+    </div>
+  );
+}
 
 function Stat({ label, value }) {
   return (
@@ -45,7 +68,9 @@ export default function MetaCampaignPanel({ directive, updateDirective }) {
 
   useEffect(() => { sync(); }, [sync]);
 
+  const [linkVersion, setLinkVersion] = useState(0);
   const refresh = () => {
+    setLinkVersion(v => v + 1);
     setLoading(true);
     sync();
   };
@@ -137,6 +162,7 @@ export default function MetaCampaignPanel({ directive, updateDirective }) {
           <Stat label="Engagements" value={formatNumber(ins.engagements)} />
         </div>
       )}
+      {usesSmartLink(directive) && <StreamingClicks directive={directive} spend={Number(ins?.spend) || 0} version={linkVersion} />}
       {live && !ins && (
         <p className="text-[10px] text-[#6B6560]">No delivery yet. Numbers appear here once Meta starts serving the ad.</p>
       )}

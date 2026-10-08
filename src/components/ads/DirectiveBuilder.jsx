@@ -9,6 +9,8 @@ import { searchArtists, getArtist, getArtistAsync } from '../../data/artists';
 import { api } from '../../data/api';
 import { checkMetaLaunch, isMetaDirective, ACCOUNT_FIX_CODES } from '../../data/metaAds';
 import { useMetaConnection } from '../../hooks/useMetaConnection';
+import { useAsync } from '../../hooks/useAsync';
+import { fetchSmartLinks } from '../../data/smartLinks';
 
 const PLATFORM_COLOR_MAP = {
   spotify: PLATFORM_COLORS.spotify,
@@ -115,6 +117,31 @@ function MetaRunAsPicker({ value, onChange, onOpenAccounts }) {
           ))}
         </select>
       )}
+    </div>
+  );
+}
+
+/** Pick one of the user's smart links as a Meta ad's destination (tracks streaming clicks). */
+function SmartLinkPicker({ value, onChange, artistSlug }) {
+  const { data } = useAsync(() => fetchSmartLinks().catch(() => ({ links: [] })), []);
+  const links = data?.links || [];
+  if (!links.length) {
+    return <p className="text-[9px] text-[#6B6560] mt-1">Tip: create a smart link in Campaigns → Links to track clicks through to each streaming service.</p>;
+  }
+  // The artist's own links first
+  const sorted = [...links].sort((a, b) => (b.artistSlug === artistSlug) - (a.artistSlug === artistSlug));
+  const selected = links.find(l => l.url === value);
+  return (
+    <div className="mt-1.5">
+      <select
+        value={selected?.slug || ''}
+        onChange={e => { const l = links.find(x => x.slug === e.target.value); if (l) onChange(l.url); }}
+        className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-[10px] text-[#9B9590] outline-none"
+      >
+        <option value="">Use a smart link…</option>
+        {sorted.map(l => <option key={l.slug} value={l.slug}>{l.title}{l.artistName ? ` · ${l.artistName}` : ''}</option>)}
+      </select>
+      {selected && <p className="text-[9px] text-[#7BAF73] mt-1">Streaming-service clicks from this ad will be tracked.</p>}
     </div>
   );
 }
@@ -983,6 +1010,7 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
                           placeholder="https://open.spotify.com/track/..."
                           className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none font-mono"
                         />
+                        {platform === 'meta' && <SmartLinkPicker value={trackUrl} onChange={setTrackUrl} artistSlug={artistSlug} />}
                       </div>
                       <div>
                         <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">Call to Action</label>

@@ -3,7 +3,7 @@
 // token itself stays on the server.
 import { getIdToken } from '../lib/firebase';
 
-async function request(url, { method = 'GET', body } = {}) {
+export async function request(url, { method = 'GET', body } = {}) {
   const headers = {};
   const token = await getIdToken();
   if (token) headers['Authorization'] = `Bearer ${token}`;

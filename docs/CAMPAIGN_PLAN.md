@@ -96,6 +96,38 @@ chosen individually.
   blocked, not simulated. Other platforms are still simulated.
 - Video upload for new ads is still a later phase.
 
+### 2b. Smart links (streaming-service clicks) — built
+
+Goal: measure, and later optimize for, clicks from an ad through to a streaming service,
+the way feature.fm does, without depending on it.
+
+- A **smart link** is a Prelude landing page, `/l/<slug>` (`api/l.js`, rewritten in
+  `vercel.json`), with a button per streaming service. It's created in Campaigns → Links
+  from one release URL. `api/lib/smartlinks.js` looks up the other services through the
+  song.link/Odesli API (`ODESLI_API_URL` overrides it), or the user adds links by hand.
+  Tables: `smart_links`, `smart_link_events`.
+- Buttons go through `/go/<slug>/<service>` (`api/go.js`), which records the click and
+  302s to the service, so tracking works without JavaScript. Views and clicks store the
+  campaign (`?c=`), country (Vercel header), device, and whether the visitor came from a
+  Meta ad (`fbclid`). Bots and link-preview crawlers are not counted.
+- When a new Meta ad's destination is a smart link (picked in the builder),
+  `meta-launch` adds `?c=<directive id>` to it, so clicks are attributed per campaign.
+  The campaign page shows link views, streaming clicks, click rate, cost per streaming
+  click and clicks by service. The Links tab shows the same per link, by day and by
+  campaign.
+- **Meta events:** if the link has a Meta Pixel (chosen from the pixels in the user's
+  assigned ad accounts), the page fires `PageView` and a custom `DSPClick` event, and the
+  redirect sends the same `DSPClick` through the Conversions API with the link owner's
+  Meta token (`event_id` shared, so Meta deduplicates; `fbc` from `fbclid` or the `_fbc`
+  cookie). `META_TEST_EVENT_CODE` routes them to Test Events.
+- Next: once a Pixel has enough `DSPClick` volume, create a custom conversion on it and
+  launch new ads with `OFFSITE_CONVERSIONS` optimization (`promoted_object` = pixel +
+  custom event), so Meta optimizes for streaming clicks rather than link clicks. Also
+  next: pre-saves (needs a Spotify login flow) and a custom short domain
+  (`SMART_LINK_BASE_URL`).
+- Vercel Deployment Protection, if on, blocks public visitors on preview URLs. Smart links
+  need to be served from production or an unprotected domain.
+
 ### 3. Real metrics
 
 - `api/campaign/meta-campaign.js` GET already returns status + lifetime insights (spend,

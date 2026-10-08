@@ -465,3 +465,40 @@ CREATE TABLE IF NOT EXISTS ad_platform_connections (
   updated_at     timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (user_id, platform)
 );
+
+-- ---------------------------------------------------------------------------
+-- Smart links — Prelude's own landing page per release with a button per
+-- streaming service (api/l.js), and the views/clicks it records (api/go.js).
+-- `campaign` on an event is the Prelude campaign (directive id) the visitor
+-- came from (?c= on the link, added when an ad launches). Also created lazily by
+-- api/lib/smartlinks.js.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS smart_links (
+  slug         text PRIMARY KEY,
+  user_id      text NOT NULL,
+  artist_slug  text,
+  artist_name  text,
+  title        text NOT NULL,
+  image_url    text,
+  source_url   text,
+  links        jsonb NOT NULL DEFAULT '[]'::jsonb,   -- [{ service, url }] in display order
+  pixel_id     text,                                  -- Meta Pixel for Pixel + Conversions API events
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  updated_at   timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS smart_links_user_idx ON smart_links (user_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS smart_link_events (
+  id          bigserial PRIMARY KEY,
+  slug        text NOT NULL REFERENCES smart_links (slug) ON DELETE CASCADE,
+  kind        text NOT NULL,              -- view | click
+  service     text,                       -- click: spotify, appleMusic, …
+  campaign    text,
+  country     text,
+  device      text,                       -- mobile | desktop
+  referrer    text,
+  from_ad     boolean NOT NULL DEFAULT false,   -- arrived with a Meta click id (fbclid)
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS smart_link_events_slug_idx ON smart_link_events (slug, created_at);
+CREATE INDEX IF NOT EXISTS smart_link_events_campaign_idx ON smart_link_events (campaign) WHERE campaign IS NOT NULL;

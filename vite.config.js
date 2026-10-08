@@ -362,12 +362,28 @@ function dbApiPlugin() {
         const handler = (await import('./api/notifications.js')).default;
         await handler(req, res);
       });
-      // Meta ads: account connection + boost execution
-      for (const route of ['connect/meta', 'campaign/meta-launch', 'campaign/meta-campaign']) {
+      // Smart links: public page + tracked redirect (vercel.json rewrites these in prod)
+      const mountPublic = (mount, file, names) => {
+        server.middlewares.use(mount, async (req, res, next) => {
+          const [path, qs = ''] = (req.url || '/').split('?');
+          const parts = path.split('/').filter(Boolean);
+          if (parts.length !== names.length) return next();
+          const q = new URLSearchParams(qs);
+          names.forEach((n, i) => q.set(n, decodeURIComponent(parts[i])));
+          req.url = `/?${q}`;
+          shim(res);
+          const handler = (await import(pathToFileURL(join(process.cwd(), 'api', file)).href)).default;
+          await handler(req, res);
+        });
+      };
+      mountPublic('/l', 'l.js', ['slug']);
+      mountPublic('/go', 'go.js', ['slug', 'service']);
+      // Meta ads: account connection + boost execution; smart links API
+      for (const route of ['connect/meta', 'campaign/meta-launch', 'campaign/meta-campaign', 'links']) {
         server.middlewares.use(`/api/${route}`, async (req, res) => {
           shim(res);
           const handler = (await import(
-            pathToFileURL(join(process.cwd(), 'api', `${route}.js`)).href
+            pathToFileURL(join(process.cwd(), 'api', existsSync(`./api/${route}/index.js`) ? `${route}/index.js` : `${route}.js`)).href
           )).default;
           await handler(req, res);
         });

@@ -50,6 +50,18 @@ function bad(message) {
   return Object.assign(new Error(message), { status: 400 });
 }
 
+/** Tag a Prelude smart link with the campaign so its views and clicks are attributed to it. */
+function withCampaign(url, campaignId) {
+  try {
+    const u = new URL(url);
+    if (!campaignId || !/^\/l\/[\w-]+\/?$/.test(u.pathname)) return url;
+    u.searchParams.set('c', campaignId);
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
+
 const isHttpUrl = (u) => /^https?:\/\/\S+$/i.test(String(u || ''));
 
 /** Which Instagram account (and Page) the ad runs as, plus the post for a boost. */
@@ -186,6 +198,7 @@ export default async function handler(req, res) {
 
     // 5. Creative: the existing post for a boost, or an uploaded image + link for a new ad
     const c = directive.creative;
+    const destination = isBoost ? null : withCampaign(c.trackUrl, directive.id);
     const creative = await graph('POST', `${act}/adcreatives`, token, isBoost
       ? { name, object_id: account.pageId, instagram_user_id: igUserId, source_instagram_media_id: mediaId }
       : {
@@ -195,10 +208,10 @@ export default async function handler(req, res) {
           instagram_user_id: igUserId,
           link_data: {
             image_hash: await uploadImage(act, token, c.imageUrl),
-            link: c.trackUrl,
+            link: destination,
             name: c.headline || undefined,
             message: c.description || undefined,
-            call_to_action: { type: CTA_TYPES[c.callToAction] || 'LEARN_MORE', value: { link: c.trackUrl } },
+            call_to_action: { type: CTA_TYPES[c.callToAction] || 'LEARN_MORE', value: { link: destination } },
           },
         },
       });

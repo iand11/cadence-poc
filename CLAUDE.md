@@ -81,7 +81,12 @@ permalink shortcode) or a new image ad (`creative.igUserId` "Run as" account + `
 uploaded to the ad account, + `trackUrl` destination and CTA). `check: true` validates
 without creating anything and gates "Submit for Approval". `api/campaign/meta-campaign.js` reads status/insights and goes live or
 pauses. The client side is `src/data/metaAds.js`, `useMetaConnection`, `AccountConnector`
-and `MetaCampaignPanel`. Env: `META_APP_ID`, `META_APP_SECRET`, `META_LOGIN_CONFIG_ID`,
+and `MetaCampaignPanel`. Smart links (Campaigns → Links, `SmartLinksPanel`): public
+landing page `/l/:slug` (`api/l.js`) with a button per streaming service, tracked redirect
+`/go/:slug/:service` (`api/go.js`), API `api/links/index.js`, helpers `api/lib/smartlinks.js`,
+tables `smart_links` / `smart_link_events`. A new Meta ad whose destination is a smart link
+gets `?c=<directive id>` so streaming clicks are attributed per campaign, and clicks go to
+Meta as `DSPClick` (Pixel + Conversions API). Env: `META_APP_ID`, `META_APP_SECRET`, `META_LOGIN_CONFIG_ID`,
 `AD_TOKEN_KEY` (`META_GRAPH_URL` points at a mock Graph API for local testing). Without
 them, Meta campaigns are blocked, not simulated. Details in
 docs/CAMPAIGN_PLAN.md.

@@ -7,6 +7,7 @@ import DirectiveBuilder from '../components/ads/DirectiveBuilder';
 import CampaignWizard from '../components/ads/CampaignWizard';
 import CampaignDashboard from '../components/ads/CampaignDashboard';
 import ContentFeed from '../components/ads/ContentFeed';
+import SmartLinksPanel from '../components/ads/SmartLinksPanel';
 import AccountConnector from '../components/ads/AccountConnector';
 import { useMetaConnection } from '../hooks/useMetaConnection';
 import { launchMetaCampaign, isMetaDirective, ACCOUNT_FIX_CODES } from '../data/metaAds';
@@ -27,6 +28,7 @@ const PLATFORM_COLOR_MAP = {
 const VIEW_TABS = [
   { key: 'dashboard', label: 'Dashboard', icon: BarChart3 },
   { key: 'content', label: 'Content', icon: Rss },
+  { key: 'links', label: 'Links', icon: Link2 },
 ];
 
 const STATUS_OPTIONS = [
@@ -391,6 +393,8 @@ export default function CampaignsPage() {
         <CampaignDashboard directives={directives} updateDirective={updateDirective} />
       ) : tab === 'content' ? (
         <ContentFeed onBoost={handleBoostContent} />
+      ) : tab === 'links' ? (
+        <SmartLinksPanel />
       ) : (
         <>
           {/* Directive cards */}
