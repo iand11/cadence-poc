@@ -76,17 +76,21 @@ export default function CampaignsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run once per redirect
   }, [metaResult]);
 
-  // Meta boosts run for real once Meta is set up on the server; everything else
-  // (and Meta in a demo without credentials) stays simulated.
+  // A directive waiting on the user to connect Meta (Execute opened Ad Accounts)
+  const [pendingExecuteId, setPendingExecuteId] = useState(null);
+
+  const runSimulated = (id) => {
+    updateDirective(id, { status: 'active' });
+    navigate(`/app/campaigns/${id}`);
+  };
+
+  // Meta boosts of an Instagram post run for real and need a connected Meta
+  // account; every other platform is still simulated.
   const handleExecute = async (id) => {
     const d = directives.find(x => x.id === id);
-    const wantsRealMeta = d?.platform === 'meta' && d.creative?.postId && metaConnection?.configured;
-    if (!wantsRealMeta) {
-      updateDirective(id, { status: 'active' });
-      navigate(`/app/campaigns/${id}`);
-      return;
-    }
+    if (!(d?.platform === 'meta' && d.creative?.postId)) return runSimulated(id);
     if (!isRealMetaBoost(d, metaConnection)) {
+      setPendingExecuteId(id);
       setAccountsOpen(true);
       return;
     }
@@ -444,7 +448,12 @@ export default function CampaignsPage() {
         initialSuggestion={wizardSuggestion}
       />
 
-      <AccountConnector isOpen={accountsOpen} onClose={() => setAccountsOpen(false)} />
+      <AccountConnector
+        isOpen={accountsOpen}
+        onClose={() => { setAccountsOpen(false); setPendingExecuteId(null); }}
+        pendingLaunch={!!pendingExecuteId}
+        onSimulate={() => { const id = pendingExecuteId; setAccountsOpen(false); setPendingExecuteId(null); runSimulated(id); }}
+      />
 
       <DirectiveBuilder
         key={launchQueue.length > 0 ? `launch-${launchQueueIndex}` : editingDirective?.id || 'builder'}

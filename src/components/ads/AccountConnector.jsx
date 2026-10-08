@@ -155,7 +155,7 @@ function MetaAccountCard() {
   );
 }
 
-export default function AccountConnector({ isOpen, onClose }) {
+export default function AccountConnector({ isOpen, onClose, pendingLaunch, onSimulate }) {
   if (!isOpen) return null;
 
   return (
@@ -181,6 +181,18 @@ export default function AccountConnector({ isOpen, onClose }) {
         </div>
 
         <div className="p-5 space-y-3">
+          {pendingLaunch && (
+            <div className="p-3 rounded border border-[#DA7756]/30 bg-[#DA7756]/10">
+              <p className="text-[11px] text-[#F5F0E8]">
+                Connect Meta and choose an ad account to launch this boost, then click Execute again.
+              </p>
+              {onSimulate && (
+                <button onClick={onSimulate} className="mt-1.5 text-[10px] font-mono text-[#9B9590] hover:text-[#F5F0E8] cursor-pointer">
+                  Run it as a simulation instead
+                </button>
+              )}
+            </div>
+          )}
           <MetaAccountCard />
 
           {SIMULATED_KEYS.map(platform => (
