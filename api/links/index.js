@@ -78,6 +78,28 @@ export default async function handler(req, res) {
     if (req.method === 'GET') {
       if (params.get('pixels')) return res.status(200).json({ pixels: await listPixels(uid) });
 
+      if (params.get('plays')) {
+        // Every play we have for one of this link's fans, newest first
+        const row = await ownedLink(uid, params.get('plays'));
+        await ensureSyncTables();
+        const fan = await queryOne('SELECT created_at FROM smart_link_fans WHERE slug = $1 AND spotify_user_id = $2',
+          [row.slug, params.get('fan')]);
+        if (!fan) throw bad('Fan not found', 404);
+        const plays = await query(
+          `SELECT p.played_at, p.track_id, p.track_name, p.artist_names, p.context_uri,
+                  (${releaseFilter(row)}) AS is_release, (p.artist_ids && $2::text[]) AS is_artist
+           FROM spotify_plays p WHERE p.spotify_user_id = $1
+           ORDER BY p.played_at DESC LIMIT 500`, [params.get('fan'), row.spotify_artist_ids || []]);
+        return res.status(200).json({
+          capturedAt: fan.created_at,
+          plays: plays.map(p => ({
+            playedAt: p.played_at, trackId: p.track_id, trackName: p.track_name, artists: p.artist_names || [],
+            context: p.context_uri, isRelease: !!p.is_release, isArtist: !!p.is_artist,
+            afterClick: new Date(p.played_at) >= new Date(fan.created_at),
+          })),
+        });
+      }
+
       if (params.get('fans')) {
         const row = await ownedLink(uid, params.get('fans'));
         await ensureSyncTables();

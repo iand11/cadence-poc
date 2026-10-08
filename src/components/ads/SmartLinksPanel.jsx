@@ -5,7 +5,7 @@ import { useAsync } from '../../hooks/useAsync';
 import { useFollowedArtists } from '../../context/FollowedArtistsContext';
 import { useDirectives } from '../../hooks/useDirectives';
 import {
-  fetchSmartLinks, fetchSmartLink, fetchPixels, createSmartLink, updateSmartLink, deleteSmartLink, fetchLinkFans, syncLinkFans,
+  fetchSmartLinks, fetchSmartLink, fetchPixels, createSmartLink, updateSmartLink, deleteSmartLink, fetchLinkFans, fetchFanPlays, syncLinkFans,
   SERVICE_LABELS, SERVICE_COLORS,
 } from '../../data/smartLinks';
 import { AXIS_STYLE, TOOLTIP_STYLE } from '../../utils/chartTheme';
@@ -91,10 +91,61 @@ export function ListeningStats({ listening, spend }) {
   );
 }
 
+function FanPlays({ link, fan, version }) {
+  const { data, loading, error } = useAsync(() => fetchFanPlays(link.slug, fan.spotifyUserId), [link.slug, fan.spotifyUserId, version]);
+  const plays = data?.plays || [];
+  const after = plays.filter(p => p.afterClick);
+  return (
+    <div className="mt-3 p-3 rounded border border-[#2C2B28] bg-[#0D0C0B]">
+      <div className="flex items-baseline justify-between mb-2">
+        <p className="text-[10px] font-mono text-[#9B9590]">Plays from Spotify · {fan.name || fan.spotifyUserId}</p>
+        {data && (
+          <p className="text-[9px] font-mono text-[#6B6560]">
+            {formatNumber(plays.length)} returned · {formatNumber(after.length)} after the click · {formatNumber(after.filter(p => p.isRelease).length)} of this release
+            {data.capturedAt ? ` · clicked ${new Date(data.capturedAt).toLocaleString()}` : ''}
+          </p>
+        )}
+      </div>
+      {loading && !data ? <p className="text-[10px] text-[#6B6560]">Loading…</p>
+        : error ? <p className="text-[10px] text-[#C75F4F]">{error.message || String(error)}</p>
+        : !plays.length ? <p className="text-[10px] text-[#6B6560]">Spotify hasn't returned any plays for this fan yet. A play shows up a few minutes after the song ends.</p>
+        : (
+          <div className="max-h-72 overflow-y-auto">
+            <table className="w-full text-[10px]">
+              <thead>
+                <tr className="text-left font-mono text-[#6B6560]">
+                  <th className="py-1 pr-3 font-normal">Played</th><th className="py-1 pr-3 font-normal">Track</th>
+                  <th className="py-1 pr-3 font-normal">Artist</th><th className="py-1 font-normal">Counts as</th>
+                </tr>
+              </thead>
+              <tbody>
+                {plays.map(p => (
+                  <tr key={p.playedAt} className={`border-t border-[#2C2B28] ${p.afterClick ? 'text-[#F5F0E8]' : 'text-[#6B6560]'}`}>
+                    <td className="py-1 pr-3 font-mono whitespace-nowrap">{new Date(p.playedAt).toLocaleString()}</td>
+                    <td className="py-1 pr-3">
+                      <a href={`https://open.spotify.com/track/${p.trackId}`} target="_blank" rel="noreferrer" className="hover:underline">{p.trackName || p.trackId}</a>
+                    </td>
+                    <td className="py-1 pr-3">{p.artists.join(', ')}</td>
+                    <td className="py-1 font-mono">
+                      {!p.afterClick ? (p.isArtist ? 'before click (artist)' : 'before click')
+                        : p.isRelease ? <span className="text-[#7BAF73]">release stream</span>
+                        : p.isArtist ? 'artist play' : '–'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+    </div>
+  );
+}
+
 function FansSection({ link, version, listening, onSynced }) {
   const [syncVersion, setSyncVersion] = useState(0);
   const [syncing, setSyncing] = useState(false);
   const [syncNote, setSyncNote] = useState(null);
+  const [openFan, setOpenFan] = useState(null);
   const { data } = useAsync(() => fetchLinkFans(link.slug), [link.slug, version, syncVersion]);
   const syncNow = async () => {
     setSyncing(true);
@@ -161,7 +212,9 @@ function FansSection({ link, version, listening, onSynced }) {
               </thead>
               <tbody>
                 {fans.slice(0, 10).map(f => (
-                  <tr key={f.spotifyUserId} className="border-t border-[#2C2B28] text-[#F5F0E8]">
+                  <tr key={f.spotifyUserId} onClick={() => setOpenFan(openFan === f.spotifyUserId ? null : f.spotifyUserId)}
+                    title="Show every play Spotify returned for this fan"
+                    className={`border-t border-[#2C2B28] text-[#F5F0E8] cursor-pointer hover:bg-[#171614] ${openFan === f.spotifyUserId ? 'bg-[#171614]' : ''}`}>
                     <td className="py-1 pr-3">{f.name || '–'}</td><td className="py-1 pr-3 font-mono">{f.email || '–'}</td>
                     <td className="py-1 pr-3">{f.country || '–'}</td><td className="py-1 pr-3">{f.product || '–'}</td>
                     <td className="py-1 pr-3">{f.followed ? 'Yes' : 'No'}</td><td className="py-1 pr-3">{f.saved ? 'Yes' : 'No'}</td>
@@ -175,6 +228,10 @@ function FansSection({ link, version, listening, onSynced }) {
               </tbody>
             </table>
             {fans.length > 10 && <p className="text-[9px] text-[#6B6560] mt-1">Showing the latest 10. Download the CSV for all {formatNumber(fans.length)}.</p>}
+            {!openFan && <p className="text-[9px] text-[#6B6560] mt-1">Click a fan to see every play Spotify returned.</p>}
+            {openFan && fans.some(f => f.spotifyUserId === openFan) && (
+              <FanPlays link={link} fan={fans.find(f => f.spotifyUserId === openFan)} version={syncVersion} />
+            )}
           </div>
           <div>
             <p className={labelCls}>Fans also listen to</p>
