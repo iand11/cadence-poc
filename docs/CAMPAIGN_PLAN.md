@@ -124,11 +124,11 @@ the way feature.fm does, without depending on it.
   Spotify button opens a consent page (`/l/<slug>/spotify`) with "Continue with Spotify"
   and "Just listen". Continue runs Spotify's authorization code flow
   (`api/spotify-fan.js`, `api/lib/spotify-fans.js`; scopes `user-read-email`,
-  `user-read-private`, `user-follow-modify`, `user-library-modify`, `user-top-read`):
+  `user-read-private`, `user-follow-modify`, `user-library-modify`, `user-top-read`,
+  `user-read-recently-played`):
   we read the profile and top artists, follow the release's artist, save the release,
   upsert the fan into `smart_link_fans` (name, email, country, plan, followed/saved, top
-  artists, campaign, from-ad) and redirect to the release. The Spotify token is not
-  kept. Declining, errors and a missing config all still land the fan on Spotify. The
+  artists, campaign, from-ad) and redirect to the release. Declining, errors and a missing config all still land the fan on Spotify. The
   click's Conversions API event carries the hashed email and country for better
   matching. Links tab shows fans, "fans also listen to", and a CSV export; the campaign
   page shows fans captured. Needs the existing `SPOTIFY_CLIENT_ID`/`SECRET` app with
@@ -137,6 +137,19 @@ the way feature.fm does, without depending on it.
   need the app's extended quota approved; Spotify's developer terms limit how user data
   may be used; and fans who tap from Instagram's in-app browser usually aren't logged in
   to Spotify there, so they'll see a login form rather than a one-tap Agree.
+- **Listening sync** (`api/lib/spotify-sync.js`): the fan's refresh token is stored
+  AES-256-GCM encrypted (`AD_TOKEN_KEY`) in `spotify_listeners`. Their recently-played
+  history is pulled into `spotify_plays` at capture, by a Vercel cron
+  (`/api/cron/spotify-plays`, daily at 07:00 UTC, `CRON_SECRET` bearer auth), by the
+  "Sync plays" button on a link, and by `npm run spotify:sync` (`--force`). A listener is
+  due after `SPOTIFY_RESYNC_INTERVAL` (default 2h). A revoked token marks the fan
+  "access removed". Per link and per campaign we show fans who streamed the release after
+  their click, streams by fans, streams per streaming fan, and fans who had already
+  listened to the artist before clicking; per fan, release and artist plays.
+  Limits: Spotify only returns the last 50 plays (30s+) per call, so a once-a-day sync
+  misses plays for heavy listeners (Vercel Pro allows an hourly or 2-hourly cron); only
+  fans who logged in are measured, not all streams; and fans captured before this change
+  must reconnect to grant `user-read-recently-played`.
 - Next: once a Pixel has enough `DSPClick` volume, create a custom conversion on it and
   launch new ads with `OFFSITE_CONVERSIONS` optimization (`promoted_object` = pixel +
   custom event), so Meta optimizes for streaming clicks rather than link clicks. Also

@@ -15,6 +15,9 @@ export const fetchCampaignLinkStats = (campaignId) =>
 /** Spotify fans a link captured: { fans: [{ name, email, country, product, followed, saved, topArtists, campaign, fromAd, createdAt }] } */
 export const fetchLinkFans = (slug) => request(`/api/links?fans=${encodeURIComponent(slug)}`);
 
+/** Pull the latest Spotify plays for a link's fans now (normally a daily job). */
+export const syncLinkFans = (slug) => request('/api/links', { method: 'POST', body: { action: 'sync', slug } });
+
 /** Meta Pixels in the user's assigned ad accounts. */
 export const fetchPixels = () => request('/api/links?pixels=1');
 

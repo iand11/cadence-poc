@@ -1,7 +1,8 @@
 // Spotify login for smart link fans (authorization code flow). A fan who taps
 // "Continue with Spotify" on a link's consent page grants these scopes once; we
 // read their profile and top artists, follow the artist and save the release for
-// them, store the fan, and drop the token. Uses the same Spotify app as
+// them, and store the fan. Their refresh token is kept encrypted so their recent
+// plays can be synced (api/lib/spotify-sync.js). Uses the same Spotify app as
 // api/lib/spotify.js (SPOTIFY_CLIENT_ID / SPOTIFY_CLIENT_SECRET); its redirect URI
 // must include <origin>/api/spotify-fan (or SPOTIFY_REDIRECT_URI).
 import { publicOrigin } from './smartlinks.js';
@@ -11,6 +12,7 @@ const API = process.env.SPOTIFY_API_URL || 'https://api.spotify.com/v1';
 
 export const FAN_SCOPES = [
   'user-read-email', 'user-read-private', 'user-follow-modify', 'user-library-modify', 'user-top-read',
+  'user-read-recently-played',
 ];
 
 export const spotifyLoginConfigured = () => !!(process.env.SPOTIFY_CLIENT_ID && process.env.SPOTIFY_CLIENT_SECRET);
@@ -35,7 +37,7 @@ export async function exchangeCode(req, code) {
     body: new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: fanRedirectUri(req) }),
   });
   if (!res.ok) throw new Error(`Spotify token exchange failed (${res.status})`);
-  return (await res.json()).access_token;
+  return res.json(); // { access_token, refresh_token, scope, … }
 }
 
 async function call(token, method, path) {
@@ -59,10 +61,11 @@ export async function captureFan(token, item) {
   let followed = false;
   let saved = false;
   let topArtists = null;
+  let artistIds = [];
   if (item) {
     try {
       const release = await call(token, 'GET', `/${item.type}s/${item.id}`);
-      const artistIds = (release.artists || []).map(a => a.id).slice(0, 5);
+      artistIds = (release.artists || []).map(a => a.id).slice(0, 5);
       if (artistIds.length) {
         await call(token, 'PUT', `/me/following?type=artist&ids=${artistIds.join(',')}`);
         followed = true;
@@ -86,5 +89,6 @@ export async function captureFan(token, item) {
     followed,
     saved,
     topArtists,
+    artistIds,
   };
 }

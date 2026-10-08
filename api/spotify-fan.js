@@ -6,6 +6,9 @@
 //                          them to the release on Spotify
 //   ?error=&state=         declined: still send them to the release
 //
+// The fan's refresh token is stored (encrypted) and their recent plays are synced
+// right away, then on a schedule (api/cron/spotify-plays.js).
+//
 // Whatever happens, the fan ends up listening: every failure path redirects to the
 // Spotify link (or the link page). The click is recorded and sent to Meta like a
 // normal Spotify click, with the fan's hashed email when we have it.
@@ -13,6 +16,7 @@ import { query } from './lib/db.js';
 import { signData, verifyData } from './lib/meta.js';
 import { getLink, recordEvent, sendMetaEvent, publicOrigin, ensureTables } from './lib/smartlinks.js';
 import { spotifyLoginConfigured, authorizeUrl, exchangeCode, captureFan, spotifyItem } from './lib/spotify-fans.js';
+import { saveListener, syncListener, ensureSyncTables } from './lib/spotify-sync.js';
 
 const META_TIMEOUT_MS = 1500;
 
@@ -50,9 +54,10 @@ export default async function handler(req, res) {
     let fan = null;
     if (params.get('code')) {
       try {
-        const token = await exchangeCode(req, params.get('code'));
-        fan = await captureFan(token, spotifyItem(target));
+        const tokens = await exchangeCode(req, params.get('code'));
+        fan = await captureFan(tokens.access_token, spotifyItem(target));
         await ensureTables();
+        await ensureSyncTables();
         await query(
           `INSERT INTO smart_link_fans (slug, spotify_user_id, display_name, email, country, product,
              followed, saved, top_artists, campaign, from_ad)
@@ -67,6 +72,17 @@ export default async function handler(req, res) {
           [link.slug, fan.spotifyUserId, fan.displayName, fan.email, fan.country, fan.product,
             fan.followed, fan.saved, fan.topArtists ? JSON.stringify(fan.topArtists) : null,
             ctx.c || null, !!ctx.fbclid]);
+        if (fan.artistIds.length && !link.spotify_artist_ids?.length) {
+          await query('UPDATE smart_links SET spotify_artist_ids = $2 WHERE slug = $1', [link.slug, fan.artistIds]);
+        }
+        // Keep access for listening history and pull what they've played so far
+        // (their last 50 plays, from before the click too)
+        if (tokens.refresh_token) {
+          await saveListener(fan.spotifyUserId, tokens.refresh_token, tokens.scope);
+          if (String(tokens.scope || '').includes('user-read-recently-played')) {
+            await syncListener({ spotify_user_id: fan.spotifyUserId, last_played_at: null }, tokens.access_token);
+          }
+        }
       } catch (err) {
         console.error('[spotify-fan] capture failed', err.message);
       }

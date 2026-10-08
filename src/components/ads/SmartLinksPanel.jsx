@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { Link2, Plus, Copy, Check, ExternalLink, Trash2, Loader2, AlertTriangle, ChevronDown, MousePointerClick, Eye, Download, Users } from 'lucide-react';
+import { Link2, Plus, Copy, Check, ExternalLink, Trash2, Loader2, AlertTriangle, ChevronDown, MousePointerClick, Eye, Download, Users, RefreshCw } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { useAsync } from '../../hooks/useAsync';
 import { useFollowedArtists } from '../../context/FollowedArtistsContext';
 import { useDirectives } from '../../hooks/useDirectives';
 import {
-  fetchSmartLinks, fetchSmartLink, fetchPixels, createSmartLink, updateSmartLink, deleteSmartLink, fetchLinkFans,
+  fetchSmartLinks, fetchSmartLink, fetchPixels, createSmartLink, updateSmartLink, deleteSmartLink, fetchLinkFans, syncLinkFans,
   SERVICE_LABELS, SERVICE_COLORS,
 } from '../../data/smartLinks';
 import { AXIS_STYLE, TOOLTIP_STYLE } from '../../utils/chartTheme';
@@ -58,7 +58,7 @@ function FanCaptureToggle({ checked, onChange, disabled, spotifyLogin }) {
 }
 
 function downloadFansCsv(link, fans) {
-  const cols = ['name', 'email', 'country', 'product', 'followed', 'saved', 'topArtists', 'campaign', 'fromAd', 'createdAt'];
+  const cols = ['name', 'email', 'country', 'product', 'followed', 'saved', 'releasePlays', 'artistPlays', 'lastReleasePlay', 'topArtists', 'campaign', 'fromAd', 'createdAt'];
   const cell = (v) => {
     const t = Array.isArray(v) ? v.join('; ') : v == null ? '' : String(v);
     return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
@@ -71,8 +71,45 @@ function downloadFansCsv(link, fans) {
   URL.revokeObjectURL(a.href);
 }
 
-function FansSection({ link, version }) {
-  const { data } = useAsync(() => fetchLinkFans(link.slug), [link.slug, version]);
+/** What a link's Spotify fans played after they were captured. */
+export function ListeningStats({ listening, spend }) {
+  if (!listening) return null;
+  const stat = (label, value) => (
+    <div className="bg-[#0D0C0B] border border-[#2C2B28] rounded p-3">
+      <p className="text-[9px] font-mono text-[#6B6560]">{label}</p>
+      <p className="text-sm font-mono text-[#F5F0E8] mt-0.5">{value}</p>
+    </div>
+  );
+  return (
+    <div className={`grid grid-cols-2 ${spend ? 'md:grid-cols-5' : 'md:grid-cols-4'} gap-2`}>
+      {stat('Fans who streamed it', `${formatNumber(listening.fansStreamed)} of ${formatNumber(listening.fansSynced)}`)}
+      {stat('Streams by fans', formatNumber(listening.releasePlays))}
+      {stat('Streams per streaming fan', listening.fansStreamed ? listening.playsPerStreamer.toFixed(1) : '–')}
+      {stat('Already listened before', formatNumber(listening.priorListeners))}
+      {spend ? stat('Cost / streaming fan', listening.fansStreamed ? `$${(spend / listening.fansStreamed).toFixed(2)}` : '–') : null}
+    </div>
+  );
+}
+
+function FansSection({ link, version, listening, onSynced }) {
+  const [syncVersion, setSyncVersion] = useState(0);
+  const [syncing, setSyncing] = useState(false);
+  const [syncNote, setSyncNote] = useState(null);
+  const { data } = useAsync(() => fetchLinkFans(link.slug), [link.slug, version, syncVersion]);
+  const syncNow = async () => {
+    setSyncing(true);
+    setSyncNote(null);
+    try {
+      const r = await syncLinkFans(link.slug);
+      setSyncNote(`${formatNumber(r.plays)} new play${r.plays === 1 ? '' : 's'} from ${formatNumber(r.listeners)} fan${r.listeners === 1 ? '' : 's'}`);
+      setSyncVersion(v => v + 1);
+      onSynced();
+    } catch (e) {
+      setSyncNote(e.message);
+    } finally {
+      setSyncing(false);
+    }
+  };
   const fans = data?.fans || [];
   if (!link.fanCapture && !fans.length) return null;
   // Who else these fans listen to
@@ -85,11 +122,18 @@ function FansSection({ link, version }) {
       <div className="flex items-center justify-between mb-2">
         <p className="flex items-center gap-1.5 text-[10px] font-mono text-[#9B9590]"><Users size={10} /> Spotify fans ({formatNumber(fans.length)})</p>
         {fans.length > 0 && (
-          <button onClick={() => downloadFansCsv(link, fans)} className="flex items-center gap-1 text-[10px] font-mono text-[#9B9590] hover:text-[#F5F0E8] cursor-pointer">
-            <Download size={10} /> Download CSV
-          </button>
+          <div className="flex items-center gap-3">
+            {syncNote && <span className="text-[9px] font-mono text-[#6B6560]">{syncNote}</span>}
+            <button onClick={syncNow} disabled={syncing} className="flex items-center gap-1 text-[10px] font-mono text-[#9B9590] hover:text-[#F5F0E8] cursor-pointer" title="Listening syncs daily; pull the latest now">
+              <RefreshCw size={10} className={syncing ? 'animate-spin' : ''} /> Sync plays
+            </button>
+            <button onClick={() => downloadFansCsv(link, fans)} className="flex items-center gap-1 text-[10px] font-mono text-[#9B9590] hover:text-[#F5F0E8] cursor-pointer">
+              <Download size={10} /> Download CSV
+            </button>
+          </div>
         )}
       </div>
+      {listening && fans.length > 0 && <div className="mb-3"><ListeningStats listening={listening} /></div>}
       {!fans.length ? (
         <p className="text-[10px] text-[#6B6560]">No fans yet. They appear here when a listener continues with Spotify.</p>
       ) : (
@@ -101,6 +145,7 @@ function FansSection({ link, version }) {
                   <th className="py-1 pr-3 font-normal">Name</th><th className="py-1 pr-3 font-normal">Email</th>
                   <th className="py-1 pr-3 font-normal">Country</th><th className="py-1 pr-3 font-normal">Plan</th>
                   <th className="py-1 pr-3 font-normal">Followed</th><th className="py-1 pr-3 font-normal">Saved</th>
+                  <th className="py-1 pr-3 font-normal">Streams</th><th className="py-1 pr-3 font-normal">Artist plays</th>
                   <th className="py-1 font-normal">From ad</th>
                 </tr>
               </thead>
@@ -110,6 +155,10 @@ function FansSection({ link, version }) {
                     <td className="py-1 pr-3">{f.name || '–'}</td><td className="py-1 pr-3 font-mono">{f.email || '–'}</td>
                     <td className="py-1 pr-3">{f.country || '–'}</td><td className="py-1 pr-3">{f.product || '–'}</td>
                     <td className="py-1 pr-3">{f.followed ? 'Yes' : 'No'}</td><td className="py-1 pr-3">{f.saved ? 'Yes' : 'No'}</td>
+                    <td className="py-1 pr-3 font-mono" title={f.lastReleasePlay ? `Last played ${new Date(f.lastReleasePlay).toLocaleString()}` : undefined}>
+                      {f.accessRemoved ? 'access removed' : f.lastSyncedAt ? formatNumber(f.releasePlays) : '–'}
+                    </td>
+                    <td className="py-1 pr-3 font-mono">{f.lastSyncedAt ? formatNumber(f.artistPlays) : '–'}</td>
                     <td className="py-1">{f.fromAd ? 'Yes' : 'No'}</td>
                   </tr>
                 ))}
@@ -258,7 +307,7 @@ function LinkDetail({ slug, pixels, spotifyLogin, onChanged, onDeleted }) {
 
   if (loading && !data) return <p className="flex items-center gap-1.5 text-[10px] text-[#6B6560] p-4"><Loader2 size={10} className="animate-spin" /> Loading…</p>;
   if (error) return <p className="text-[10px] text-[#C75F4F] p-4">{error.message}</p>;
-  const { link, stats, daily, byCampaign } = data;
+  const { link, stats, daily, byCampaign, listening } = data;
   const campaignName = (id) => {
     const d = directives.find(x => x.id === id);
     return d ? `${d.artistName || d.artistSlug} · ${d.creative?.headline || d.objective || d.platform}` : id;
@@ -336,7 +385,7 @@ function LinkDetail({ slug, pixels, spotifyLogin, onChanged, onDeleted }) {
         </button>
         {actionError && <p className="text-[10px] text-[#C75F4F]">{actionError}</p>}
       </div>
-      <FansSection link={link} version={version} />
+      <FansSection link={link} version={version} listening={listening} onSynced={() => setVersion(v => v + 1)} />
     </div>
   );
 }

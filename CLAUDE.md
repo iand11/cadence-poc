@@ -88,7 +88,7 @@ tables `smart_links` / `smart_link_events`. A new Meta ad whose destination is a
 gets `?c=<directive id>` so streaming clicks are attributed per campaign, and clicks go to
 Meta as `DSPClick` (Pixel + Conversions API). With fan capture on, the Spotify button opens a consent page
 (`/l/:slug/spotify`); "Continue with Spotify" (`api/spotify-fan.js`) logs the fan in, follows
-the artist, saves the release and stores them in `smart_link_fans`. Env: `META_APP_ID`, `META_APP_SECRET`, `META_LOGIN_CONFIG_ID`,
+the artist, saves the release and stores them in `smart_link_fans`. Their encrypted refresh token (`spotify_listeners`) lets `api/lib/spotify-sync.js` pull recently-played history into `spotify_plays` (daily cron `/api/cron/spotify-plays` with `CRON_SECRET`, "Sync plays" button, `npm run spotify:sync`), shown as streams per fan, link and campaign. Env: `META_APP_ID`, `META_APP_SECRET`, `META_LOGIN_CONFIG_ID`,
 `AD_TOKEN_KEY` (`META_GRAPH_URL` points at a mock Graph API for local testing). Without
 them, Meta campaigns are blocked, not simulated. Details in
 docs/CAMPAIGN_PLAN.md.

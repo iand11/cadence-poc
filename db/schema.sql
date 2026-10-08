@@ -526,3 +526,34 @@ CREATE TABLE IF NOT EXISTS smart_link_fans (
   PRIMARY KEY (slug, spotify_user_id)
 );
 CREATE INDEX IF NOT EXISTS smart_link_fans_campaign_idx ON smart_link_fans (campaign) WHERE campaign IS NOT NULL;
+
+-- Fan listening history. Fans who continue with Spotify grant
+-- user-read-recently-played; their refresh token is kept AES-256-GCM encrypted
+-- (AD_TOKEN_KEY) in spotify_listeners, and a scheduled sync (api/cron/spotify-plays.js)
+-- appends their recent plays (Spotify lists the last 50 plays of 30s+) to spotify_plays.
+CREATE TABLE IF NOT EXISTS spotify_listeners (
+  spotify_user_id    text PRIMARY KEY,
+  refresh_token_enc  text,
+  scopes             text,
+  last_played_at     timestamptz,          -- newest play stored (sync cursor)
+  last_synced_at     timestamptz,
+  sync_error         text,
+  revoked            boolean NOT NULL DEFAULT false,   -- fan removed access; stop syncing
+  created_at         timestamptz NOT NULL DEFAULT now(),
+  updated_at         timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS spotify_plays (
+  spotify_user_id  text NOT NULL,
+  played_at        timestamptz NOT NULL,
+  track_id         text NOT NULL,
+  track_name       text,
+  album_id         text,
+  artist_ids       text[],
+  artist_names     text[],
+  context_uri      text,                 -- playlist/album/artist it was played from
+  PRIMARY KEY (spotify_user_id, played_at)
+);
+CREATE INDEX IF NOT EXISTS spotify_plays_track_idx ON spotify_plays (track_id, played_at);
+
+ALTER TABLE smart_links ADD COLUMN IF NOT EXISTS spotify_artist_ids text[];

@@ -4,7 +4,9 @@
 //   GET ?slug=x               → { link, stats, daily: [{ day, views, clicks }], byCampaign }
 //   GET ?campaign=<id>        → stats for one Prelude campaign across links (from ?c= on the link)
 //   GET ?pixels=1             → { pixels: [{ id, name, adAccountId }] } from the user's assigned ad accounts
-//   GET ?fans=<slug>          → { fans: [...] } Spotify fans captured by that link (newest first)
+//   GET ?fans=<slug>          → { fans: [...] } Spotify fans captured by that link (newest first),
+//                               with their plays of the release / artist since capture
+//   POST { action: 'sync', slug } → sync that link's fans' recent Spotify plays now
 //   POST { sourceUrl, artistSlug?, artistName?, title?, imageUrl?, links?, pixelId?, fanCapture? }
 //        → creates a link; service links are looked up from sourceUrl unless given
 //   PATCH { slug, title?, links?, pixelId?, fanCapture? }
@@ -14,7 +16,15 @@ import { getUid, readBody, sendError, loadConnection, graphList, assignedAdAccou
 import {
   ensureTables, resolveLinks, cleanLinks, makeSlug, linkUrl, statsFor, isHttpUrl,
 } from '../lib/smartlinks.js';
-import { spotifyLoginConfigured } from '../lib/spotify-fans.js';
+import { spotifyLoginConfigured, spotifyItem } from '../lib/spotify-fans.js';
+import { ensureSyncTables, listeningStats, releaseFilter, syncListener } from '../lib/spotify-sync.js';
+
+const spotifyUrlOf = (row) => (row.links || []).find(l => l.service === 'spotify')?.url;
+
+/** Plays by this link's fans (null when it has never captured a fan). */
+async function linkListening(row) {
+  return listeningStats({ slug: row.slug, item: spotifyItem(spotifyUrlOf(row)), artistIds: row.spotify_artist_ids });
+}
 
 const bad = (message, status = 400) => Object.assign(new Error(message), { status });
 
@@ -72,15 +82,26 @@ export default async function handler(req, res) {
 
       if (params.get('fans')) {
         const row = await ownedLink(uid, params.get('fans'));
+        await ensureSyncTables();
+        const release = releaseFilter(spotifyItem(spotifyUrlOf(row)));
         const fans = await query(
-          `SELECT spotify_user_id, display_name, email, country, product, followed, saved, top_artists,
-                  campaign, from_ad, created_at
-           FROM smart_link_fans WHERE slug = $1 ORDER BY created_at DESC LIMIT 5000`, [row.slug]);
+          `SELECT f.spotify_user_id, f.display_name, f.email, f.country, f.product, f.followed, f.saved,
+                  f.top_artists, f.campaign, f.from_ad, f.created_at, l.last_synced_at, l.revoked,
+                  (SELECT count(*)::int FROM spotify_plays p WHERE p.spotify_user_id = f.spotify_user_id
+                     AND p.played_at >= f.created_at AND ${release}) AS release_plays,
+                  (SELECT count(*)::int FROM spotify_plays p WHERE p.spotify_user_id = f.spotify_user_id
+                     AND p.played_at >= f.created_at AND p.artist_ids && $2::text[]) AS artist_plays,
+                  (SELECT max(p.played_at) FROM spotify_plays p WHERE p.spotify_user_id = f.spotify_user_id
+                     AND ${release}) AS last_release_play
+           FROM smart_link_fans f LEFT JOIN spotify_listeners l USING (spotify_user_id)
+           WHERE f.slug = $1 ORDER BY f.created_at DESC LIMIT 5000`, [row.slug, row.spotify_artist_ids || []]);
         return res.status(200).json({
           fans: fans.map(f => ({
             spotifyUserId: f.spotify_user_id, name: f.display_name, email: f.email, country: f.country,
             product: f.product, followed: f.followed, saved: f.saved, topArtists: f.top_artists || [],
             campaign: f.campaign, fromAd: f.from_ad, createdAt: f.created_at,
+            releasePlays: f.release_plays, artistPlays: f.artist_plays, lastReleasePlay: f.last_release_play,
+            lastSyncedAt: f.last_synced_at, accessRemoved: !!f.revoked,
           })),
         });
       }
@@ -90,7 +111,15 @@ export default async function handler(req, res) {
         const stats = await statsFor(
           `campaign = $1 AND slug IN (SELECT slug FROM smart_links WHERE user_id = $2)`,
           [params.get('campaign'), uid]);
-        return res.status(200).json(stats);
+        // Listening: measured against the release of the campaign's (first) link
+        const linkRow = await queryOne(
+          `SELECT l.* FROM smart_links l WHERE l.user_id = $2 AND l.slug IN
+             (SELECT slug FROM smart_link_events WHERE campaign = $1) LIMIT 1`, [params.get('campaign'), uid]);
+        const listening = linkRow && stats.fans ? await listeningStats({
+          campaign: params.get('campaign'), uid,
+          item: spotifyItem(spotifyUrlOf(linkRow)), artistIds: linkRow.spotify_artist_ids,
+        }) : null;
+        return res.status(200).json({ ...stats, listening });
       }
 
       if (params.get('slug')) {
@@ -107,7 +136,8 @@ export default async function handler(req, res) {
                   count(*) FILTER (WHERE kind = 'click')::int AS clicks
            FROM smart_link_events WHERE slug = $1 AND campaign IS NOT NULL
            GROUP BY campaign ORDER BY clicks DESC`, [row.slug]);
-        return res.status(200).json({ link: shape(req, row, stats), stats, daily, byCampaign });
+        const listening = stats.fans ? await linkListening(row) : null;
+        return res.status(200).json({ link: shape(req, row, stats), stats, daily, byCampaign, listening });
       }
 
       const rows = await query(
@@ -123,6 +153,17 @@ export default async function handler(req, res) {
 
     if (req.method === 'POST') {
       const body = await readBody(req);
+      if (body.action === 'sync') {
+        const row = await ownedLink(uid, body.slug);
+        await ensureSyncTables();
+        const listeners = await query(
+          `SELECT l.* FROM spotify_listeners l
+           WHERE NOT l.revoked AND l.refresh_token_enc IS NOT NULL
+             AND l.spotify_user_id IN (SELECT spotify_user_id FROM smart_link_fans WHERE slug = $1)`, [row.slug]);
+        let plays = 0;
+        for (const l of listeners) plays += await syncListener(l);
+        return res.status(200).json({ listeners: listeners.length, plays });
+      }
       if (!isHttpUrl(body.sourceUrl) && !body.links?.length) {
         throw bad('Paste a Spotify, Apple Music or YouTube link to the release.');
       }

@@ -4,7 +4,7 @@ import { fetchMetaCampaign, setMetaCampaignStatus } from '../../data/metaAds';
 import { formatNumber, formatDollar } from '../../utils/formatters';
 import { useAsync } from '../../hooks/useAsync';
 import { fetchCampaignLinkStats } from '../../data/smartLinks';
-import { ServiceBars } from './SmartLinksPanel';
+import { ServiceBars, ListeningStats } from './SmartLinksPanel';
 
 const usesSmartLink = (directive) => /\/l\/[\w-]+\/?(\?|$)/.test(directive.creative?.trackUrl || '');
 
@@ -23,6 +23,12 @@ function StreamingClicks({ directive, spend, version }) {
         {data.fans > 0 && <Stat label="Spotify fans captured" value={formatNumber(data.fans)} />}
       </div>
       <ServiceBars byService={data.byService} total={data.clicks} />
+      {data.listening && (
+        <div className="mt-3">
+          <p className="text-[10px] font-mono text-[#9B9590] mb-2">Spotify listening by captured fans (after their click)</p>
+          <ListeningStats listening={data.listening} spend={spend} />
+        </div>
+      )}
     </div>
   );
 }
