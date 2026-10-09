@@ -105,7 +105,7 @@ Goal: measure, and later optimize for, clicks from an ad through to a streaming 
 the way feature.fm does, without depending on it.
 
 - A **smart link** is a Prelude landing page, `/l/<slug>` (`api/l.js`, rewritten in
-  `vercel.json`), with a button per streaming service. It's created in Campaigns → Links
+  `vercel.json`), with a button per streaming service. It's created on the Links page (`/app/links`)
   from one release URL. `api/lib/smartlinks.js` looks up the other services through the
   song.link/Odesli API (`ODESLI_API_URL` overrides it), or the user adds links by hand.
   Tables: `smart_links`, `smart_link_events`.

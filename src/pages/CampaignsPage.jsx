@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Link, useNavigate, useLocation, useSearchParams } from 'react-router';
+import { Link, Navigate, useNavigate, useLocation, useSearchParams } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
 import { Megaphone, Plus, BarChart3, Rss, ChevronDown, Link2, AlertTriangle, X } from 'lucide-react';
 import DirectiveCard from '../components/ads/DirectiveCard';
@@ -7,7 +7,6 @@ import DirectiveBuilder from '../components/ads/DirectiveBuilder';
 import CampaignWizard from '../components/ads/CampaignWizard';
 import CampaignDashboard from '../components/ads/CampaignDashboard';
 import ContentFeed from '../components/ads/ContentFeed';
-import SmartLinksPanel from '../components/ads/SmartLinksPanel';
 import AccountConnector from '../components/ads/AccountConnector';
 import { useMetaConnection } from '../hooks/useMetaConnection';
 import { launchMetaCampaign, isMetaDirective, ACCOUNT_FIX_CODES } from '../data/metaAds';
@@ -28,7 +27,6 @@ const PLATFORM_COLOR_MAP = {
 const VIEW_TABS = [
   { key: 'dashboard', label: 'Dashboard', icon: BarChart3 },
   { key: 'content', label: 'Content', icon: Rss },
-  { key: 'links', label: 'Links', icon: Link2 },
 ];
 
 const STATUS_OPTIONS = [
@@ -285,6 +283,9 @@ export default function CampaignsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run once per navigation payload
   }, [boostFromNav]);
 
+  // Links moved to its own page
+  if (tabParam === 'links') return <Navigate to="/app/links" replace />;
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       {/* Header */}
@@ -405,8 +406,6 @@ export default function CampaignsPage() {
         <CampaignDashboard directives={directives} updateDirective={updateDirective} />
       ) : tab === 'content' ? (
         <ContentFeed onBoost={handleBoostContent} />
-      ) : tab === 'links' ? (
-        <SmartLinksPanel />
       ) : (
         <>
           {/* Directive cards */}

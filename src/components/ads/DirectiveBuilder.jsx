@@ -125,7 +125,7 @@ function SmartLinkPicker({ value, onChange, artistSlug }) {
   const { data } = useAsync(() => fetchSmartLinks().catch(() => ({ links: [] })), []);
   const links = data?.links || [];
   if (!links.length) {
-    return <p className="text-[9px] text-[#6B6560] mt-1">Tip: create a smart link in Campaigns → Links to track clicks through to each streaming service.</p>;
+    return <p className="text-[9px] text-[#6B6560] mt-1">Tip: create a smart link on the Links page to track clicks through to each streaming service.</p>;
   }
   // The artist's own links first
   const sorted = [...links].sort((a, b) => (b.artistSlug === artistSlug) - (a.artistSlug === artistSlug));

@@ -457,7 +457,7 @@ function LinkDetail({ slug, pixels, spotifyLogin, onChanged, onDeleted }) {
   );
 }
 
-/** Campaigns → Links: smart links with views and streaming-service clicks. */
+/** Links page: smart links with views and streaming-service clicks. */
 export default function SmartLinksPanel() {
   const [version, setVersion] = useState(0);
   const { data, loading, error } = useAsync(fetchSmartLinks, [version]);
