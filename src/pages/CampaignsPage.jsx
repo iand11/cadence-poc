@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router';
+import { Link, useNavigate, useLocation, useSearchParams } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
 import { Megaphone, Plus, BarChart3, Rss, ChevronDown, Link2, AlertTriangle, X } from 'lucide-react';
 import DirectiveCard from '../components/ads/DirectiveCard';
@@ -48,7 +48,17 @@ export default function CampaignsPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const hasTrackingData = directives.some(d => ['active', 'completed', 'executing'].includes(d.status));
-  const [tab, setTab] = useState(hasTrackingData ? 'dashboard' : 'all');
+  // The open tab lives in the URL (?tab=content) so each tab is a real link: shareable, opens in a new tab, works with Back
+  const [searchParams, setSearchParams] = useSearchParams();
+  const TAB_KEYS = [...VIEW_TABS, ...STATUS_OPTIONS].map(t => t.key);
+  const tabParam = searchParams.get('tab');
+  const tab = TAB_KEYS.includes(tabParam) ? tabParam : (hasTrackingData ? 'dashboard' : 'all');
+  const tabHref = (key) => `?tab=${key}`;
+  const setTab = (key) => setSearchParams(prev => {
+    const next = new URLSearchParams(prev);
+    next.set('tab', key);
+    return next;
+  }, { state: location.state });
   const [statusMenuOpen, setStatusMenuOpen] = useState(false);
   const [builderOpen, setBuilderOpen] = useState(false);
   const [wizardOpen, setWizardOpen] = useState(false);
@@ -124,7 +134,7 @@ export default function CampaignsPage() {
       setWizardSuggestion(location.state.suggestion || null);
       setWizardOpen(true);
       // Clear state so refreshing doesn't re-trigger
-      navigate(location.pathname, { replace: true, state: {} });
+      navigate(location.pathname + location.search, { replace: true, state: {} });
     }
   }, [location.state]);
 
@@ -271,7 +281,7 @@ export default function CampaignsPage() {
     if (!boostFromNav) return;
     handleBoostContent(boostFromNav);
     // Clear state so refreshing doesn't re-trigger
-    navigate(location.pathname, { replace: true, state: {} });
+    navigate(location.pathname + location.search, { replace: true, state: {} });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run once per navigation payload
   }, [boostFromNav]);
 
@@ -323,9 +333,9 @@ export default function CampaignsPage() {
       {/* Tabs */}
       <div className="flex items-center gap-1 mb-4">
         {VIEW_TABS.map(t => (
-          <button
+          <Link
             key={t.key}
-            onClick={() => setTab(t.key)}
+            to={tabHref(t.key)}
             className={`text-[10px] font-mono px-3 py-1.5 rounded transition-colors cursor-pointer ${
               tab === t.key
                 ? 'text-[#F5F0E8] bg-[#171614] border border-[#2C2B28]'
@@ -333,7 +343,7 @@ export default function CampaignsPage() {
             }`}
           >
             {t.label}
-          </button>
+          </Link>
         ))}
 
         {/* Campaigns status dropdown */}
@@ -364,9 +374,11 @@ export default function CampaignsPage() {
                 className="absolute top-full left-0 mt-1.5 bg-[#171614] border border-[#2C2B28] rounded shadow-2xl z-50 overflow-hidden min-w-[130px]"
               >
                 {STATUS_OPTIONS.map(o => (
-                  <button
+                  <Link
                     key={o.key}
-                    onMouseDown={() => { setTab(o.key); setStatusMenuOpen(false); }}
+                    to={tabHref(o.key)}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => setStatusMenuOpen(false)}
                     className={`flex items-center justify-between w-full text-[10px] font-mono px-3.5 py-2.5 transition-colors cursor-pointer ${
                       tab === o.key
                         ? 'text-[#DA7756] bg-[#1C1B18]'
@@ -380,7 +392,7 @@ export default function CampaignsPage() {
                     {o.key === 'drafts' && counts.drafts > 0 && (
                       <span className="text-[#6B6560]">{counts.drafts}</span>
                     )}
-                  </button>
+                  </Link>
                 ))}
               </motion.div>
             )}
