@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { motion } from 'motion/react';
-import { X, Search, Music, Loader2, Heart, Eye, CheckCircle, Play, Plus, ChevronDown, Link2, Upload, FileVideo, Trash2, AlertTriangle } from 'lucide-react';
+import { X, Check, Search, Music, Loader2, Heart, Eye, CheckCircle, Play, Plus, ChevronDown, Link2, Upload, FileVideo, Trash2, AlertTriangle } from 'lucide-react';
 import AdImagesField from './AdImagesField';
 import { PLATFORM_OBJECTIVES, PLATFORM_CONSTRAINTS, PLATFORM_LABELS, CREATIVE_TYPES } from '../../data/directives';
 import BudgetAllocator from './BudgetAllocator';
@@ -144,11 +144,65 @@ function SmartLinkPicker({ value, onChange, artistSlug }) {
   );
 }
 
+const STEPS = ['Setup', 'Audience', 'Creative', 'Review'];
+
+function StepBar({ step, maxStep, onGo }) {
+  return (
+    <div className="flex items-center gap-1 mt-2">
+      {STEPS.map((label, i) => {
+        const reachable = i <= maxStep;
+        return (
+          <div key={label} className="flex items-center gap-1">
+            {i > 0 && <span className={`w-4 h-px ${i <= maxStep ? 'bg-[#DA7756]/50' : 'bg-[#2C2B28]'}`} />}
+            <button
+              onClick={() => reachable && onGo(i)}
+              disabled={!reachable}
+              className={`flex items-center gap-1.5 text-[10px] font-mono px-2 py-0.5 rounded transition-colors ${
+                i === step ? 'bg-[#DA7756]/15 text-[#F5F0E8]'
+                  : reachable ? 'text-[#9B9590] hover:text-[#F5F0E8] cursor-pointer' : 'text-[#4A4743] cursor-default'
+              }`}
+            >
+              <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] ${
+                i < step ? 'bg-[#7BAF73]/20 text-[#7BAF73]' : i === step ? 'bg-[#DA7756] text-[#0D0C0B]' : 'bg-[#2C2B28] text-[#6B6560]'
+              }`}>
+                {i < step ? <Check size={9} /> : i + 1}
+              </span>
+              {label}
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function ReviewRow({ label, children, onEdit }) {
+  return (
+    <div className="flex items-start gap-3 py-2 border-b border-[#2C2B28] last:border-0">
+      <p className="w-24 shrink-0 text-[10px] font-mono text-[#6B6560] pt-0.5">{label}</p>
+      <div className="flex-1 min-w-0 text-xs text-[#F5F0E8]">{children}</div>
+      {onEdit && (
+        <button onClick={onEdit} className="text-[10px] font-mono text-[#9B9590] hover:text-[#DA7756] cursor-pointer shrink-0">Edit</button>
+      )}
+    </div>
+  );
+}
+
 export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, onAcceptAllocation, initialData, connectedPlatforms, launchMode, launchProgress, onOpenAccounts }) {
   // Meta ads can't be submitted until Meta + the artist's ad account are ready
   const [metaGate, setMetaGate] = useState(null); // null | { checking } | { message, fixable }
   const navigate = useNavigate();
   const editing = !!initialData?.id;
+  // Step-by-step flow; reopen at the first step whenever a different campaign is loaded
+  const [step, setStep] = useState(0);
+  const [maxStep, setMaxStep] = useState(0);
+  const [stepFor, setStepFor] = useState(initialData);
+  if (stepFor !== initialData) {
+    setStepFor(initialData);
+    setStep(0);
+    setMaxStep(0);
+  }
+  const goTo = (i) => { setStep(i); setMaxStep(m => Math.max(m, i)); };
 
   const [platform, setPlatform] = useState(initialData?.platform || connectedPlatforms?.[0] || 'meta');
   const [objective, setObjective] = useState(initialData?.objective || '');
@@ -349,6 +403,8 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
     : null;
 
   const canSave = artistSlug && effectiveObjective && !budgetError;
+  // Setup must be complete before moving on; later steps have sensible defaults
+  const stepReady = step === 0 ? canSave : true;
 
   const buildDirective = async () => {
     const base = {
@@ -445,7 +501,7 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
       <motion.div
         initial={{ opacity: 0, scale: 0.96 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="relative bg-[#171614] border border-[#2C2B28] rounded-lg shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col"
+        className="relative bg-[#171614] border border-[#2C2B28] rounded-lg shadow-2xl w-full max-w-2xl min-h-[min(560px,85vh)] max-h-[85vh] flex flex-col"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -472,9 +528,8 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
                   Platform {launchProgress.current} of {launchProgress.total}
                 </span>
               </div>
-            ) : (
-              <p className="text-[10px] text-[#6B6560] mt-0.5">Configure your advertising directive</p>
-            )}
+            ) : null}
+            <StepBar step={step} maxStep={maxStep} onGo={goTo} />
           </div>
           <button onClick={onClose} className="p-1.5 text-[#6B6560] hover:text-[#F5F0E8] transition-colors cursor-pointer">
             <X size={16} />
@@ -483,6 +538,7 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
 
         {/* Form */}
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+          {step === 0 && (<>
           {/* Artist */}
           <Section label="Artist">
             {launchMode ? (
@@ -688,6 +744,9 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
             </div>
           </Section>
 
+          </>)}
+
+          {step === 1 && (<>
           {/* Audience */}
           <Section label="Audience">
             <div className="space-y-3">
@@ -741,6 +800,9 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
             </div>
           </Section>
 
+          </>)}
+
+          {step === 2 && (<>
           {/* Content to Promote */}
           {artistSlug && PLATFORM_CONTENT_CONFIG[platform] && (
             <Section label="Content to Promote">
@@ -985,6 +1047,52 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
             </Section>
           )}
 
+          {artistSlug && !PLATFORM_CONTENT_CONFIG[platform] && (
+            <p className="text-[10px] text-[#6B6560]">No creative needed for this platform.</p>
+          )}
+          {!artistSlug && <p className="text-[10px] text-[#6B6560]">Choose an artist in Setup first.</p>}
+          </>)}
+
+          {step === 3 && (<>
+          <Section label="Review">
+            <div className="bg-[#0D0C0B] border border-[#2C2B28] rounded-lg px-3">
+              <ReviewRow label="Artist" onEdit={launchMode ? null : () => goTo(0)}>
+                {selectedArtist?.name || initialData?.artistName || artistSlug || '–'}
+              </ReviewRow>
+              <ReviewRow label="Platform" onEdit={launchMode ? null : () => goTo(0)}>{PLATFORM_LABELS[platform]}</ReviewRow>
+              <ReviewRow label="Objective" onEdit={() => goTo(0)}>
+                {objectives.find(o => o.key === effectiveObjective)?.label || '–'}
+              </ReviewRow>
+              <ReviewRow label="Budget" onEdit={() => goTo(0)}>
+                ${Number(budgetAmount || 0).toLocaleString()} {budgetPeriod}
+              </ReviewRow>
+              <ReviewRow label="Schedule" onEdit={() => goTo(0)}>
+                {startDate || 'Not set'} → {endDate || 'Not set'}
+              </ReviewRow>
+              <ReviewRow label="Audience" onEdit={() => goTo(1)}>
+                {locations.join(', ') || 'No locations'} · ages {ageMin}–{ageMax}{lookalike ? ' · lookalike' : ''}
+              </ReviewRow>
+              <ReviewRow label="Creative" onEdit={() => goTo(2)}>
+                {postId ? (
+                  <span>Boost an existing post{headline ? `: "${headline}"` : ''}</span>
+                ) : (
+                  <div className="space-y-1.5">
+                    <p>{headline ? `"${headline}"` : 'New ad, no headline'}</p>
+                    {images.length > 0 && (
+                      <div className="flex gap-1">
+                        {images.map((url, i) => (
+                          <img key={url} src={url} alt={`Image ${i + 1}`} className="w-10 h-10 rounded object-cover border border-[#2C2B28]" />
+                        ))}
+                        {images.length > 1 && <span className="text-[10px] text-[#6B6560] self-end ml-1">carousel</span>}
+                      </div>
+                    )}
+                    {trackUrl && <p className="text-[10px] font-mono text-[#9B9590] truncate">→ {trackUrl}</p>}
+                  </div>
+                )}
+              </ReviewRow>
+            </div>
+          </Section>
+
           {/* Rationale */}
           <Section label="Rationale">
             <textarea
@@ -995,6 +1103,7 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
               className="w-full bg-[#0D0C0B] border border-[#2C2B28] rounded px-3 py-2 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none resize-none"
             />
           </Section>
+          </>)}
         </div>
 
         {metaGate?.message && (
@@ -1029,6 +1138,15 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
                 Skip Platform
               </button>
             )}
+            {!launchMode && step < STEPS.length - 1 && (
+              <button
+                onClick={handleSave}
+                disabled={!canSave}
+                className="text-[10px] text-[#9B9590] hover:text-[#F5F0E8] disabled:text-[#4A4743] transition-colors cursor-pointer"
+              >
+                Save draft
+              </button>
+            )}
           </div>
           <div className="flex items-center gap-2">
             {launchMode && launchProgress && (
@@ -1036,7 +1154,23 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
                 {launchProgress.current} / {launchProgress.total}
               </span>
             )}
-            {launchMode ? (
+            {step > 0 && (
+              <button
+                onClick={() => goTo(step - 1)}
+                className="px-3 py-2 text-xs text-[#9B9590] hover:text-[#F5F0E8] transition-colors cursor-pointer"
+              >
+                Back
+              </button>
+            )}
+            {step < STEPS.length - 1 ? (
+              <button
+                onClick={() => goTo(step + 1)}
+                disabled={!stepReady}
+                className="px-4 py-2 text-xs font-medium bg-[#DA7756] text-[#0D0C0B] rounded hover:bg-[#DA7756]/90 disabled:bg-[#2C2B28] disabled:text-[#6B6560] transition-colors cursor-pointer"
+              >
+                Next: {STEPS[step + 1]}
+              </button>
+            ) : launchMode ? (
               <button
                 onClick={handleSave}
                 disabled={!canSave}
