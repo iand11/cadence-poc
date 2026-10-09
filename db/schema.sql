@@ -446,3 +446,126 @@ CREATE TABLE IF NOT EXISTS user_data (
   updated_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (user_id, key)
 );
+
+-- ---------------------------------------------------------------------------
+-- Ad platform connections — one row per user per platform. The access token
+-- is AES-256-GCM encrypted by api/lib/meta.js (AD_TOKEN_KEY) and never leaves
+-- the server. `selection` holds the chosen ad account ({ adAccountId }).
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS ad_platform_connections (
+  user_id        text NOT NULL,
+  platform       text NOT NULL,          -- meta
+  token_enc      text NOT NULL,
+  token_type     text,                   -- system_user | user (from debug_token)
+  expires_at     timestamptz,            -- null = never expires
+  scopes         text[],
+  meta_user_id   text,                   -- the Meta user/system user behind the token
+  selection      jsonb NOT NULL DEFAULT '{}'::jsonb,
+  connected_at   timestamptz NOT NULL DEFAULT now(),
+  updated_at     timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, platform)
+);
+
+-- ---------------------------------------------------------------------------
+-- Smart links — Prelude's own landing page per release with a button per
+-- streaming service (api/l.js), and the views/clicks it records (api/go.js).
+-- `campaign` on an event is the Prelude campaign (directive id) the visitor
+-- came from (?c= on the link, added when an ad launches). Also created lazily by
+-- api/lib/smartlinks.js.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS smart_links (
+  slug         text PRIMARY KEY,
+  user_id      text NOT NULL,
+  artist_slug  text,
+  artist_name  text,
+  title        text NOT NULL,
+  image_url    text,
+  source_url   text,
+  links        jsonb NOT NULL DEFAULT '[]'::jsonb,   -- [{ service, url }] in display order
+  pixel_id     text,                                  -- Meta Pixel for Pixel + Conversions API events
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  updated_at   timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS smart_links_user_idx ON smart_links (user_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS smart_link_events (
+  id          bigserial PRIMARY KEY,
+  slug        text NOT NULL REFERENCES smart_links (slug) ON DELETE CASCADE,
+  kind        text NOT NULL,              -- view | click
+  service     text,                       -- click: spotify, appleMusic, …
+  campaign    text,
+  country     text,
+  device      text,                       -- mobile | desktop
+  referrer    text,
+  from_ad     boolean NOT NULL DEFAULT false,   -- arrived with a Meta click id (fbclid)
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS smart_link_events_slug_idx ON smart_link_events (slug, created_at);
+CREATE INDEX IF NOT EXISTS smart_link_events_campaign_idx ON smart_link_events (campaign) WHERE campaign IS NOT NULL;
+
+-- Spotify fan capture: when a link has fan_capture on, its Spotify button opens a
+-- consent page; fans who continue log in with Spotify, follow the artist, save the
+-- release, and are stored here (one row per link per Spotify user). Prelude does not
+-- keep their Spotify token.
+ALTER TABLE smart_links ADD COLUMN IF NOT EXISTS fan_capture boolean NOT NULL DEFAULT false;
+
+CREATE TABLE IF NOT EXISTS smart_link_fans (
+  slug             text NOT NULL REFERENCES smart_links (slug) ON DELETE CASCADE,
+  spotify_user_id  text NOT NULL,
+  display_name     text,
+  email            text,
+  country          text,
+  product          text,                -- premium | free | open
+  followed         boolean NOT NULL DEFAULT false,
+  saved            boolean NOT NULL DEFAULT false,
+  top_artists      jsonb,               -- [name, …] (medium term)
+  campaign         text,
+  from_ad          boolean NOT NULL DEFAULT false,
+  created_at       timestamptz NOT NULL DEFAULT now(),
+  updated_at       timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (slug, spotify_user_id)
+);
+CREATE INDEX IF NOT EXISTS smart_link_fans_campaign_idx ON smart_link_fans (campaign) WHERE campaign IS NOT NULL;
+
+-- Fan listening history. Fans who continue with Spotify grant
+-- user-read-recently-played; their refresh token is kept AES-256-GCM encrypted
+-- (AD_TOKEN_KEY) in spotify_listeners, and a scheduled sync (api/cron/spotify-plays.js)
+-- appends their recent plays (Spotify lists the last 50 plays of 30s+) to spotify_plays.
+CREATE TABLE IF NOT EXISTS spotify_listeners (
+  spotify_user_id    text PRIMARY KEY,
+  refresh_token_enc  text,
+  scopes             text,
+  last_played_at     timestamptz,          -- newest play stored (sync cursor)
+  last_synced_at     timestamptz,
+  sync_error         text,
+  revoked            boolean NOT NULL DEFAULT false,   -- fan removed access; stop syncing
+  created_at         timestamptz NOT NULL DEFAULT now(),
+  updated_at         timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS spotify_plays (
+  spotify_user_id  text NOT NULL,
+  played_at        timestamptz NOT NULL,
+  track_id         text NOT NULL,
+  track_name       text,
+  album_id         text,
+  artist_ids       text[],
+  artist_names     text[],
+  context_uri      text,                 -- playlist/album/artist it was played from
+  PRIMARY KEY (spotify_user_id, played_at)
+);
+CREATE INDEX IF NOT EXISTS spotify_plays_track_idx ON spotify_plays (track_id, played_at);
+
+ALTER TABLE smart_links ADD COLUMN IF NOT EXISTS spotify_artist_ids text[];
+ALTER TABLE smart_links ADD COLUMN IF NOT EXISTS spotify_track_name text;
+
+-- Images uploaded for new ads (Campaigns builder); read back when an ad launches
+CREATE TABLE IF NOT EXISTS ad_images (
+  id           uuid PRIMARY KEY,
+  user_id      text NOT NULL,
+  content_type text NOT NULL,
+  bytes        bytea NOT NULL,
+  width        int,
+  height       int,
+  created_at   timestamptz NOT NULL DEFAULT now()
+);

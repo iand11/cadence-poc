@@ -15,6 +15,7 @@ import KpiCard from '../components/shared/KpiCard';
 import ChartCard from '../components/shared/ChartCard';
 import OptimizationBanner from '../components/ads/OptimizationBanner';
 import OptimizationRow from '../components/ads/OptimizationRow';
+import MetaCampaignPanel from '../components/ads/MetaCampaignPanel';
 import { useDirectives } from '../hooks/useDirectives';
 import { useOptimizations } from '../hooks/useOptimizations';
 import { generateCampaignMetrics } from '../data/campaignMetrics';
@@ -55,6 +56,14 @@ export default function CampaignDetail() {
   useEffect(() => {
     if (!directive) { setMetrics(null); return; }
 
+    // Real Meta campaign: MetaCampaignPanel shows live numbers; never simulate them
+    if (directive.platformCampaignId) {
+      setMetrics(null);
+      setMetricsSource('meta');
+      setPlatformStatus(null);
+      return;
+    }
+
     // For demo: use mock metrics for any campaign with a start date in the past
     const started = directive.schedule?.startDate && directive.schedule.startDate <= new Date().toISOString().split('T')[0];
     if (started || ['active', 'executing', 'completed'].includes(directive.status)) {
@@ -67,7 +76,7 @@ export default function CampaignDetail() {
       setMetricsSource(null);
       setPlatformStatus(null);
     }
-  }, [directive?.status, directive?.id, id]);
+  }, [directive?.status, directive?.id, directive?.platformCampaignId, id]);
 
   // Optimizations for this campaign's artist (same-artist cross-platform)
   const optimizations = useMemo(() => {
@@ -210,6 +219,10 @@ export default function CampaignDetail() {
         </div>
       </div>
 
+
+      {directive.platformCampaignId && directive.platform === 'meta' && (
+        <MetaCampaignPanel directive={directive} updateDirective={updateDirective} />
+      )}
 
       {/* Budget Pacing Bar */}
       {hasData && totals && (

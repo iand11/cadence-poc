@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { CAMPAIGN_PLATFORMS, isCampaignPlatform } from '../data/directives';
 
 const STORAGE_KEY = 'musicspace-directives-v2';
 
@@ -39,11 +40,11 @@ const SEED_CAMPAIGNS = [
   {
     id: 'seed-4', artistSlug: 'taylor-swift', artistName: 'Taylor Swift',
     artistImage: 'https://i.scdn.co/image/ab6761610000e5ebe2e8e7ff002a4afda1c7147e',
-    platform: 'spotify', status: 'completed', objective: 'streams',
+    platform: 'youtube', status: 'completed', objective: 'awareness',
     budget: { amount: 4000, currency: 'USD', period: 'lifetime' },
     schedule: { startDate: '2026-05-01', endDate: '2026-05-28' },
     audience: { locations: ['US', 'UK', 'AU'], ageRange: [16, 34] },
-    creative: { type: 'audio', headline: 'New album awareness' },
+    creative: { type: 'video', headline: 'New album awareness' },
     rationale: 'Album release window — maximize first-week streams across editorial playlists.',
     createdAt: '2026-04-28T11:00:00Z',
   },
@@ -104,7 +105,9 @@ function setShared(directives) {
 }
 
 export function useDirectives() {
-  const [directives, setDirectives] = useState(() => getShared());
+  const [allDirectives, setDirectives] = useState(() => getShared());
+  // Older campaigns on platforms Campaigns no longer covers stay saved but are hidden
+  const directives = useMemo(() => allDirectives.filter(d => isCampaignPlatform(d.platform)), [allDirectives]);
 
   useEffect(() => {
     const handler = (next) => setDirectives(next);
@@ -119,7 +122,7 @@ export function useDirectives() {
   }, [directives]);
 
   const directivesByStatus = useMemo(() => {
-    const map = { draft: [], pending_approval: [], approved: [], executing: [], active: [], completed: [], failed: [], rejected: [] };
+    const map = { draft: [], pending_approval: [], approved: [], executing: [], paused: [], active: [], completed: [], failed: [], rejected: [] };
     for (const d of directives) {
       if (map[d.status]) map[d.status].push(d);
     }
@@ -167,14 +170,14 @@ export function useDirectives() {
     total: directives.length,
     drafts: directivesByStatus.draft.length,
     pending: directivesByStatus.pending_approval.length,
-    active: directivesByStatus.active.length + directivesByStatus.executing.length + directivesByStatus.approved.length,
+    active: directivesByStatus.active.length + directivesByStatus.paused.length + directivesByStatus.executing.length + directivesByStatus.approved.length,
     completed: directivesByStatus.completed.length,
     failed: directivesByStatus.failed.length,
   }), [directives, directivesByStatus]);
 
   return {
     directives,
-    connectedPlatforms: ['spotify', 'meta', 'google', 'youtube', 'tiktok', 'x'],
+    connectedPlatforms: CAMPAIGN_PLATFORMS,
     directivesByArtist,
     directivesByStatus,
     counts,

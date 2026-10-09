@@ -362,6 +362,32 @@ function dbApiPlugin() {
         const handler = (await import('./api/notifications.js')).default;
         await handler(req, res);
       });
+      // Smart links: public page + tracked redirect (vercel.json rewrites these in prod)
+      const mountPublic = (mount, file, names, required = names.length) => {
+        server.middlewares.use(mount, async (req, res, next) => {
+          const [path, qs = ''] = (req.url || '/').split('?');
+          const parts = path.split('/').filter(Boolean);
+          if (parts.length < required || parts.length > names.length) return next();
+          const q = new URLSearchParams(qs);
+          parts.forEach((p, i) => q.set(names[i], decodeURIComponent(p)));
+          req.url = `/?${q}`;
+          shim(res);
+          const handler = (await import(pathToFileURL(join(process.cwd(), 'api', file)).href)).default;
+          await handler(req, res);
+        });
+      };
+      mountPublic('/l', 'l.js', ['slug', 'view'], 1);
+      mountPublic('/go', 'go.js', ['slug', 'service']);
+      // Meta ads: account connection + boost execution; smart links API
+      for (const route of ['connect/meta', 'campaign/meta-launch', 'campaign/meta-campaign', 'links', 'spotify-fan', 'ad-images']) {
+        server.middlewares.use(`/api/${route}`, async (req, res) => {
+          shim(res);
+          const handler = (await import(
+            pathToFileURL(join(process.cwd(), 'api', existsSync(`./api/${route}/index.js`) ? `${route}/index.js` : `${route}.js`)).href
+          )).default;
+          await handler(req, res);
+        });
+      }
     },
   };
 }

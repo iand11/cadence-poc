@@ -72,6 +72,27 @@ builds, so components need no reshaping. Frontend adapter: `src/data/artistsRemo
 (async drop-ins: `fetchArtists`, `fetchArtist`, `loadArtistDetail`, `fetchContentFeed`).
 Dev middleware for these routes is `dbApiPlugin()` in `vite.config.js`.
 
+Campaigns cover Instagram (Meta), TikTok and YouTube only (`CAMPAIGN_PLATFORMS` in `src/data/directives.js`; saved campaigns on other platforms are hidden). Meta ads (Campaigns): a user connects their own Meta business with Facebook Login for
+Business (`api/connect/meta.js`). The token is stored encrypted in
+`ad_platform_connections` and never reaches the client. Each artist's Instagram account is assigned to the ad account its ads run in
+(`selection.accountMap`). `api/campaign/meta-launch.js` turns a Meta directive into a paused
+Campaign → Ad Set → Ad in that ad account: a boost (`creative.postId`, post found by its
+permalink shortcode) or a new image ad (`creative.igUserId` "Run as" account + `creative.images`,
+uploaded in the builder via `AdImagesField` → `/api/ad-images` (Postgres `ad_images`), 2–10 make a carousel in that order, + `trackUrl` destination and CTA). `check: true` validates
+without creating anything and gates "Submit for Approval". `api/campaign/meta-campaign.js` reads status/insights and goes live or
+pauses. The client side is `src/data/metaAds.js`, `useMetaConnection`, `AccountConnector`
+and `MetaCampaignPanel`. Smart links (Links page `/app/links`, `LinksPage` → `SmartLinksPanel`): public
+landing page `/l/:slug` (`api/l.js`) with a button per streaming service, tracked redirect
+`/go/:slug/:service` (`api/go.js`), API `api/links/index.js`, helpers `api/lib/smartlinks.js`,
+tables `smart_links` / `smart_link_events`. The Links page previews each landing page in a phone frame (`/l/:slug?preview=1` records nothing); service logos come from `api/lib/dsp-icons.js` (shared with `DspIcon`). A new Meta ad whose destination is a smart link
+gets `?c=<directive id>` so streaming clicks are attributed per campaign, and clicks go to
+Meta as `DSPClick` (Pixel + Conversions API). With fan capture on, the Spotify button opens a consent page
+(`/l/:slug/spotify`); "Continue with Spotify" (`api/spotify-fan.js`) logs the fan in, follows
+the artist, saves the release and stores them in `smart_link_fans`. Their encrypted refresh token (`spotify_listeners`) lets `api/lib/spotify-sync.js` pull recently-played history into `spotify_plays` (daily cron `/api/cron/spotify-plays` with `CRON_SECRET`, "Sync plays" button, `npm run spotify:sync`), shown as streams per fan, link and campaign. Env: `META_APP_ID`, `META_APP_SECRET`, `META_LOGIN_CONFIG_ID`,
+`AD_TOKEN_KEY` (`META_GRAPH_URL` points at a mock Graph API for local testing). Without
+them, Meta campaigns are blocked, not simulated. Details in
+docs/CAMPAIGN_PLAN.md.
+
 ### Data Modules (`src/data/`)
 
 The app is scoped to the artists a user **follows** (user-facing copy never says "roster" or
