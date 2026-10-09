@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Link2, Plus, Copy, Check, ExternalLink, Trash2, Loader2, AlertTriangle, ChevronDown, MousePointerClick, Eye, Download, Users, RefreshCw } from 'lucide-react';
+import { Link2, Plus, Copy, Check, ExternalLink, Trash2, Loader2, AlertTriangle, MousePointerClick, Eye, Download, Users, RefreshCw, X } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { useAsync } from '../../hooks/useAsync';
 import { useFollowedArtists } from '../../context/FollowedArtistsContext';
@@ -457,7 +457,7 @@ function LinkDetail({ slug, pixels, spotifyLogin, onChanged, onDeleted }) {
   );
 }
 
-/** Links page: smart links with views and streaming-service clicks. */
+/** Links page: smart links as image cards; the open one's stats show below the grid. */
 export default function SmartLinksPanel() {
   const [version, setVersion] = useState(0);
   const { data, loading, error } = useAsync(fetchSmartLinks, [version]);
@@ -467,6 +467,14 @@ export default function SmartLinksPanel() {
   const [open, setOpen] = useState(null);
   const reload = () => setVersion(v => v + 1);
   const links = data?.links || [];
+  const openLink = links.find(l => l.slug === open) || null;
+  const detailRef = useRef(null);
+  useEffect(() => {
+    if (open) detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, [open]);
+  // Cards show the artist's photo when we have it, else the release artwork
+  const { followedArtists } = useFollowedArtists();
+  const artistImage = (l) => followedArtists.find(a => a.slug === l.artistSlug)?.imageUrl || null;
 
   return (
     <div>
@@ -505,35 +513,61 @@ export default function SmartLinksPanel() {
           <p className="text-[11px] text-[#6B6560] max-w-xs">Create one from a Spotify or Apple Music link, then pick it as the destination when you create a Meta ad.</p>
         </div>
       ) : (
-        <div className="space-y-2">
-          {links.map(l => (
-            <div key={l.slug} className="rounded border border-[#2C2B28] bg-[#171614]">
-              <div
-                onClick={() => setOpen(o => (o === l.slug ? null : l.slug))}
-                className="flex items-center gap-3 p-3 cursor-pointer"
-              >
-                {l.imageUrl ? <img src={l.imageUrl} alt="" className="w-9 h-9 rounded object-cover shrink-0" /> : <div className="w-9 h-9 rounded bg-[#2C2B28] shrink-0" />}
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs text-[#F5F0E8] truncate">{l.title}{l.artistName ? <span className="text-[#6B6560]"> · {l.artistName}</span> : null}</p>
-                  <div className="flex items-center gap-1">
-                    <span className="text-[9px] font-mono text-[#6B6560] truncate">{l.url}</span>
+        <>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+            {links.map(l => {
+              const image = artistImage(l) || l.imageUrl;
+              const selected = open === l.slug;
+              return (
+                <div
+                  key={l.slug}
+                  onClick={() => setOpen(o => (o === l.slug ? null : l.slug))}
+                  className={`group relative aspect-square rounded-lg overflow-hidden border cursor-pointer bg-[#171614] transition-colors ${
+                    selected ? 'border-[#DA7756]' : 'border-[#2C2B28] hover:border-[#3D3B37]'
+                  }`}
+                >
+                  {image
+                    ? <img src={image} alt="" className="absolute inset-0 w-full h-full object-cover transition-transform group-hover:scale-[1.03]" />
+                    : <div className="absolute inset-0 flex items-center justify-center"><Link2 size={22} className="text-[#3D3B37]" /></div>}
+                  <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/90" />
+                  <div className="absolute top-1.5 right-1.5 flex items-center rounded bg-[#0D0C0B]/70 opacity-0 group-hover:opacity-100 transition-opacity">
                     <CopyButton text={l.url} />
-                    <a href={l.url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} className="p-1 text-[#6B6560] hover:text-[#F5F0E8]" title="Open link"><ExternalLink size={11} /></a>
+                    <a href={l.url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} className="p-1 text-[#9B9590] hover:text-[#F5F0E8]" title="Open link"><ExternalLink size={11} /></a>
+                  </div>
+                  <div className="absolute inset-x-0 bottom-0 p-3">
+                    <p className="text-[13px] font-medium text-[#F5F0E8] truncate">{l.title}</p>
+                    {l.artistName && <p className="text-[10px] text-[#C9C3BB] truncate">{l.artistName}</p>}
+                    <div className="flex items-center gap-3 mt-1.5 text-[10px] font-mono text-[#C9C3BB]">
+                      <span className="flex items-center gap-1" title="Views"><Eye size={10} /> {formatNumber(l.views)}</span>
+                      <span className="flex items-center gap-1" title="Streaming clicks"><MousePointerClick size={10} /> {formatNumber(l.clicks)}</span>
+                      <span className="ml-auto" title="Click rate">{l.views ? pct(l.clicks / l.views) : '–'}</span>
+                    </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-4 shrink-0 text-right">
-                  <div><p className="flex items-center gap-1 text-[9px] font-mono text-[#6B6560]"><Eye size={9} /> Views</p><p className="text-xs font-mono text-[#F5F0E8]">{formatNumber(l.views)}</p></div>
-                  <div><p className="flex items-center gap-1 text-[9px] font-mono text-[#6B6560]"><MousePointerClick size={9} /> Streaming clicks</p><p className="text-xs font-mono text-[#F5F0E8]">{formatNumber(l.clicks)}</p></div>
-                  <div><p className="text-[9px] font-mono text-[#6B6560]">Click rate</p><p className="text-xs font-mono text-[#F5F0E8]">{l.views ? pct(l.clicks / l.views) : '–'}</p></div>
-                  <ChevronDown size={12} className={`text-[#6B6560] transition-transform ${open === l.slug ? 'rotate-180' : ''}`} />
+              );
+            })}
+          </div>
+
+          {openLink && (
+            <div ref={detailRef} className="mt-4 rounded-lg border border-[#2C2B28] bg-[#171614] scroll-mt-4">
+              <div className="flex items-center gap-3 p-3">
+                {(artistImage(openLink) || openLink.imageUrl)
+                  ? <img src={artistImage(openLink) || openLink.imageUrl} alt="" className="w-9 h-9 rounded object-cover shrink-0" />
+                  : <div className="w-9 h-9 rounded bg-[#2C2B28] shrink-0" />}
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-[#F5F0E8] truncate">{openLink.title}{openLink.artistName ? <span className="text-[#6B6560]"> · {openLink.artistName}</span> : null}</p>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[9px] font-mono text-[#6B6560] truncate">{openLink.url}</span>
+                    <CopyButton text={openLink.url} />
+                    <a href={openLink.url} target="_blank" rel="noreferrer" className="p-1 text-[#6B6560] hover:text-[#F5F0E8]" title="Open link"><ExternalLink size={11} /></a>
+                  </div>
                 </div>
+                <button onClick={() => setOpen(null)} className="p-1 text-[#6B6560] hover:text-[#F5F0E8] cursor-pointer" title="Close"><X size={14} /></button>
               </div>
-              {open === l.slug && (
-                <LinkDetail slug={l.slug} pixels={pixels} spotifyLogin={data?.spotifyLogin} onChanged={reload} onDeleted={() => { setOpen(null); reload(); }} />
-              )}
+              <LinkDetail key={openLink.slug} slug={openLink.slug} pixels={pixels} spotifyLogin={data?.spotifyLogin} onChanged={reload} onDeleted={() => { setOpen(null); reload(); }} />
             </div>
-          ))}
-        </div>
+          )}
+        </>
       )}
     </div>
   );
