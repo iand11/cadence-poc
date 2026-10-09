@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router';
 import { motion } from 'motion/react';
 import { X, Check, Search, Music, Loader2, Heart, Eye, CheckCircle, Play, Plus, ChevronDown, Link2, Upload, FileVideo, Trash2, AlertTriangle } from 'lucide-react';
 import AdImagesField from './AdImagesField';
+import AdPreview from './AdPreview';
 import { PLATFORM_OBJECTIVES, PLATFORM_CONSTRAINTS, PLATFORM_LABELS, CREATIVE_TYPES } from '../../data/directives';
 import BudgetAllocator from './BudgetAllocator';
 import { PLATFORM_COLORS } from '../../constants/colors';
@@ -406,6 +407,22 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
   // Setup must be complete before moving on; later steps have sensible defaults
   const stepReady = step === 0 ? canSave : true;
 
+  // Review-step preview: the boosted post, the uploaded YouTube video, or the new ad's images
+  const { connection: metaConnection } = useMetaConnection();
+  const videoPreviewUrl = useMemo(() => (videoFile ? URL.createObjectURL(videoFile) : null), [videoFile]);
+  useEffect(() => () => { if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl); }, [videoPreviewUrl]);
+  const selectedItem = contentItems.find(i => i.id === selectedContentId);
+  const boostThumb = selectedItem?.thumbnailUrl
+    || (initialData?.creative?.postId === postId ? initialData?.creative?.imageUrl : null);
+  const previewMedia = postId
+    ? (boostThumb ? [{ url: boostThumb, type: 'image' }] : [])
+    : platform === 'youtube' && videoPreviewUrl ? [{ url: videoPreviewUrl, type: 'video' }]
+    : images.map(url => ({ url, type: 'image' }));
+  const previewIgId = postId ? ownerPlatformId : runAsIgUserId;
+  const previewUsername = platform === 'meta'
+    ? metaConnection?.instagramAccounts?.find(a => a.igUserId === previewIgId)?.username
+    : null;
+
   const buildDirective = async () => {
     const base = {
       id: initialData?.id || `dir-${Date.now()}`,
@@ -501,7 +518,7 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
       <motion.div
         initial={{ opacity: 0, scale: 0.96 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="relative bg-[#171614] border border-[#2C2B28] rounded-lg shadow-2xl w-full max-w-2xl min-h-[min(560px,85vh)] max-h-[85vh] flex flex-col"
+        className={`relative bg-[#171614] border border-[#2C2B28] rounded-lg shadow-2xl w-full ${step === 3 ? 'max-w-4xl' : 'max-w-2xl'} min-h-[min(560px,85vh)] max-h-[85vh] flex flex-col transition-[max-width]`}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -1054,6 +1071,21 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
           </>)}
 
           {step === 3 && (<>
+          <div className="grid grid-cols-1 md:grid-cols-[auto_1fr] gap-5 items-start">
+          <Section label="Preview">
+            <AdPreview
+              platform={platform}
+              username={previewUsername}
+              artistName={selectedArtist?.name || initialData?.artistName || artistSlug}
+              avatar={selectedArtist?.imageUrl || initialData?.artistImage}
+              media={previewMedia}
+              headline={postId ? '' : headline}
+              description={postId ? (selectedItem?.title || headline) : description}
+              cta={postId ? null : cta}
+              trackUrl={postId ? '' : trackUrl}
+            />
+          </Section>
+          <div className="space-y-5 min-w-0">
           <Section label="Review">
             <div className="bg-[#0D0C0B] border border-[#2C2B28] rounded-lg px-3">
               <ReviewRow label="Artist" onEdit={launchMode ? null : () => goTo(0)}>
@@ -1103,6 +1135,8 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
               className="w-full bg-[#0D0C0B] border border-[#2C2B28] rounded px-3 py-2 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none resize-none"
             />
           </Section>
+          </div>
+          </div>
           </>)}
         </div>
 
