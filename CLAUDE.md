@@ -84,7 +84,7 @@ pauses. The client side is `src/data/metaAds.js`, `useMetaConnection`, `AccountC
 and `MetaCampaignPanel`. Smart links (Links page `/app/links`, `LinksPage` → `SmartLinksPanel`): public
 landing page `/l/:slug` (`api/l.js`) with a button per streaming service, tracked redirect
 `/go/:slug/:service` (`api/go.js`), API `api/links/index.js`, helpers `api/lib/smartlinks.js`,
-tables `smart_links` / `smart_link_events`. A new Meta ad whose destination is a smart link
+tables `smart_links` / `smart_link_events`. The Links page previews each landing page in a phone frame (`/l/:slug?preview=1` records nothing); service logos come from `api/lib/dsp-icons.js` (shared with `DspIcon`). A new Meta ad whose destination is a smart link
 gets `?c=<directive id>` so streaming clicks are attributed per campaign, and clicks go to
 Meta as `DSPClick` (Pixel + Conversions API). With fan capture on, the Spotify button opens a consent page
 (`/l/:slug/spotify`); "Continue with Spotify" (`api/spotify-fan.js`) logs the fan in, follows

@@ -9,6 +9,7 @@ import {
   SERVICE_LABELS, SERVICE_COLORS,
 } from '../../data/smartLinks';
 import { AXIS_STYLE, TOOLTIP_STYLE } from '../../utils/chartTheme';
+import DspIcon from './DspIcon';
 import { formatNumber } from '../../utils/formatters';
 
 const inputCls = 'w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none';
@@ -299,7 +300,7 @@ function NewLinkForm({ pixels, spotifyLogin, onCreated, onCancel }) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
           {Object.entries(SERVICE_LABELS).map(([service, label]) => (
             <div key={service}>
-              <label className={labelCls}>{label}</label>
+              <label className={`${labelCls} flex items-center gap-1`}><DspIcon service={service} size={10} />{label}</label>
               <input
                 value={manualLinks[service] || ''}
                 onChange={e => setManualLinks(m => ({ ...m, [service]: e.target.value }))}
@@ -352,7 +353,7 @@ function ServiceBars({ byService, total }) {
     <div className="space-y-1.5">
       {byService.map(s => (
         <div key={s.service} className="flex items-center gap-2">
-          <span className="text-[10px] text-[#F5F0E8] w-24 shrink-0">{SERVICE_LABELS[s.service] || s.service}</span>
+          <span className="flex items-center gap-1.5 text-[10px] text-[#F5F0E8] w-28 shrink-0"><DspIcon service={s.service} size={11} />{SERVICE_LABELS[s.service] || s.service}</span>
           <div className="flex-1 h-1.5 bg-[#2C2B28] rounded-full overflow-hidden">
             <div className="h-full rounded-full" style={{ width: `${(s.clicks / Math.max(1, total)) * 100}%`, backgroundColor: SERVICE_COLORS[s.service] || '#DA7756' }} />
           </div>
@@ -364,6 +365,35 @@ function ServiceBars({ byService, total }) {
 }
 
 export { ServiceBars };
+
+const PHONE_W = 375;
+const PHONE_H = 760;
+const PREVIEW_SCALE = 0.68;
+
+/** The landing page as fans see it, in a phone-sized frame (?preview=1 records nothing). */
+function LinkPreview({ slug, version }) {
+  const src = `/l/${encodeURIComponent(slug)}?preview=1`;
+  return (
+    <div className="shrink-0 flex flex-col items-center gap-1.5 self-center lg:self-start">
+      <p className={`${labelCls} self-start`}>Preview</p>
+      <div
+        className="rounded-[22px] border-[5px] border-[#2C2B28] bg-black overflow-hidden"
+        style={{ width: PHONE_W * PREVIEW_SCALE + 10, height: PHONE_H * PREVIEW_SCALE + 10 }}
+      >
+        <iframe
+          key={version}
+          src={src}
+          title="Landing page preview"
+          className="border-0 origin-top-left"
+          style={{ width: PHONE_W, height: PHONE_H, transform: `scale(${PREVIEW_SCALE})` }}
+        />
+      </div>
+      <a href={src} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-[9px] font-mono text-[#6B6560] hover:text-[#F5F0E8]">
+        <ExternalLink size={9} /> Open full size
+      </a>
+    </div>
+  );
+}
 
 function LinkDetail({ slug, pixels, spotifyLogin, onChanged, onDeleted }) {
   const [version, setVersion] = useState(0);
@@ -387,7 +417,9 @@ function LinkDetail({ slug, pixels, spotifyLogin, onChanged, onDeleted }) {
   };
 
   return (
-    <div className="p-4 border-t border-[#2C2B28] grid grid-cols-1 lg:grid-cols-3 gap-5">
+    <div className="p-4 border-t border-[#2C2B28] flex flex-col lg:flex-row gap-5">
+      <LinkPreview slug={slug} version={version} />
+      <div className="flex-1 min-w-0 grid grid-cols-1 lg:grid-cols-3 gap-5 content-start">
       <div>
         <p className={labelCls}>Clicks by service</p>
         <ServiceBars byService={stats.byService} total={stats.clicks} />
@@ -438,8 +470,8 @@ function LinkDetail({ slug, pixels, spotifyLogin, onChanged, onDeleted }) {
         </div>
         <div className="flex flex-wrap gap-1">
           {link.links.map(l => (
-            <a key={l.service} href={l.url} target="_blank" rel="noreferrer" className="text-[9px] font-mono px-2 py-0.5 rounded border border-[#2C2B28] text-[#9B9590] hover:text-[#F5F0E8]">
-              {SERVICE_LABELS[l.service] || l.service}
+            <a key={l.service} href={l.url} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-[9px] font-mono px-2 py-0.5 rounded border border-[#2C2B28] text-[#9B9590] hover:text-[#F5F0E8]">
+              <DspIcon service={l.service} size={10} />{SERVICE_LABELS[l.service] || l.service}
             </a>
           ))}
         </div>
@@ -453,6 +485,7 @@ function LinkDetail({ slug, pixels, spotifyLogin, onChanged, onDeleted }) {
         {actionError && <p className="text-[10px] text-[#C75F4F]">{actionError}</p>}
       </div>
       <FansSection link={link} version={version} listening={listening} onSynced={() => setVersion(v => v + 1)} />
+      </div>
     </div>
   );
 }
