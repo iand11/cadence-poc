@@ -387,14 +387,32 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, on
     handleClose();
   };
 
+  // Changing one platform's share rebalances the others (in proportion to their shares when
+  // the adjustment started, so dragging or typing doesn't drift) so the split always totals 100%
+  const adjustBase = useRef(null);
+  const startManualAdjust = (platform) => { adjustBase.current = { platform, pcts: manualPcts }; };
   const setManualPct = (platform, pct) => {
-    setManualPcts(prev => ({ ...prev, [platform]: Math.max(0, Math.min(100, Math.round(pct) || 0)) }));
+    setManualPcts(current => {
+      const prev = adjustBase.current?.platform === platform ? adjustBase.current.pcts : current;
+      const others = Object.keys(prev).filter(p => p !== platform);
+      if (!others.length) return { [platform]: 100 };
+      const value = Math.max(0, Math.min(100, Math.round(pct) || 0));
+      const remaining = 100 - value;
+      const otherTotal = others.reduce((sum, p) => sum + prev[p], 0);
+      const raw = others.map(p => (otherTotal > 0 ? (prev[p] / otherTotal) * remaining : remaining / others.length));
+      const floors = raw.map(Math.floor);
+      let left = remaining - floors.reduce((a, b) => a + b, 0);
+      // Hand out rounding leftovers to the largest fractional parts
+      raw.map((r, i) => [r - floors[i], i]).sort((a, b) => b[0] - a[0]).forEach(([, i]) => { if (left > 0) { floors[i] += 1; left -= 1; } });
+      return { ...Object.fromEntries(others.map((p, i) => [p, floors[i]])), [platform]: value };
+    });
   };
 
   const toggleManualPlatform = (platform) => {
     const next = manualPlatforms.includes(platform)
       ? manualPlatforms.filter(p => p !== platform)
       : ALL_PLATFORMS.filter(p => p === platform || manualPlatforms.includes(p));
+    adjustBase.current = null;
     setManualPcts(next.length ? evenSplit(next) : {});
   };
 
@@ -582,8 +600,9 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, on
                   platforms={manualPlatforms}
                   totalPct={manualTotalPct}
                   onPct={setManualPct}
+                  onStartAdjust={startManualAdjust}
                   onToggle={toggleManualPlatform}
-                  onEven={() => manualPlatforms.length && setManualPcts(evenSplit(manualPlatforms))}
+                  onEven={() => { adjustBase.current = null; if (manualPlatforms.length) setManualPcts(evenSplit(manualPlatforms)); }}
                 />
               </motion.div>
             )}
@@ -914,7 +933,7 @@ function StepMode({ selectedArtist, onManual, onAssisted }) {
 
 // ─── Manual: budget, then platforms and % split ───
 
-function StepManual({ budget, setBudget, pcts, platforms, totalPct, onPct, onToggle, onEven }) {
+function StepManual({ budget, setBudget, pcts, platforms, totalPct, onPct, onStartAdjust, onToggle, onEven }) {
   const tiktokMin = PLATFORM_CONSTRAINTS.tiktok.minBudget;
   return (
     <div className="space-y-4">
@@ -980,6 +999,8 @@ function StepManual({ budget, setBudget, pcts, platforms, totalPct, onPct, onTog
                         min={0}
                         max={100}
                         value={pct}
+                        onPointerDown={() => onStartAdjust(platform)}
+                        onFocus={() => onStartAdjust(platform)}
                         onChange={e => onPct(platform, Number(e.target.value))}
                         className="flex-1 min-w-0 h-1.5 rounded-full appearance-none cursor-pointer alloc-slider"
                         style={{ background: `linear-gradient(to right, ${color} 0%, ${color} ${pct}%, #2C2B28 ${pct}%, #2C2B28 100%)` }}
@@ -989,6 +1010,7 @@ function StepManual({ budget, setBudget, pcts, platforms, totalPct, onPct, onTog
                           type="text"
                           inputMode="numeric"
                           value={pct}
+                          onFocus={() => onStartAdjust(platform)}
                           onChange={e => onPct(platform, Number(e.target.value.replace(/[^0-9]/g, '')))}
                           className="bg-transparent text-xs text-[#F5F0E8] outline-none font-mono w-7 text-right"
                         />
