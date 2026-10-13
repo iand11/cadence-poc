@@ -3,11 +3,12 @@
  *
  * Questions for the guided "New Campaign" wizard and a deterministic, rule-based
  * generator that turns the answers into a campaign plan (objective, platforms,
- * budget split, schedule, audience, creative). The plan is shaped like a campaign
- * suggestion so the wizard's plan step and launch queue can use it unchanged.
+ * budget split, schedule, audience, creative): one complete campaign per platform
+ * that the user reviews and confirms in one step.
  */
 import { generateDirective, PLATFORM_LABELS, PLATFORM_OBJECTIVES, PLATFORM_CONSTRAINTS, CAMPAIGN_PLATFORMS, OBJECTIVE_LABELS } from '../data/directives';
 import { recommendBudgetAllocation } from './budgetAllocation';
+import { buildBoostPayload } from './boostPayload';
 
 export const ASSISTED_QUESTIONS = [
   {
@@ -83,21 +84,10 @@ export const ASSISTED_QUESTIONS = [
     ],
   },
   {
-    key: 'creative',
-    title: 'What content do you have for the ads?',
-    type: 'multi',
-    hint: 'YouTube and TikTok need video.',
-    options: [
-      { value: 'video', label: 'Video' },
-      { value: 'images', label: 'Photos or artwork' },
-      { value: 'posts', label: 'Posts that are already doing well' },
-    ],
-  },
-  {
     key: 'platforms',
     title: 'Which platforms?',
     type: 'platforms',
-    hint: 'Leave all selected to let Prelude pick the split.',
+    hint: 'Prelude picks the split and the posts to promote on each.',
   },
 ];
 
@@ -109,7 +99,6 @@ export const DEFAULT_ANSWERS = {
   budget: 1000,
   locations: ['US'],
   age: '18-34',
-  creative: ['video'],
   platforms: CAMPAIGN_PLATFORMS,
 };
 
@@ -175,29 +164,43 @@ const CTA_BY_GOAL = {
   conversions: 'Shop Now',
 };
 
+// Feed platform the boost candidates come from, per ads platform
+export const POST_SOURCE = { meta: 'instagram', tiktok: 'tiktok', youtube: 'youtube' };
+
+export const postEngagement = (p) => (p?.likes || 0) + (p?.comments || 0) + (p?.shares || 0);
+
+/** Creative for boosting one organic post (same fields the builder writes for a boost). */
+export function boostCreative(post, platform, goal) {
+  const payload = buildBoostPayload(post);
+  const creative = { ...(payload?.creative || {}), callToAction: CTA_BY_GOAL[goal] || 'Learn More' };
+  if (platform === 'tiktok') creative.type = 'spark';
+  if (platform === 'youtube') creative.type = 'video';
+  return creative;
+}
+
 /**
- * Build a campaign plan from the wizard answers.
+ * Build complete, ready-to-confirm campaigns from the wizard answers.
  *
+ * `posts` maps each ads platform to the artist's posts there, best first.
  * Rules, in order:
- * - Only video lets YouTube and TikTok run; with photos or posts only, Instagram carries it.
- * - The chosen platforms are split with the same objective + audience-size weighting
- *   the manual allocator recommends.
- * - TikTok is dropped when its share falls under TikTok's $500 campaign minimum.
- * - Boostable posts make Instagram ads boosts by default; otherwise a new ad.
+ * - Each campaign boosts the artist's best-performing post on its platform; a
+ *   platform with no posts to boost is left out.
+ * - The remaining platforms are split with the same objective + audience-size
+ *   weighting the manual allocator recommends.
+ * - TikTok is left out when its share falls under TikTok's $500 campaign minimum.
+ * - Schedule, audience and objective come straight from the answers.
  */
-export function generateAssistedPlan(artist, answers, now = new Date()) {
+export function generateAssistedPlan(artist, answers, posts = {}, now = new Date()) {
   const goal = answers.goal || 'awareness';
   const budget = Math.max(1, Math.round(Number(answers.budget) || 0));
-  const creative = answers.creative || [];
-  const hasVideo = creative.includes('video');
   const notes = [];
 
   let platforms = (answers.platforms?.length ? answers.platforms : CAMPAIGN_PLATFORMS)
     .filter(p => CAMPAIGN_PLATFORMS.includes(p));
-  if (!hasVideo) {
-    const dropped = platforms.filter(p => p !== 'meta');
-    if (dropped.length) notes.push(`${dropped.map(p => PLATFORM_LABELS[p]).join(' and ')} left out because they need video.`);
-    platforms = ['meta'];
+  const noPosts = platforms.filter(p => !posts[p]?.length);
+  if (noPosts.length) {
+    notes.push(`${noPosts.map(p => PLATFORM_LABELS[p]).join(' and ')} left out: no posts found to promote.`);
+    platforms = platforms.filter(p => posts[p]?.length);
   }
 
   const metrics = artistMetrics(artist);
@@ -205,7 +208,7 @@ export function generateAssistedPlan(artist, answers, now = new Date()) {
   const tiktokMin = PLATFORM_CONSTRAINTS.tiktok.minBudget;
   const tiktok = allocation.allocations.find(a => a.platform === 'tiktok');
   if (tiktok && tiktok.amount < tiktokMin && platforms.length > 1) {
-    notes.push(`TikTok left out because its share ($${tiktok.amount}) is under TikTok's $${tiktokMin} minimum.`);
+    notes.push(`TikTok left out: its share ($${tiktok.amount}) is under TikTok's $${tiktokMin} minimum.`);
     platforms = platforms.filter(p => p !== 'tiktok');
     allocation = recommendBudgetAllocation(metrics, goal, budget, platforms);
   }
@@ -219,63 +222,41 @@ export function generateAssistedPlan(artist, answers, now = new Date()) {
   };
   const schedule = scheduleFor(answers, now);
   const days = Math.max(1, Math.round((new Date(schedule.endDate) - new Date(schedule.startDate)) / DAY));
-
-  const primary = [...allocation.allocations].sort((a, b) => b.amount - a.amount)[0]?.platform || platforms[0] || 'meta';
-  const name = artist?.name || 'the artist';
   const goalLabel = ASSISTED_QUESTIONS[0].options.find(o => o.value === goal)?.label || OBJECTIVE_LABELS[goal];
-  const creativeFor = (platform) => {
-    const base = { headline: '', description: '', trackUrl: '', postId: null };
-    if (platform === 'meta') {
-      return {
-        ...base,
-        type: hasVideo && !creative.includes('images') ? 'video' : 'image',
-        callToAction: CTA_BY_GOAL[goal],
-      };
-    }
-    if (platform === 'tiktok') return { ...base, type: creative.includes('posts') ? 'spark' : 'video', callToAction: CTA_BY_GOAL[goal] };
-    return { ...base, type: 'video' };
-  };
 
-  const rationale = [
-    `${goalLabel} for ${name} over ${days} days with $${budget.toLocaleString('en-US')}.`,
-    answers.promoting === 'release' && answers.releaseDate ? `Starts a week before the ${answers.releaseDate} release and keeps going for three weeks after.` : null,
-    `Targeting ${audience.locations.join(', ')}, ages ${ageMin}–${ageMax}.`,
-    ...notes,
-  ].filter(Boolean).join(' ');
-
-  const action = creative.includes('posts')
-    ? 'Boost the posts already performing best on Instagram, and point new ads at the release smart link.'
-    : goal === 'streams' || answers.promoting === 'release'
-      ? 'Point every ad at the release smart link so streaming clicks are tracked per campaign.'
-      : 'Lead with the strongest visual and a single clear call to action.';
-
-  const directiveOptions = Object.fromEntries(platforms.map(p => [p, {
-    objective: objectiveFor(p, goal),
-    schedule,
-    audience,
-    creative: creativeFor(p),
-  }]));
-
-  return {
-    id: `assisted-${now.getTime()}`,
-    title: `${PROMOTING_TITLES[answers.promoting] || 'Campaign'}: ${goalLabel}`,
-    platform: primary,
-    objective: goal,
-    impact: 'high',
-    insightType: 'info',
-    suggestedBudget: budget,
-    rationale,
-    action,
-    dataType: 'social',
-    source: 'assisted',
-    answers,
-    platforms,
-    directiveOptions,
-    directive: generateDirective({
+  const campaigns = allocation.allocations.map(alloc => {
+    const platform = alloc.platform;
+    const post = posts[platform][0];
+    const directive = generateDirective({
       artistSlug: artist?.slug,
       artistName: artist?.name,
       artistImage: artist?.imageUrl,
-      platform: primary,
-    }, primary, { ...directiveOptions[primary], budget: { amount: budget, currency: 'USD', period: 'lifetime' }, rationale }),
+      platform,
+    }, platform, {
+      objective: objectiveFor(platform, goal),
+      budget: { amount: alloc.amount, currency: 'USD', period: 'lifetime' },
+      schedule,
+      audience,
+      creative: boostCreative(post, platform, goal),
+      rationale: `${goalLabel}: boosts ${artist?.name || 'the artist'}'s best-performing ${PLATFORM_LABELS[platform]} post. ${alloc.reason}`,
+    });
+    // generateDirective ids are time-based; keep them unique within one plan
+    directive.id = `${directive.id}-${platform}`;
+    return { platform, directive, postIndex: 0 };
+  });
+
+  return {
+    title: `${PROMOTING_TITLES[answers.promoting] || 'Campaign'}: ${goalLabel}`,
+    goal,
+    goalLabel,
+    budget,
+    days,
+    schedule,
+    audience,
+    notes,
+    campaigns,
+    releaseNote: answers.promoting === 'release' && answers.releaseDate
+      ? `Starts a week before the ${answers.releaseDate} release and runs three weeks after.`
+      : null,
   };
 }

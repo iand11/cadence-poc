@@ -5,16 +5,19 @@ import {
   Headphones, Users, Zap, Eye,
   MousePointerClick, TrendingDown, Rocket, Info, RotateCcw, Sparkles,
   MessageSquare, ChevronDown, SlidersHorizontal, Check, AlertTriangle,
+  Loader2, Calendar, MapPin, Shuffle, Heart, Trash2,
 } from 'lucide-react';
 import ChatInterface from '../ai/ChatInterface';
 import { searchArtists, getArtistAsync } from '../../data/artists';
+import { fetchContentFeed } from '../../data/artistsRemote';
+import { checkMetaLaunch, isMetaDirective } from '../../data/metaAds';
 import { useFollowedArtists } from '../../hooks/useFollowedArtists';
 import { generateDirective, PLATFORM_LABELS, OBJECTIVE_LABELS, CAMPAIGN_PLATFORMS, PLATFORM_CONSTRAINTS } from '../../data/directives';
 import { recommendBudgetAllocation } from '../../utils/budgetAllocation';
 import { forecastMultiPlatform } from '../../utils/campaignForecaster';
 import {
   DEFAULT_ANSWERS, visibleQuestions, isAnswered,
-  generateAssistedPlan, objectiveFor,
+  generateAssistedPlan, objectiveFor, boostCreative, postEngagement, POST_SOURCE,
 } from '../../utils/assistedCampaign';
 import { PLATFORM_COLORS } from '../../constants/colors';
 import { formatNumber, formatDollar } from '../../utils/formatters';
@@ -46,13 +49,15 @@ const OBJECTIVE_DESCRIPTIONS = {
 
 const GOAL_LABELS = { ...OBJECTIVE_LABELS, streams: 'Drive Streams' };
 
-// Steps: artist → mode → (manual: budget split → builder) | (assisted: questions → plan → builder)
+// Steps: artist → mode → (manual: budget split → builder) | (assisted: questions → confirm).
+// 'plan' is only reached from an artist-profile suggestion.
 const STEP_LABELS = {
   artist: 'Select an artist',
   mode: 'Choose how to set it up',
   manual: 'Budget and platforms',
   questions: 'Guided setup',
   plan: 'Campaign plan',
+  confirm: 'Review and confirm',
 };
 
 const evenSplit = (platforms) => {
@@ -62,7 +67,7 @@ const evenSplit = (platforms) => {
 
 const PRIMARY_BTN = 'flex items-center gap-1.5 px-4 py-2 text-xs font-medium bg-[#DA7756] text-[#0D0C0B] rounded hover:bg-[#DA7756]/90 disabled:bg-[#2C2B28] disabled:text-[#6B6560] transition-colors cursor-pointer disabled:cursor-default';
 
-export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, initialArtistSlug, initialSuggestion }) {
+export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, onConfirm, initialArtistSlug, initialSuggestion }) {
   const [step, setStep] = useState('artist');
   const [selectedArtist, setSelectedArtist] = useState(null);
   const [artistSearch, setArtistSearch] = useState('');
@@ -77,6 +82,15 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, in
   // Assisted setup: one question at a time
   const [answers, setAnswers] = useState(DEFAULT_ANSWERS);
   const [questionIndex, setQuestionIndex] = useState(0);
+
+  // Assisted result: the generated plan, its editable campaigns, and the posts each can boost
+  const [plan, setPlan] = useState(null);
+  const [planCampaigns, setPlanCampaigns] = useState([]);
+  const [planPosts, setPlanPosts] = useState({});
+  const [generating, setGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState(null);
+  const [confirming, setConfirming] = useState(false);
+  const [confirmErrors, setConfirmErrors] = useState({});
 
   // Plan step state
   const [totalBudget, setTotalBudgetRaw] = useState(1000);
@@ -198,9 +212,8 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, in
   };
 
   const handleBack = () => {
-    if (step === 'plan' && selectedSuggestion?.source === 'assisted') {
-      setSelectedSuggestion(null);
-      setAllocOverrides({});
+    if (step === 'confirm') {
+      setConfirmErrors({});
       setStep('questions');
     } else if (step === 'plan') {
       setSelectedSuggestion(null);
@@ -221,17 +234,86 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, in
     setStep('questions');
   };
 
-  const handleNextQuestion = () => {
+  const handleNextQuestion = async () => {
     if (questionIndex < questions.length - 1) {
       setQuestionIndex(i => i + 1);
       return;
     }
-    const plan = generateAssistedPlan(selectedArtist, answers);
-    setSelectedSuggestion(plan);
-    setTotalBudgetRaw(plan.suggestedBudget);
-    setEnabledPlatformsRaw(plan.platforms);
-    setAllocOverrides({});
-    setStep('plan');
+    // Last answer: find the posts worth boosting, then build every campaign
+    setGenerating(true);
+    setGenerateError(null);
+    try {
+      const platforms = answers.platforms?.length ? answers.platforms : ALL_PLATFORMS;
+      const feeds = await Promise.all(platforms.map(p =>
+        fetchContentFeed({ artist: selectedArtist.slug, platform: POST_SOURCE[p], sort: 'engagement', limit: 3 })
+          .then(r => [p, r.items || []])
+          .catch(() => [p, []])
+      ));
+      const posts = Object.fromEntries(feeds);
+      const next = generateAssistedPlan(selectedArtist, answers, posts);
+      setPlan(next);
+      setPlanCampaigns(next.campaigns);
+      setPlanPosts(posts);
+      setConfirmErrors({});
+      setStep('confirm');
+    } catch (e) {
+      setGenerateError(e.message || 'Could not build the campaign.');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const updatePlanCampaign = (platform, fn) => {
+    setPlanCampaigns(prev => prev.map(c => (c.platform === platform ? fn(c) : c)));
+    setConfirmErrors(prev => ({ ...prev, [platform]: undefined }));
+  };
+
+  const setPlanBudget = (platform, amount) => updatePlanCampaign(platform, c => ({
+    ...c, directive: { ...c.directive, budget: { ...c.directive.budget, amount: Math.max(0, Math.round(amount) || 0) } },
+  }));
+
+  const swapPlanPost = (platform) => updatePlanCampaign(platform, c => {
+    const options = planPosts[platform] || [];
+    const postIndex = (c.postIndex + 1) % options.length;
+    return { ...c, postIndex, directive: { ...c.directive, creative: boostCreative(options[postIndex], platform, plan.goal) } };
+  });
+
+  const removePlanCampaign = (platform) => {
+    setPlanCampaigns(prev => prev.filter(c => c.platform !== platform));
+    setConfirmErrors(prev => ({ ...prev, [platform]: undefined }));
+  };
+
+  // Confirm: Meta campaigns are checked against the connected ad account (nothing is
+  // created); everything that passes is submitted for approval. If some fail, the
+  // user can save those as drafts instead.
+  const handleConfirm = async ({ saveFailedAsDrafts = false } = {}) => {
+    if (!planCampaigns.length) return;
+    setConfirming(true);
+    const errors = {};
+    const ready = [];
+    for (const c of planCampaigns) {
+      const d = { ...c.directive };
+      if (isMetaDirective(d)) {
+        try {
+          const ok = await checkMetaLaunch(d);
+          d.adAccountId = ok.adAccountId;
+          d.adAccountName = ok.adAccountName;
+          d.igUsername = ok.igUsername;
+        } catch (e) {
+          errors[c.platform] = e.message || 'Ad account check failed.';
+          ready.push({ ...d, status: 'draft' });
+          continue;
+        }
+      }
+      ready.push({ ...d, status: 'pending_approval' });
+    }
+    setConfirming(false);
+    if (Object.keys(errors).length && !saveFailedAsDrafts) {
+      setConfirmErrors(errors);
+      return;
+    }
+    onConfirm(ready);
+    handleClose();
   };
 
   // Manual: one draft per platform with its share of the budget, then the
@@ -302,8 +384,6 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, in
     if (!allocation || !selectedSuggestion || !selectedArtist) return;
 
     const directives = allocation.allocations.map(alloc => {
-      // Assisted plans carry per-platform objective, schedule, audience and creative
-      const planned = selectedSuggestion.directiveOptions?.[alloc.platform] || {};
       return generateDirective({
         artistSlug: selectedArtist.slug,
         artistName: selectedArtist.name,
@@ -314,8 +394,7 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, in
         text: selectedSuggestion.rationale,
         action: selectedSuggestion.action,
       }, alloc.platform, {
-        ...planned,
-        objective: planned.objective || objectiveFor(alloc.platform, selectedSuggestion.objective),
+        objective: objectiveFor(alloc.platform, selectedSuggestion.objective),
         budget: { amount: alloc.amount, currency: 'USD', period: 'lifetime' },
         rationale: `${selectedSuggestion.rationale} [${alloc.percentage}% allocation: ${alloc.reason}]`,
       });
@@ -345,15 +424,20 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, in
     setManualPcts(evenSplit(ALL_PLATFORMS));
     setAnswers(DEFAULT_ANSWERS);
     setQuestionIndex(0);
+    setPlan(null);
+    setPlanCampaigns([]);
+    setPlanPosts({});
+    setGenerateError(null);
+    setConfirmErrors({});
     onClose();
   };
 
   if (!isOpen) return null;
 
   const topSocial = selectedArtist ? getTopSocial(selectedArtist) : null;
-  const assisted = step === 'questions' || selectedSuggestion?.source === 'assisted';
+  const assisted = step === 'questions' || step === 'confirm';
   const flowSteps = step === 'manual' ? ['artist', 'mode', 'manual']
-    : assisted ? ['artist', 'mode', 'questions', 'plan']
+    : assisted ? ['artist', 'mode', 'questions', 'confirm']
     : step === 'plan' ? ['artist', 'plan']
     : ['artist', 'mode'];
   const stepIndex = flowSteps.indexOf(step);
@@ -369,7 +453,7 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, in
       <motion.div
         initial={{ opacity: 0, scale: 0.96 }}
         animate={{ opacity: 1, scale: 1 }}
-        className={`relative bg-[#171614] border border-[#2C2B28] rounded-lg shadow-2xl w-full ${step === 'plan' ? 'max-w-3xl' : 'max-w-2xl'} max-h-[85vh] flex flex-col`}
+        className={`relative bg-[#171614] border border-[#2C2B28] rounded-lg shadow-2xl w-full ${step === 'plan' || step === 'confirm' ? 'max-w-3xl' : 'max-w-2xl'} max-h-[85vh] flex flex-col`}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -450,6 +534,20 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, in
                 />
               </motion.div>
             )}
+            {step === 'confirm' && plan && (
+              <motion.div key="confirm" {...slide}>
+                <StepConfirm
+                  plan={plan}
+                  artist={selectedArtist}
+                  campaigns={planCampaigns}
+                  posts={planPosts}
+                  errors={confirmErrors}
+                  onBudget={setPlanBudget}
+                  onSwap={swapPlanPost}
+                  onRemove={removePlanCampaign}
+                />
+              </motion.div>
+            )}
             {step === 'plan' && selectedSuggestion && (
               <motion.div key="plan" {...slide}>
                 <Step3
@@ -490,13 +588,38 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, in
               </button>
             )}
             {step === 'questions' && currentQuestion && (
-              <button onClick={handleNextQuestion} disabled={!isAnswered(currentQuestion, answers)} className={PRIMARY_BTN}>
-                {questionIndex < questions.length - 1 ? (
-                  <>Next<ArrowRight size={12} /></>
-                ) : (
-                  <><Sparkles size={12} />Generate Campaign</>
+              <>
+                {generateError && <span className="text-[10px] text-[#C75F4F]">{generateError}</span>}
+                <button onClick={handleNextQuestion} disabled={!isAnswered(currentQuestion, answers) || generating} className={PRIMARY_BTN}>
+                  {generating ? (
+                    <><Loader2 size={12} className="animate-spin" />Building campaign…</>
+                  ) : questionIndex < questions.length - 1 ? (
+                    <>Next<ArrowRight size={12} /></>
+                  ) : (
+                    <><Sparkles size={12} />Build Campaign</>
+                  )}
+                </button>
+              </>
+            )}
+            {step === 'confirm' && (
+              <>
+                {Object.values(confirmErrors).some(Boolean) && (
+                  <button
+                    onClick={() => handleConfirm({ saveFailedAsDrafts: true })}
+                    disabled={confirming}
+                    className="px-3 py-2 text-[10px] font-medium text-[#9B9590] border border-[#2C2B28] hover:border-[#3D3B37] hover:text-[#F5F0E8] rounded transition-colors cursor-pointer"
+                  >
+                    Save flagged as drafts
+                  </button>
                 )}
-              </button>
+                <button onClick={() => handleConfirm()} disabled={confirming || !planCampaigns.length || planCampaigns.some(c => !(c.directive.budget?.amount > 0))} className={PRIMARY_BTN}>
+                  {confirming ? (
+                    <><Loader2 size={12} className="animate-spin" />Checking…</>
+                  ) : (
+                    <><Check size={12} />Confirm {planCampaigns.length} campaign{planCampaigns.length !== 1 ? 's' : ''} · {formatDollar(planCampaigns.reduce((sum, c) => sum + (c.directive.budget?.amount || 0), 0))}</>
+                  )}
+                </button>
+              </>
             )}
             {step === 'plan' && (
               <>
@@ -650,7 +773,7 @@ function StepMode({ selectedArtist, onManual, onAssisted }) {
       key: 'assisted',
       icon: Sparkles,
       title: 'Guided setup',
-      body: 'Answer a few questions about the goal, budget and audience. Prelude builds the campaign, and you review it before anything launches.',
+      body: 'Answer a few questions about the goal, budget and audience. Prelude sets up every campaign, including the posts to promote, and you confirm it all on one screen.',
       onClick: onAssisted,
       accent: true,
     },
@@ -911,7 +1034,130 @@ function StepQuestion({ question, answers, setAnswer, index, total }) {
   );
 }
 
-// ─── Plan review (assisted) ───
+// ─── Assisted: review and confirm everything Prelude set up ───
+
+const shortDate = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+function StepConfirm({ plan, artist, campaigns, posts, errors, onBudget, onSwap, onRemove }) {
+  const total = campaigns.reduce((sum, c) => sum + (c.directive.budget?.amount || 0), 0);
+  const { schedule, audience } = plan;
+
+  return (
+    <div className="space-y-3">
+      {/* Summary */}
+      <div className="bg-[#0D0C0B] border border-[#2C2B28] rounded-lg p-4" style={{ borderLeftWidth: 3, borderLeftColor: '#DA7756' }}>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-[#F5F0E8]">{plan.title}</p>
+            <p className="text-[10px] text-[#9B9590] mt-0.5">{artist?.name}</p>
+          </div>
+          <div className="text-right shrink-0">
+            <p className="text-sm font-mono text-[#F5F0E8]">{formatDollar(total)}</p>
+            <p className="text-[9px] font-mono text-[#6B6560]">total budget</p>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-[10px] font-mono text-[#9B9590]">
+          <span className="inline-flex items-center gap-1"><Calendar size={10} />{shortDate(schedule.startDate)} – {shortDate(schedule.endDate)} · {plan.days} days</span>
+          <span className="inline-flex items-center gap-1"><MapPin size={10} />{audience.locations.join(', ')}</span>
+          <span className="inline-flex items-center gap-1"><Users size={10} />Ages {audience.ageRange[0]}–{audience.ageRange[1]}</span>
+        </div>
+        {plan.releaseNote && <p className="text-[10px] text-[#9B9590] mt-2">{plan.releaseNote}</p>}
+        {plan.notes.map(n => (
+          <p key={n} className="flex items-start gap-1.5 text-[10px] text-[#D4A574] mt-2">
+            <Info size={10} className="mt-0.5 shrink-0" />{n}
+          </p>
+        ))}
+      </div>
+
+      {campaigns.length === 0 && (
+        <div className="bg-[#0D0C0B] border border-[#2C2B28] rounded-lg p-6 text-center">
+          <p className="text-xs text-[#F5F0E8] mb-1">Nothing to promote yet</p>
+          <p className="text-[10px] text-[#6B6560]">No posts were found for {artist?.name || 'this artist'} on the selected platforms. Go back and choose other platforms, or use “Set it up myself” to upload creative.</p>
+        </div>
+      )}
+
+      {/* One card per campaign */}
+      {campaigns.map(c => {
+        const d = c.directive;
+        const options = posts[c.platform] || [];
+        const post = options[c.postIndex];
+        const color = PLATFORM_COLOR_MAP[c.platform] || '#9B9590';
+        const amount = d.budget?.amount || 0;
+        const error = errors[c.platform];
+        return (
+          <div key={c.platform} className={`bg-[#0D0C0B] border rounded-lg p-3 ${error ? 'border-[#C75F4F]/40' : 'border-[#2C2B28]'}`}>
+            <div className="flex items-center gap-2 mb-2.5">
+              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
+              <span className="text-[11px] font-medium text-[#F5F0E8]">{PLATFORM_LABELS[c.platform]}</span>
+              <span className="text-[9px] font-mono text-[#6B6560]">
+                Boost post · {OBJECTIVE_LABELS[d.objective] || d.objective} · {d.creative?.callToAction || 'Learn More'}
+              </span>
+              <button
+                onClick={() => onRemove(c.platform)}
+                className="ml-auto p-1 text-[#6B6560] hover:text-[#C75F4F] transition-colors cursor-pointer"
+                title={`Remove ${PLATFORM_LABELS[c.platform]}`}
+              >
+                <Trash2 size={11} />
+              </button>
+            </div>
+            <div className="flex items-center gap-3">
+              {post?.thumbnailUrl ? (
+                <img src={post.thumbnailUrl} alt="" className="w-14 h-14 rounded object-cover shrink-0" />
+              ) : (
+                <div className="w-14 h-14 rounded bg-[#2C2B28] flex items-center justify-center shrink-0">
+                  <Music size={14} className="text-[#6B6560]" />
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] text-[#F5F0E8] line-clamp-2">{post?.title || 'Untitled post'}</p>
+                <div className="flex items-center gap-3 mt-1 text-[9px] font-mono text-[#6B6560]">
+                  {post?.views > 0 && <span className="inline-flex items-center gap-1"><Eye size={9} />{formatNumber(post.views)}</span>}
+                  <span className="inline-flex items-center gap-1"><Heart size={9} />{formatNumber(postEngagement(post))}</span>
+                  {options.length > 1 && (
+                    <button onClick={() => onSwap(c.platform)} className="inline-flex items-center gap-1 text-[#DA7756] hover:text-[#F5F0E8] transition-colors cursor-pointer">
+                      <Shuffle size={9} />Use another post ({c.postIndex + 1}/{options.length})
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="shrink-0 text-right">
+                <div className="flex items-center gap-0.5 bg-[#171614] border border-[#2C2B28] focus-within:border-[#DA7756]/50 rounded px-2 py-1">
+                  <span className="text-[10px] text-[#6B6560]">$</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={amount ? amount.toLocaleString('en-US') : ''}
+                    onChange={e => onBudget(c.platform, Number(e.target.value.replace(/[^0-9]/g, '')) || 0)}
+                    className="bg-transparent text-xs text-[#F5F0E8] outline-none font-mono w-16 text-right"
+                  />
+                </div>
+                <p className="text-[9px] font-mono text-[#6B6560] mt-1">{total > 0 ? Math.round((amount / total) * 100) : 0}% · lifetime</p>
+              </div>
+            </div>
+            {c.platform === 'tiktok' && amount > 0 && amount < PLATFORM_CONSTRAINTS.tiktok.minBudget && (
+              <p className="flex items-center gap-1 text-[9px] text-[#D4A574] mt-2">
+                <AlertTriangle size={9} />TikTok requires at least {formatDollar(PLATFORM_CONSTRAINTS.tiktok.minBudget)} per campaign.
+              </p>
+            )}
+            {error && (
+              <p className="flex items-start gap-1 text-[10px] text-[#C75F4F] mt-2">
+                <AlertTriangle size={10} className="mt-0.5 shrink-0" />{error}
+              </p>
+            )}
+          </div>
+        );
+      })}
+
+      {campaigns.length > 0 && (
+        <p className="text-[10px] text-[#6B6560]">
+          Confirming submits {campaigns.length === 1 ? 'this campaign' : `these ${campaigns.length} campaigns`} for approval. Nothing goes live or spends until you launch it from Campaigns.
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ─── Plan review (from an artist-profile suggestion) ───
 
 function Step3({ suggestion, selectedArtist, totalBudget, setTotalBudget, enabledPlatforms, togglePlatform, allocation, forecast, durationDays, allocOverrides, onAllocOverride, onResetAlloc }) {
   const [chatOpen, setChatOpen] = useState(false);
