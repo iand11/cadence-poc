@@ -8,7 +8,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import ChatInterface from '../ai/ChatInterface';
-import GuidedConfirm, { GuidedLinkStep, GuidedContentStep } from './GuidedConfirm';
+import GuidedConfirm, { GuidedContentStep } from './GuidedConfirm';
 import { fetchSmartLinks } from '../../data/smartLinks';
 import { searchArtists, getArtistAsync } from '../../data/artists';
 import { fetchContentFeed } from '../../data/artistsRemote';
@@ -60,7 +60,6 @@ const STEP_LABELS = {
   manual: 'Budget and platforms',
   questions: 'Guided setup',
   plan: 'Campaign plan',
-  link: 'Where fans go',
   confirm: 'Review and confirm',
 };
 
@@ -99,7 +98,7 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, on
   const [smartLinks, setSmartLinks] = useState(null);
   const [destination, setDestination] = useState('');
   const [contentIndex, setContentIndex] = useState(0);
-  // Where "Done" goes after a side trip: 'confirm', or a content step index when the link is changed from there
+  // 'confirm' when a content step was opened from the confirmation, so "Done" goes back there
   const [returnTo, setReturnTo] = useState(null);
   const returnToConfirm = returnTo === 'confirm';
 
@@ -258,10 +257,6 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, on
     } else if (step === 'content' && contentIndex > 0) {
       setContentIndex(i => i - 1);
     } else if (step === 'content') {
-      setStep('link');
-    } else if (step === 'link' && returnTo !== null) {
-      nextFromLink();
-    } else if (step === 'link') {
       setStep('questions');
     } else if (step === 'plan') {
       setSelectedSuggestion(null);
@@ -299,7 +294,7 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, on
       setConfirmErrors({});
       setContentIndex(0);
       setReturnTo(null);
-      setStep('link');
+      setStep('content');
     } catch (e) {
       setGenerateError(e.message || 'Could not build the campaign.');
     } finally {
@@ -318,16 +313,10 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, on
 
   const setPlanMode = (platform, mode) => updatePlanCampaign(platform, c => ({ ...c, mode }));
   const setPlanDraft = (platform, patch) => updatePlanCampaign(platform, c => ({ ...c, draft: { ...c.draft, ...patch } }));
-  const handleLinkCreated = (link) => {
+  // A pasted release link becomes a smart link in the background; the pasted URL is used until it's ready
+  const handleLinkCreated = (link, fromUrl) => {
     setSmartLinks(prev => [link, ...(prev || [])]);
-    setDestination(link.url);
-  };
-
-  const nextFromLink = () => {
-    if (returnTo === 'confirm') { setStep('confirm'); return; }
-    setContentIndex(typeof returnTo === 'number' ? returnTo : 0);
-    setReturnTo(null);
-    setStep('content');
+    setDestination(d => (d === fromUrl ? link.url : d));
   };
 
   const nextFromContent = () => {
@@ -342,8 +331,8 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, on
   const editFromConfirm = (target, index = 0) => {
     setReturnTo('confirm');
     setConfirmErrors({});
-    if (target === 'link') setStep('link');
-    else { setContentIndex(index); setStep('content'); }
+    setContentIndex(index);
+    setStep('content');
   };
 
   // Confirm: Meta campaigns are checked against the connected ad account (nothing is
@@ -503,13 +492,14 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, on
   if (!isOpen) return null;
 
   const topSocial = selectedArtist ? getTopSocial(selectedArtist) : null;
-  const assisted = ['questions', 'link', 'content', 'confirm'].includes(step);
+  const assisted = ['questions', 'content', 'confirm'].includes(step);
   const contentCampaign = planCampaigns[Math.min(contentIndex, planCampaigns.length - 1)];
   const selectedLink = (smartLinks || []).find(l => l.url === destination);
-  const destinationLabel = selectedLink ? `${selectedLink.title} (smart link)` : destination || '';
+  const destinationLabel = selectedLink ? `${selectedLink.title} smart link` : destination || '';
+  const firstNewPost = planCampaigns.findIndex(c => c.mode === 'new');
   const recommendNew = !!plan && (plan.goal === 'streams' || plan.answers?.promoting === 'release');
   const flowSteps = step === 'manual' ? ['artist', 'mode', 'manual']
-    : assisted ? ['artist', 'mode', 'questions', 'link', 'content', 'confirm']
+    : assisted ? ['artist', 'mode', 'questions', 'content', 'confirm']
     : step === 'plan' ? ['artist', 'plan']
     : ['artist', 'mode'];
   const stepIndex = flowSteps.indexOf(step);
@@ -608,30 +598,21 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, on
                 />
               </motion.div>
             )}
-            {step === 'link' && plan && (
-              <motion.div key="link" {...slide}>
-                <GuidedLinkStep
-                  artist={selectedArtist}
-                  smartLinks={smartLinks}
-                  destination={destination}
-                  onDestination={setDestination}
-                  onLinkCreated={handleLinkCreated}
-                />
-              </motion.div>
-            )}
             {step === 'content' && contentCampaign && (
               <motion.div key={`content-${contentCampaign.platform}`} {...slide}>
                 <GuidedContentStep
                   campaign={contentCampaign}
                   posts={planPosts[contentCampaign.platform] || []}
                   artist={selectedArtist}
-                  destinationLabel={destinationLabel}
-                  recommendNew={recommendNew && !!selectedLink}
+                  recommendNew={recommendNew}
+                  smartLinks={smartLinks}
+                  destination={destination}
+                  onDestination={setDestination}
+                  onLinkCreated={handleLinkCreated}
                   onMode={setPlanMode}
                   onPost={setPlanPost}
                   onDraft={setPlanDraft}
                   onOpenAccounts={onOpenAccounts}
-                  onEditLink={() => { if (!returnToConfirm) setReturnTo(contentIndex); setStep('link'); }}
                 />
               </motion.div>
             )}
@@ -645,7 +626,7 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, on
                   errors={confirmErrors}
                   destinationLabel={destinationLabel}
                   onEditContent={(i) => editFromConfirm('content', i)}
-                  onEditLink={() => editFromConfirm('link')}
+                  onEditLink={() => editFromConfirm('content', Math.max(firstNewPost, 0))}
                 />
               </motion.div>
             )}
@@ -695,11 +676,6 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, on
                   Next<ArrowRight size={12} />
                 </button>
               </>
-            )}
-            {step === 'link' && (
-              <button onClick={nextFromLink} disabled={smartLinks === null} className={PRIMARY_BTN}>
-                {returnTo !== null ? 'Done' : 'Next'}<ArrowRight size={12} />
-              </button>
             )}
             {step === 'content' && contentCampaign && (
               <>

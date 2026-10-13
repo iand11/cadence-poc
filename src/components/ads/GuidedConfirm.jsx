@@ -1,8 +1,7 @@
 import { useState } from 'react';
-import { Link } from 'react-router';
 import {
   Music, Eye, Heart, AlertTriangle, Info, Calendar, MapPin, Users,
-  Link2, Loader2, Plus, Check, FileVideo, Sparkles, Image as ImageIcon, Pencil,
+  Link2, Check, FileVideo, Sparkles, Image as ImageIcon, Pencil,
 } from 'lucide-react';
 import AdImagesField from './AdImagesField';
 import { FileUploadField, MetaRunAsPicker } from './DirectiveBuilder';
@@ -12,8 +11,8 @@ import { postEngagement } from '../../utils/assistedCampaign';
 import { PLATFORM_COLORS } from '../../constants/colors';
 import { formatNumber, formatDollar } from '../../utils/formatters';
 
-// Guided setup's last three steps: where fans go (smart link), what each
-// platform's ad shows (one platform per screen), and a read-only confirmation.
+// Guided setup's last steps: what each platform's ad shows (one platform per
+// screen, including where a new post sends fans), and a read-only confirmation.
 
 const PLATFORM_COLOR_MAP = {
   meta: PLATFORM_COLORS.instagram,
@@ -38,105 +37,59 @@ function StepTitle({ title, hint }) {
   );
 }
 
-// ─── Where fans go ───
+// ─── Where a new post sends fans ───
+// The artist's smart link is picked automatically. A pasted release link is used right away and
+// turned into a smart link in the background, so the user never has to know what one is up front.
 
-export function GuidedLinkStep({ artist, smartLinks, destination, onDestination, onLinkCreated }) {
+const isUrl = (v) => /^https?:\/\/\S+\.\S+/.test(v.trim());
+
+function DestinationField({ artist, smartLinks, destination, onDestination, onLinkCreated }) {
   const links = smartLinks || [];
-  const sorted = [...links].sort((a, b) => (b.artistSlug === artist?.slug) - (a.artistSlug === artist?.slug));
-  const isSmart = links.some(l => l.url === destination);
-  const [mode, setMode] = useState(() => (destination && !isSmart ? 'url' : links.length ? 'pick' : 'create'));
-  const [sourceUrl, setSourceUrl] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(null);
-  const effectiveMode = smartLinks && !links.length && mode === 'pick' ? 'create' : mode;
+  const ownLinks = links.filter(l => l.artistSlug === artist?.slug);
+  const current = links.find(l => l.url === destination);
+  const [editing, setEditing] = useState(false);
+  const [pasted, setPasted] = useState('');
+  const open = editing || !destination;
 
-  const create = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const { link } = await createSmartLink({
-        sourceUrl: sourceUrl.trim(),
-        artistSlug: artist?.slug,
-        artistName: artist?.name,
-        imageUrl: artist?.imageUrl || undefined,
-      });
-      onLinkCreated(link);
-      setMode('pick');
-      setSourceUrl('');
-    } catch (e) {
-      setError(e.message || 'Could not create the link.');
-    } finally {
-      setBusy(false);
-    }
+  const applyPasted = (value) => {
+    const url = value.trim();
+    if (!isUrl(url)) return;
+    onDestination(url);
+    setPasted('');
+    setEditing(false);
+    createSmartLink({ sourceUrl: url, artistSlug: artist?.slug, artistName: artist?.name, imageUrl: artist?.imageUrl || undefined })
+      .then(({ link }) => link && onLinkCreated(link, url))
+      .catch(() => {});
   };
 
   return (
     <div>
-      <StepTitle
-        title="Where should fans go?"
-        hint="A smart link is one page with every streaming service. Prelude tracks clicks to each service per campaign."
-      />
-      {smartLinks !== null && (
-        <div className="space-y-2">
-          {links.length > 0 && (
-            <div role="button" tabIndex={0} onClick={() => setMode('pick')} className={`${choiceCls(effectiveMode === 'pick')} w-full`}>
-              <p className="flex items-center gap-1.5 text-xs text-[#F5F0E8] font-medium">
-                <Link2 size={12} className="text-[#DA7756]" />Use a smart link
-                <span className="text-[8px] font-mono uppercase tracking-wider text-[#DA7756] border border-[#DA7756]/30 rounded px-1">Recommended</span>
-              </p>
-              {effectiveMode === 'pick' && (
-                <div className="mt-2.5" onClick={e => e.stopPropagation()}>
-                  <select value={sorted.find(l => l.url === destination)?.slug || ''} onChange={e => onDestination(links.find(l => l.slug === e.target.value)?.url || '')} className={inputCls}>
-                    <option value="">Choose a smart link…</option>
-                    {sorted.map(l => <option key={l.slug} value={l.slug}>{l.title}{l.artistName ? ` · ${l.artistName}` : ''}</option>)}
-                  </select>
-                  {isSmart && <p className="flex items-center gap-1 text-[9px] text-[#7BAF73] mt-1.5"><Check size={9} />Streaming-service clicks will be tracked per campaign.</p>}
-                </div>
-              )}
-            </div>
-          )}
-
-          <div role="button" tabIndex={0} onClick={() => setMode('create')} className={`${choiceCls(effectiveMode === 'create')} w-full`}>
-            <p className="flex items-center gap-1.5 text-xs text-[#F5F0E8] font-medium">
-              <Plus size={12} className="text-[#DA7756]" />Create a smart link
-              {!links.length && <span className="text-[8px] font-mono uppercase tracking-wider text-[#DA7756] border border-[#DA7756]/30 rounded px-1">Recommended</span>}
-            </p>
-            {!links.length && effectiveMode !== 'create' && (
-              <p className="text-[10px] text-[#9B9590] mt-0.5">{artist?.name || 'This artist'} doesn't have one yet.</p>
-            )}
-            {effectiveMode === 'create' && (
-              <div className="mt-2.5 space-y-1.5" onClick={e => e.stopPropagation()}>
-                <div className="flex gap-2">
-                  <input
-                    value={sourceUrl}
-                    onChange={e => setSourceUrl(e.target.value)}
-                    placeholder="Paste a Spotify, Apple Music or YouTube link to the release"
-                    className={`${inputCls} font-mono`}
-                    autoFocus
-                  />
-                  <button
-                    onClick={create}
-                    disabled={busy || !sourceUrl.trim()}
-                    className="flex items-center gap-1 px-3 py-2 text-[10px] font-medium bg-[#DA7756] text-[#0D0C0B] rounded hover:bg-[#DA7756]/90 disabled:bg-[#2C2B28] disabled:text-[#6B6560] cursor-pointer disabled:cursor-default shrink-0"
-                  >
-                    {busy ? <Loader2 size={10} className="animate-spin" /> : <Plus size={10} />}Create
-                  </button>
-                </div>
-                {error && <p className="text-[9px] text-[#C75F4F]">{error}</p>}
-                <p className="text-[9px] text-[#6B6560]">Prelude finds the release on every service. Edit it later on the <Link to="/app/links" className="text-[#DA7756] hover:underline">Links</Link> page.</p>
-              </div>
-            )}
+      <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">Where fans go when they tap the ad</label>
+      {!open ? (
+        <div className="flex items-center gap-2 bg-[#171614] border border-[#2C2B28] rounded px-3 py-2">
+          <Link2 size={12} className="text-[#DA7756] shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-xs text-[#F5F0E8] truncate">{current ? current.title : destination}</p>
+            <p className="text-[9px] text-[#6B6560] truncate">{current ? 'Every streaming service on one page' : 'Pasted link'}</p>
           </div>
-
-          <div role="button" tabIndex={0} onClick={() => { if (effectiveMode !== 'url') { setMode('url'); if (isSmart) onDestination(''); } }} className={`${choiceCls(effectiveMode === 'url')} w-full`}>
-            <p className="text-xs text-[#9B9590]">Use a plain URL</p>
-            {effectiveMode === 'url' && (
-              <div className="mt-2.5 space-y-1.5" onClick={e => e.stopPropagation()}>
-                <input value={destination || ''} onChange={e => onDestination(e.target.value)} placeholder="https://open.spotify.com/track/…" className={`${inputCls} font-mono`} autoFocus />
-                <p className="text-[9px] text-[#6B6560]">Clicks to a plain URL aren't tracked per streaming service.</p>
-              </div>
-            )}
-          </div>
+          <button onClick={() => setEditing(true)} className="text-[10px] text-[#DA7756] hover:underline cursor-pointer shrink-0">Change</button>
+        </div>
+      ) : (
+        <div className="space-y-1.5">
+          {ownLinks.map(l => (
+            <button key={l.slug} onClick={() => { onDestination(l.url); setEditing(false); }} className={`${choiceCls(l.url === destination)} w-full flex items-center gap-2 py-2`}>
+              <Link2 size={12} className="text-[#DA7756] shrink-0" />
+              <span className="text-xs text-[#F5F0E8] truncate">{l.title}</span>
+            </button>
+          ))}
+          <input
+            value={pasted}
+            onChange={e => { setPasted(e.target.value); if (isUrl(e.target.value) && e.nativeEvent.inputType === 'insertFromPaste') applyPasted(e.target.value); }}
+            onBlur={() => applyPasted(pasted)}
+            onKeyDown={e => { if (e.key === 'Enter') applyPasted(pasted); }}
+            placeholder={ownLinks.length ? 'Or paste a link to a different release' : 'Paste the Spotify, Apple Music or YouTube link to the release'}
+            className={`${inputCls} font-mono`}
+          />
         </div>
       )}
     </div>
@@ -145,7 +98,7 @@ export function GuidedLinkStep({ artist, smartLinks, destination, onDestination,
 
 // ─── What one platform's ad shows ───
 
-export function GuidedContentStep({ campaign, posts, artist, destinationLabel, recommendNew, onMode, onPost, onDraft, onOpenAccounts, onEditLink }) {
+export function GuidedContentStep({ campaign, posts, artist, recommendNew, smartLinks, destination, onDestination, onLinkCreated, onMode, onPost, onDraft, onOpenAccounts }) {
   const { platform, mode, draft } = campaign;
   const label = PLATFORM_LABELS[platform];
   const set = (patch) => onDraft(platform, patch);
@@ -164,7 +117,7 @@ export function GuidedContentStep({ campaign, posts, artist, destinationLabel, r
             New post
             {recommendNew && <span className="text-[8px] font-mono uppercase tracking-wider text-[#DA7756] border border-[#DA7756]/30 rounded px-1">Recommended</span>}
           </p>
-          <p className="text-[10px] text-[#9B9590] mt-0.5">{platform === 'meta' ? 'Upload images that send' : 'Upload a video that sends'} fans to your link</p>
+          <p className="text-[10px] text-[#9B9590] mt-0.5">{platform === 'meta' ? 'Upload images that link' : 'Upload a video that links'} to the release</p>
         </button>
       </div>
 
@@ -194,7 +147,7 @@ export function GuidedContentStep({ campaign, posts, artist, destinationLabel, r
           {recommendNew && (
             <p className="flex items-start gap-1.5 text-[10px] text-[#9B9590] mt-3">
               <Sparkles size={10} className="mt-0.5 shrink-0 text-[#DA7756]" />
-              A boost keeps the post's own link, so streaming clicks aren't tracked. A new post sends fans to your smart link.
+              A boosted post can't link anywhere. A new post can send fans straight to the release on every streaming service.
             </p>
           )}
         </>
@@ -220,11 +173,13 @@ export function GuidedContentStep({ campaign, posts, artist, destinationLabel, r
               required
             />
           )}
-          <p className="flex items-center gap-1.5 text-[10px] text-[#9B9590]">
-            <Link2 size={10} className="text-[#DA7756]" />
-            {destinationLabel ? <>Sends fans to {destinationLabel}.</> : <span className="text-[#D4A574]">No destination chosen.</span>}
-            <button onClick={onEditLink} className="text-[#DA7756] hover:underline cursor-pointer">Change</button>
-          </p>
+          <DestinationField
+            artist={artist}
+            smartLinks={smartLinks}
+            destination={destination}
+            onDestination={onDestination}
+            onLinkCreated={onLinkCreated}
+          />
         </div>
       )}
     </div>
