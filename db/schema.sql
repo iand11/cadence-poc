@@ -355,7 +355,7 @@ CREATE TABLE IF NOT EXISTS notifications (
   id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   user_id      text NOT NULL,
   type         text NOT NULL,          -- artist_added | artist_request_rejected
-  title        text NOT NULL,
+  title        text,
   body         text,
   data         jsonb,                  -- type-specific payload (slug, name, imageUrl, requestId)
   created_at   timestamptz NOT NULL DEFAULT now(),
@@ -567,6 +567,19 @@ CREATE TABLE IF NOT EXISTS ad_images (
   bytes        bytea NOT NULL,
   width        int,
   height       int,
+  created_at   timestamptz NOT NULL DEFAULT now()
+);
+
+-- Videos uploaded for new Meta ads (api/ad-videos, sent in chunks; meta-launch reads the bytes)
+CREATE TABLE IF NOT EXISTS ad_videos (
+  id           uuid PRIMARY KEY,
+  user_id      text NOT NULL,
+  name         text,
+  content_type text NOT NULL,
+  size         bigint NOT NULL,
+  bytes        bytea NOT NULL DEFAULT ''::bytea,
+  complete     boolean NOT NULL DEFAULT false,
+  meta_videos  jsonb NOT NULL DEFAULT '{}'::jsonb,  -- ad account → Meta video id (skip re-uploads)
   created_at   timestamptz NOT NULL DEFAULT now()
 );
 

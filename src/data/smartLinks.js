@@ -25,6 +25,9 @@ export const fetchPixels = () => request('/api/links?pixels=1');
 /** body: { sourceUrl, artistSlug?, artistName?, title?, imageUrl?, links?, pixelId?, fanCapture? } */
 export const createSmartLink = (body) => request('/api/links', { method: 'POST', body });
 
+/** A link's name for lists: its title, else the artist (titles are optional). */
+export const linkTitle = (l) => l?.title || l?.artistName || 'Untitled link';
+
 export const updateSmartLink = (slug, patch) =>
   request('/api/links', { method: 'PATCH', body: { slug, ...patch } });
 

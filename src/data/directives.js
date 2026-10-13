@@ -133,7 +133,7 @@ export function generateDirective(action, platform, options = {}) {
     artistImage: action?.artistImage || options.artistImage || null,
     platform: p,
     status: 'draft',
-    objective: template.objective || objective,
+    objective: options.objective || template.objective || objective,
     budget: { ...template.budget, ...(options.budget || {}) },
     schedule: { startDate, endDate, ...(options.schedule || {}) },
     audience: { ...template.audience, ...(options.audience || {}) },

@@ -113,6 +113,28 @@ export async function graph(method, path, token, params = {}) {
   return body;
 }
 
+/** POST a multipart form with one binary part (video uploads). Same error handling as `graph`. */
+export async function graphUpload(path, token, params, fileField, buffer, filename = 'upload.bin') {
+  const form = new FormData();
+  const all = { ...params, access_token: token, appsecret_proof: appSecretProof(token) };
+  for (const [k, v] of Object.entries(all)) {
+    if (v === undefined || v === null) continue;
+    form.set(k, typeof v === 'object' ? JSON.stringify(v) : String(v));
+  }
+  form.set(fileField, new Blob([buffer]), filename);
+  const res = await fetch(`${GRAPH}/${path.replace(/^\//, '')}`, { method: 'POST', body: form });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok || body.error) {
+    const e = body.error || {};
+    const err = new Error(e.error_user_msg || e.message || `Meta API error (${res.status})`);
+    err.status = res.status >= 500 ? 502 : 400;
+    err.meta = { code: e.code, subcode: e.error_subcode, type: e.type, fbtraceId: e.fbtrace_id };
+    if (e.code === 190) err.reconnect = true;
+    throw err;
+  }
+  return body;
+}
+
 /** Follow `paging.next` for list edges (capped so a huge business can't stall a request). */
 export async function graphList(path, token, params = {}, maxPages = 5) {
   const out = [];

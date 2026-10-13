@@ -193,6 +193,15 @@ export default function CampaignsPage() {
     setBuilderOpen(true);
   };
 
+  // Guided setup: everything was configured and confirmed in the wizard
+  const handleWizardConfirm = (confirmed) => {
+    for (const d of confirmed) createDirective(d);
+    setWizardOpen(false);
+    setWizardArtistSlug(null);
+    setWizardSuggestion(null);
+    setTab(confirmed.some(d => d.status === 'pending_approval') ? 'active' : 'drafts');
+  };
+
   const handleWizardLaunch = (directives) => {
     if (!directives || directives.length === 0) return;
     setLaunchQueue(directives);
@@ -462,6 +471,8 @@ export default function CampaignsPage() {
         onSelect={handleWizardSelect}
         onCustom={handleWizardCustom}
         onLaunch={handleWizardLaunch}
+        onConfirm={handleWizardConfirm}
+        onOpenAccounts={openAccounts}
         connectedPlatforms={connectedPlatforms}
         initialArtistSlug={wizardArtistSlug}
         initialSuggestion={wizardSuggestion}
