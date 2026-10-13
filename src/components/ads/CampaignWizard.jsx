@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   X, Search, Music, ArrowLeft, ArrowRight,
@@ -103,6 +103,32 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, on
   const [returnTo, setReturnTo] = useState(null);
   const returnToConfirm = returnTo === 'confirm';
 
+  // Everything the guided steps show is fetched as soon as the artist is picked, so no step waits on it
+  const postsRef = useRef(null);
+  const linksRequestRef = useRef(0);
+  const pickArtist = (artist) => {
+    setSelectedArtist(artist);
+    if (!artist) return;
+    const slug = artist.slug;
+    postsRef.current = Promise.all(ALL_PLATFORMS.map(p =>
+      fetchContentFeed({ artist: slug, platform: POST_SOURCE[p], sort: 'engagement', limit: 3 })
+        .then(r => [p, r.items || []])
+        .catch(() => [p, []])
+    )).then(Object.fromEntries);
+    const request = ++linksRequestRef.current;
+    setSmartLinks(null);
+    setDestination('');
+    fetchSmartLinks()
+      .then(({ links = [] }) => {
+        if (request !== linksRequestRef.current) return;
+        setSmartLinks(links);
+        // Default to the artist's own link (newest first from the API)
+        const own = links.find(l => l.artistSlug === slug);
+        if (own) setDestination(own.url);
+      })
+      .catch(() => { if (request === linksRequestRef.current) setSmartLinks([]); });
+  };
+
   // Plan step state
   const [totalBudget, setTotalBudgetRaw] = useState(1000);
   const [enabledPlatforms, setEnabledPlatformsRaw] = useState(ALL_PLATFORMS);
@@ -117,7 +143,7 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, on
     if (isOpen && initialArtistSlug) {
       // Resolves from the tracked roster/cache, else the catalog
       getArtistAsync(initialArtistSlug)
-        .then((artist) => { if (artist) setSelectedArtist(artist); })
+        .then((artist) => { if (artist) pickArtist(artist); })
         .catch(() => {});
       if (initialSuggestion) {
         setSelectedSuggestion(initialSuggestion);
@@ -218,7 +244,7 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, on
   // --- Handlers ---
 
   const handleSelectArtist = (artist) => {
-    setSelectedArtist(artist);
+    pickArtist(artist);
     setArtistSearch('');
   };
 
@@ -261,26 +287,12 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, on
       setQuestionIndex(i => i + 1);
       return;
     }
-    // Last answer: find the posts worth boosting, then build every campaign
+    // Last answer: build every campaign from the posts fetched when the artist was picked
     setGenerating(true);
     setGenerateError(null);
     try {
-      const platforms = answers.platforms?.length ? answers.platforms : ALL_PLATFORMS;
-      const feeds = await Promise.all(platforms.map(p =>
-        fetchContentFeed({ artist: selectedArtist.slug, platform: POST_SOURCE[p], sort: 'engagement', limit: 3 })
-          .then(r => [p, r.items || []])
-          .catch(() => [p, []])
-      ));
-      const posts = Object.fromEntries(feeds);
+      const posts = (await postsRef.current) || {};
       const next = generateAssistedPlan(selectedArtist, answers, posts);
-      fetchSmartLinks()
-        .then(({ links = [] }) => {
-          setSmartLinks(links);
-          // Default to the artist's own link (newest first from the API)
-          const own = links.find(l => l.artistSlug === selectedArtist.slug);
-          if (own) setDestination(own.url);
-        })
-        .catch(() => setSmartLinks([]));
       setPlan(next);
       setPlanCampaigns(next.campaigns);
       setPlanPosts(posts);
@@ -482,6 +494,7 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, on
     setConfirmErrors({});
     setSmartLinks(null);
     setDestination('');
+    postsRef.current = null;
     setContentIndex(0);
     setReturnTo(null);
     onClose();
@@ -679,11 +692,7 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, on
               <>
                 {generateError && <span className="text-[10px] text-[#C75F4F]">{generateError}</span>}
                 <button onClick={handleNextQuestion} disabled={!isAnswered(currentQuestion, answers) || generating} className={PRIMARY_BTN}>
-                  {generating ? (
-                    <><Loader2 size={12} className="animate-spin" />Loading…</>
-                  ) : (
-                    <>Next<ArrowRight size={12} /></>
-                  )}
+                  Next<ArrowRight size={12} />
                 </button>
               </>
             )}

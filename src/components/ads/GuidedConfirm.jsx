@@ -76,9 +76,7 @@ export function GuidedLinkStep({ artist, smartLinks, destination, onDestination,
         title="Where should fans go?"
         hint="A smart link is one page with every streaming service. Prelude tracks clicks to each service per campaign."
       />
-      {smartLinks === null ? (
-        <p className="flex items-center gap-1.5 text-[10px] text-[#6B6560]"><Loader2 size={10} className="animate-spin" />Loading your links…</p>
-      ) : (
+      {smartLinks !== null && (
         <div className="space-y-2">
           {links.length > 0 && (
             <div role="button" tabIndex={0} onClick={() => setMode('pick')} className={`${choiceCls(effectiveMode === 'pick')} w-full`}>
