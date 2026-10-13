@@ -446,3 +446,40 @@ CREATE TABLE IF NOT EXISTS user_data (
   updated_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (user_id, key)
 );
+
+-- ---------------------------------------------------------------------------
+-- Playlist crawl indexes
+-- playlists / playlist_entries / playlist_snapshots are created and filled by
+-- the external music-scrapers crawler; these are the indexes the playlist API
+-- (api/playlists/*) depends on. Guarded so the schema still applies before
+-- the crawler has created its tables.
+--  * artist_ids GIN: roster/artist scoping (`artist_ids && $ids`) and the
+--    "similar playlists" overlap — without it every request unnests every
+--    entry row.
+--  * (playlist_id, …): tracklist, adds/removes and first-crawl lookups for
+--    one playlist.
+-- Note: CREATE INDEX blocks crawler writes to the table while it builds.
+-- ---------------------------------------------------------------------------
+DO $$
+BEGIN
+  IF to_regclass('public.playlist_entries') IS NOT NULL THEN
+    CREATE INDEX IF NOT EXISTS playlist_entries_artist_ids_idx
+      ON playlist_entries USING gin (artist_ids);
+    CREATE INDEX IF NOT EXISTS playlist_entries_current_idx
+      ON playlist_entries (playlist_id, position) WHERE removed_at IS NULL;
+    CREATE INDEX IF NOT EXISTS playlist_entries_first_seen_idx
+      ON playlist_entries (playlist_id, first_seen_at);
+    CREATE INDEX IF NOT EXISTS playlist_entries_removed_idx
+      ON playlist_entries (playlist_id, removed_at) WHERE removed_at IS NOT NULL;
+    CREATE INDEX IF NOT EXISTS playlist_entries_track_idx
+      ON playlist_entries (track_id);
+  END IF;
+  IF to_regclass('public.playlists') IS NOT NULL THEN
+    CREATE INDEX IF NOT EXISTS playlists_active_followers_idx
+      ON playlists (followers DESC NULLS LAST) WHERE active;
+  END IF;
+  IF to_regclass('public.playlist_snapshots') IS NOT NULL THEN
+    CREATE INDEX IF NOT EXISTS playlist_snapshots_playlist_day_idx
+      ON playlist_snapshots (playlist_id, captured_on);
+  END IF;
+END $$;

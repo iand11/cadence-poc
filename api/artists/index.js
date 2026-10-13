@@ -15,6 +15,7 @@
 // Response: { artists: [<allArtists entry shape>], total, page, perPage }
 import { query } from '../lib/db.js';
 import { artistRowToSummary } from '../lib/artist-shape.js';
+import { cached } from '../lib/cache.js';
 
 const SORTS = {
   rank: 'sc.rank ASC NULLS LAST',
@@ -76,22 +77,39 @@ export default async function handler(req, res) {
   const page = Math.max(Number(p.get('page')) || 1, 1);
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
+  // The count only needs the stats join when a listeners filter uses it.
+  const countJoin = where.some((w) => w.includes('sc.'))
+    ? 'LEFT JOIN artist_stats_current sc ON sc.artist_id = a.id'
+    : '';
+  const sortKey = flipped.split(' ')[0];
+
   try {
-    const countRows = await query(
-      `SELECT count(*)::bigint AS n FROM artists a
-       LEFT JOIN artist_stats_current sc ON sc.artist_id = a.id ${whereSql}`,
-      params
-    );
-    const rows = await query(
-      `SELECT a.*, sc.rank, sc.score, sc.stats, sc.where_people_listen, sc.as_of AS stats_as_of
-       FROM artists a
-       LEFT JOIN artist_stats_current sc ON sc.artist_id = a.id
-       ${whereSql}
-       ORDER BY ${flipped}, a.id ASC
-       LIMIT ${perPage} OFFSET ${(page - 1) * perPage}`,
-      params
-    );
-    res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
+    const [countRows, rows] = await Promise.all([
+      // Totals barely move between pages / requests — cache them briefly.
+      cached(`artists:count:${whereSql}:${JSON.stringify(params)}`, 60_000, () => query(
+        `SELECT count(*)::bigint AS n FROM artists a ${countJoin} ${whereSql}`,
+        params
+      )),
+      // Late materialization: sort + page over narrow (id, sort key) rows, then
+      // join the wide profile/stats columns for just this page.
+      query(
+        `WITH page AS (
+           SELECT a.id, ${sortKey} AS sort_key
+           FROM artists a
+           LEFT JOIN artist_stats_current sc ON sc.artist_id = a.id
+           ${whereSql}
+           ORDER BY ${flipped}, a.id ASC
+           LIMIT ${perPage} OFFSET ${(page - 1) * perPage}
+         )
+         SELECT a.*, sc.rank, sc.score, sc.stats, sc.as_of AS stats_as_of
+         FROM page
+         JOIN artists a ON a.id = page.id
+         LEFT JOIN artist_stats_current sc ON sc.artist_id = a.id
+         ORDER BY ${flipped.replace(sortKey, 'page.sort_key')}, a.id ASC`,
+        params
+      ),
+    ]);
+    res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=600');
     return res.status(200).json({
       artists: rows.map(artistRowToSummary),
       total: Number(countRows[0]?.n || 0),
