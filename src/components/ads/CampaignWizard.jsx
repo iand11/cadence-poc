@@ -11,14 +11,14 @@ import ChatInterface from '../ai/ChatInterface';
 import { searchArtists, getArtistAsync } from '../../data/artists';
 import { useFollowedArtists } from '../../hooks/useFollowedArtists';
 import { generateCampaignSuggestions } from '../../utils/campaignSuggestions';
-import { generateDirective, PLATFORM_LABELS, OBJECTIVE_LABELS } from '../../data/directives';
+import { generateDirective, PLATFORM_LABELS, OBJECTIVE_LABELS, CAMPAIGN_PLATFORMS, isCampaignPlatform } from '../../data/directives';
 import { recommendBudgetAllocation } from '../../utils/budgetAllocation';
 import { forecastMultiPlatform } from '../../utils/campaignForecaster';
 import { PLATFORM_COLORS } from '../../constants/colors';
 import { formatNumber, formatDollar } from '../../utils/formatters';
 
 
-const ALL_PLATFORMS = ['spotify', 'meta', 'google', 'youtube', 'tiktok', 'x'];
+const ALL_PLATFORMS = CAMPAIGN_PLATFORMS;
 
 const PLATFORM_COLOR_MAP = {
   spotify: PLATFORM_COLORS.spotify,
@@ -286,13 +286,13 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, in
       // Determine primary platform from the AI's allocation
       const alloc = result.recommendation?.allocation || {};
       const primaryPlatform = Object.entries(alloc)
-        .sort(([, a], [, b]) => b - a)[0]?.[0] || 'spotify';
+        .filter(([p]) => isCampaignPlatform(p))
+        .sort(([, a], [, b]) => b - a)[0]?.[0] || 'meta';
 
       // Map the rich response into the suggestion shape Step 3 expects
       const rec = result.recommendation || {};
       const analysis = result.artistAnalysis || {};
-      const objective = goalText.toLowerCase().includes('stream') ? 'streams'
-        : goalText.toLowerCase().includes('engage') ? 'engagement'
+      const objective = goalText.toLowerCase().includes('engage') ? 'engagement'
         : goalText.toLowerCase().includes('convert') ? 'conversions'
         : 'awareness';
 
@@ -1236,7 +1236,7 @@ function StepCustomGoal({ selectedArtist, goalText, setGoalText, totalBudget, se
       <div className="mt-4 space-y-2">
         <p className="text-[9px] font-mono uppercase tracking-wider text-[#6B6560]">Example goals</p>
         {[
-          'Increase Spotify streams by targeting playlist curators and similar artist audiences',
+          'Drive streams of the new single with Instagram and TikTok ads pointing at a smart link',
           'Build Instagram following with video ad campaigns for upcoming album release',
           'Run a TikTok awareness campaign to reach new fans in Europe',
         ].map((example, i) => (

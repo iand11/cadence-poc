@@ -1,6 +1,30 @@
 {
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/$1" },
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
+    {
+      "source": "/l/:slug/:view",
+      "destination": "/api/l?slug=:slug&view=:view"
+    },
+    {
+      "source": "/l/:slug",
+      "destination": "/api/l?slug=:slug"
+    },
+    {
+      "source": "/go/:slug/:service",
+      "destination": "/api/go?slug=:slug&service=:service"
+    },
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/spotify-plays",
+      "schedule": "0 7 * * *"
+    }
   ]
 }

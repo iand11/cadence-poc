@@ -21,7 +21,9 @@ export default function KpiCard({ title, value, delta, icon: Icon, index = 0, pr
         {Icon && <Icon className="w-4 h-4" style={{ color: c?.textMuted || '#6B6560' }} />}
       </div>
       <div className="font-mono text-2xl font-light tracking-tight" style={{ color: c?.textPrimary || '#F5F0E8', fontVariantNumeric: 'tabular-nums' }}>
-        <AnimatedNumber value={value} prefix={prefix} suffix={suffix} />
+        {typeof value === 'string' && Number.isNaN(Number(value))
+          ? `${prefix}${value}${suffix}` // text values (e.g. a platform name) don't animate
+          : <AnimatedNumber value={value} prefix={prefix} suffix={suffix} />}
       </div>
       {delta !== undefined && (
         <div className="flex items-center gap-1.5 mt-2">

@@ -32,10 +32,11 @@ export default function DirectiveCard({
   const isExecuting = directive.status === 'executing';
   const isActive = directive.status === 'active';
   const isFailed = directive.status === 'failed';
+  const isPaused = directive.status === 'paused';
   const isClickable = !!onClick;
 
   const metrics = useMemo(() => {
-    if (isActive || directive.status === 'completed') {
+    if ((isActive || directive.status === 'completed') && !directive.platformCampaignId) {
       return generateCampaignMetrics(directive);
     }
     return null;
@@ -138,12 +139,16 @@ export default function DirectiveCard({
           </div>
         )}
 
+        {isFailed && directive.executionError && (
+          <p className="text-[10px] text-[#C75F4F] mb-3 line-clamp-3">{directive.executionError}</p>
+        )}
+
         {/* Actions */}
         <div className="flex items-center gap-2 pt-2 border-t border-[#2C2B28]">
           {(isDraft || isPending || isApproved) && (
             <>
               <button
-                onClick={() => onExecute?.(directive.id)}
+                onClick={(e) => { e.stopPropagation(); onExecute?.(directive.id); }}
                 className="flex items-center gap-1.5 text-[10px] font-medium text-[#0D0C0B] bg-[#7BAF73] hover:bg-[#7BAF73]/90 rounded px-3 py-1.5 transition-colors cursor-pointer"
               >
                 <Zap size={10} />
@@ -168,6 +173,12 @@ export default function DirectiveCard({
             <span className="flex items-center gap-1.5 text-[10px] font-mono text-[#DA7756]">
               <Play size={10} className="animate-pulse" />
               Executing...
+            </span>
+          )}
+          {isPaused && (
+            <span className="flex items-center gap-1.5 text-[10px] font-mono text-[#D4A574]">
+              <Clock size={10} />
+              Created on Meta, paused. Go live from details.
             </span>
           )}
           {isFailed && (

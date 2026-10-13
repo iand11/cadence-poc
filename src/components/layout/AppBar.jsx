@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router';
-import { Search, FileText, LayoutDashboard, Music, Star, ListMusic, Users, ChevronDown, Sheet, ListChecks, Megaphone, LogOut } from 'lucide-react';
+import { Search, FileText, LayoutDashboard, Music, Star, ListMusic, Users, ChevronDown, Sheet, ListChecks, Megaphone, Link2, LogOut } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { searchArtists } from '../../data/artists';
@@ -225,6 +225,17 @@ export default function AppBar() {
             >
               <Megaphone size={14} />
               <span className="hidden md:inline">Campaigns</span>
+            </Link>
+            <Link
+              to="/app/links"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs transition-colors ${
+                location.pathname.startsWith('/app/links')
+                  ? 'text-[#F5F0E8] bg-[#171614]'
+                  : 'text-[#9B9590] hover:text-[#F5F0E8]'
+              }`}
+            >
+              <Link2 size={14} />
+              <span className="hidden md:inline">Links</span>
             </Link>
             <Link
               to="/app/sheets"

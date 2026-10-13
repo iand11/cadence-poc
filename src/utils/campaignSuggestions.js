@@ -365,6 +365,15 @@ function extractSocialDataPoints(artist, weakPlatformName) {
   return points;
 }
 
+// Campaigns run on Instagram, TikTok and YouTube only. Insights that point at other
+// platforms become the closest campaign there: streaming goals turn into Instagram
+// ads that send fans to the release (through a smart link).
+const CAMPAIGN_REMAP = {
+  spotify: (c) => ({ platform: 'meta', objective: c.objective === 'streams' ? 'conversions' : c.objective }),
+  google: () => ({ platform: 'youtube', objective: 'awareness' }),
+  x: (c) => ({ platform: 'tiktok', objective: c.objective }),
+};
+
 export function generateCampaignSuggestions(artist) {
   if (!artist) return [];
 
@@ -374,8 +383,9 @@ export function generateCampaignSuggestions(artist) {
 
   for (const [dataType, items] of Object.entries(insights)) {
     for (const insight of items) {
-      const campaign = mapInsightToCampaign(insight, dataType, artist);
-      if (!campaign) continue;
+      const mapped = mapInsightToCampaign(insight, dataType, artist);
+      if (!mapped) continue;
+      const campaign = { ...mapped, ...CAMPAIGN_REMAP[mapped.platform]?.(mapped) };
 
       // Verify the platform supports the objective
       const platformObjectives = PLATFORM_OBJECTIVES[campaign.platform];

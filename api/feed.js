@@ -2,7 +2,7 @@
 // Mirrors the response shape of api.getContentFeed() in src/data/api.js:
 //   { items: [...], artistAverages: { [artistId]: { [platform]: { [type]: {views, engagement, count} } } }, total }
 //
-// Query params: platform, type (posts|video), artist (slug), artists (comma slugs),
+// Query params: platform (or platforms, comma list), type (posts|video), artist (slug), artists (comma slugs),
 //               sort (recent|engagement), limit, offset
 import { query } from './lib/db.js';
 
@@ -23,6 +23,10 @@ export default async function handler(req, res) {
   };
 
   if (p.get('platform')) add('sp.platform = ?', p.get('platform'));
+  else if (p.get('platforms')) {
+    params.push(p.get('platforms').split(',').map((s) => s.trim()).filter(Boolean));
+    where.push(`sp.platform = ANY($${params.length})`);
+  }
   if (p.get('type')) add('sp.content_type = ?', p.get('type'));
   if (p.get('artist')) add('a.slug = ?', p.get('artist'));
   else if (p.get('artists')) {

@@ -191,8 +191,10 @@ export function generateCampaignMetrics(directive) {
  * Only includes active and completed campaigns.
  */
 export function aggregateCampaignMetrics(directives) {
+  // Campaigns running on a real ad platform (platformCampaignId) report their own
+  // numbers on the detail page and are never mixed into simulated totals.
   const eligible = directives.filter(d =>
-    ['active', 'completed', 'executing'].includes(d.status)
+    ['active', 'completed', 'executing'].includes(d.status) && !d.platformCampaignId
   );
 
   if (eligible.length === 0) {

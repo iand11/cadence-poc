@@ -66,20 +66,14 @@ You must respond with ONLY a valid JSON object (no markdown, no backticks). The 
     "strategicApproach": "One sentence describing the overall strategy",
     "rationale": "3-4 sentences explaining why this approach based on artist metrics",
     "allocation": {
-      "spotify": <0-100>,
       "meta": <0-100>,
-      "google": <0-100>,
       "youtube": <0-100>,
-      "tiktok": <0-100>,
-      "x": <0-100>
+      "tiktok": <0-100>
     },
     "tactics": {
-      "spotify": ["tactic1", "tactic2"],
       "meta": ["tactic1", "tactic2"],
-      "google": ["tactic1", "tactic2"],
       "youtube": ["tactic1", "tactic2"],
-      "tiktok": ["tactic1", "tactic2"],
-      "x": ["tactic1", "tactic2"]
+      "tiktok": ["tactic1", "tactic2"]
     },
     "messaging": "Core message/positioning for this campaign",
     "creativeGuidance": "Description of creative approach (tone, format, themes)"
@@ -88,13 +82,13 @@ You must respond with ONLY a valid JSON object (no markdown, no backticks). The 
     {
       "name": "Aggressive Growth",
       "description": "High-risk, high-reward allocation",
-      "allocation": { "spotify": 0, "meta": 0, "google": 0, "youtube": 0, "tiktok": 0, "x": 0 },
+      "allocation": { "meta": 0, "youtube": 0, "tiktok": 0 },
       "expectedOutcome": "Description of likely outcome and best-case ROI"
     },
     {
       "name": "Conservative",
       "description": "Low-risk, steady-growth allocation",
-      "allocation": { "spotify": 0, "meta": 0, "google": 0, "youtube": 0, "tiktok": 0, "x": 0 },
+      "allocation": { "meta": 0, "youtube": 0, "tiktok": 0 },
       "expectedOutcome": "Description of likely outcome and best-case ROI"
     }
   ],
@@ -121,8 +115,7 @@ You must respond with ONLY a valid JSON object (no markdown, no backticks). The 
 Rules:
 - Provide deep, nuanced analysis not surface-level recommendations
 - Reference actual artist metrics in your rationale
-- All 6 platform percentages (spotify, meta, google, youtube, tiktok, x) must sum to 100
-- "google" is for Google Search ads; "youtube" is for YouTube Video ads — allocate them separately
+- Campaigns run on three platforms only: "meta" (Instagram ads), "youtube" (YouTube video ads) and "tiktok". Their percentages must sum to 100; do not recommend any other ad platform
 - Variants should be meaningfully different (not just 5% shifts)
 - Be specific about platform tactics - not generic advice
 - Consider artist's existing strengths and how to leverage them
@@ -205,22 +198,16 @@ Provide comprehensive strategic analysis and multiple allocation options.`;
 
     // Calculate dollar allocation for primary recommendation
     const allocation = {
-      spotify: Math.round((analysis.recommendation.allocation.spotify / 100) * budget),
-      meta: Math.round((analysis.recommendation.allocation.meta / 100) * budget),
-      google: Math.round((analysis.recommendation.allocation.google / 100) * budget),
+      meta: Math.round(((analysis.recommendation.allocation.meta || 0) / 100) * budget),
       youtube: Math.round(((analysis.recommendation.allocation.youtube || 0) / 100) * budget),
-      tiktok: Math.round((analysis.recommendation.allocation.tiktok / 100) * budget),
-      x: Math.round((analysis.recommendation.allocation.x / 100) * budget),
+      tiktok: Math.round(((analysis.recommendation.allocation.tiktok || 0) / 100) * budget),
     };
 
     // Platform benchmarks
     const benchmarks = {
-      spotify: { cpm: 3.0, ctr: 0.015, cpr: 1.21, unit: 'streams' },
       meta: { cpm: 5.5, ctr: 0.012, cpr: 7.99, unit: 'followers' },
-      google: { cpm: 8.0, ctr: 0.008, cpr: 4.45, unit: 'clicks' },
       youtube: { cpm: 6.0, ctr: 0.010, cpr: 3.50, unit: 'video views' },
       tiktok: { cpm: 4.2, ctr: 0.022, cpr: 1.27, unit: 'followers' },
-      x: { cpm: 6.5, ctr: 0.008, cpr: 5.50, unit: 'followers' },
     };
 
     // Calculate expected metrics
@@ -260,12 +247,9 @@ Provide comprehensive strategic analysis and multiple allocation options.`;
     // Process variants with budget calculations
     const variantsWithMetrics = analysis.variants.map((variant) => {
       const variantAllocation = {
-        spotify: Math.round((variant.allocation.spotify / 100) * budget),
-        meta: Math.round((variant.allocation.meta / 100) * budget),
-        google: Math.round((variant.allocation.google / 100) * budget),
-        youtube: Math.round(((variant.allocation.youtube || 0) / 100) * budget),
-        tiktok: Math.round((variant.allocation.tiktok / 100) * budget),
-        x: Math.round((variant.allocation.x / 100) * budget),
+        meta: Math.round(((variant.allocation?.meta || 0) / 100) * budget),
+        youtube: Math.round(((variant.allocation?.youtube || 0) / 100) * budget),
+        tiktok: Math.round(((variant.allocation?.tiktok || 0) / 100) * budget),
       };
 
       let variantImpressions = 0;

@@ -1,12 +1,18 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router';
 import { motion } from 'motion/react';
-import { X, Search, Music, Loader2, Heart, Eye, CheckCircle, Play, Plus, ChevronDown, Image, Link2, Upload, FileAudio, FileVideo, Trash2 } from 'lucide-react';
+import { X, Check, Search, Music, Loader2, Heart, Eye, CheckCircle, Play, Plus, ChevronDown, Link2, Upload, FileVideo, Trash2, AlertTriangle } from 'lucide-react';
+import AdImagesField from './AdImagesField';
+import AdPreview from './AdPreview';
 import { PLATFORM_OBJECTIVES, PLATFORM_CONSTRAINTS, PLATFORM_LABELS, CREATIVE_TYPES } from '../../data/directives';
 import BudgetAllocator from './BudgetAllocator';
 import { PLATFORM_COLORS } from '../../constants/colors';
 import { searchArtists, getArtist, getArtistAsync } from '../../data/artists';
 import { api } from '../../data/api';
+import { checkMetaLaunch, isMetaDirective, ACCOUNT_FIX_CODES } from '../../data/metaAds';
+import { useMetaConnection } from '../../hooks/useMetaConnection';
+import { useAsync } from '../../hooks/useAsync';
+import { fetchSmartLinks } from '../../data/smartLinks';
 
 const PLATFORM_COLOR_MAP = {
   spotify: PLATFORM_COLORS.spotify,
@@ -31,12 +37,9 @@ const LOCATION_OPTIONS = [
 ];
 
 const PLATFORM_CONTENT_CONFIG = {
-  spotify: { label: 'Select a Track or Album', source: 'artist' },
   meta: { label: 'Boost an Instagram Post', source: 'content-feed', feedPlatform: 'instagram' },
-  google: { label: 'Create a Search Ad', source: 'manual' },
   youtube: { label: 'Select a YouTube Video', source: 'content-feed', feedPlatform: 'youtube' },
   tiktok: { label: 'Boost a TikTok Video', source: 'content-feed', feedPlatform: 'tiktok' },
-  x: { label: 'Promote a Post', source: 'content-feed', feedPlatform: 'twitter' },
 };
 
 function fileToBase64(file) {
@@ -82,11 +85,127 @@ function FileUploadField({ label, accept, file, onChange, onClear, icon: Icon = 
   );
 }
 
-export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, onAcceptAllocation, initialData, connectedPlatforms, launchMode, launchProgress }) {
+/** New Meta ads run as one of the Instagram accounts shared with Prelude. */
+function MetaRunAsPicker({ value, onChange, onOpenAccounts }) {
+  const { connection, refresh } = useMetaConnection();
+  useEffect(() => { refresh(true); }, [refresh]);
+
+  const accounts = connection?.instagramAccounts;
+  const accountMap = connection?.selection?.accountMap || {};
+  const selectCls = 'w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] outline-none';
+
+  return (
+    <div>
+      <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">Run as (Instagram account)</label>
+      {connection && !connection.connected ? (
+        <p className="text-[10px] text-[#D4A574]">
+          Connect Meta to choose an account.{' '}
+          {onOpenAccounts && (
+            <button onClick={() => onOpenAccounts()} className="text-[#DA7756] hover:underline cursor-pointer">Open Ad Accounts</button>
+          )}
+        </p>
+      ) : !accounts ? (
+        <p className="flex items-center gap-1.5 text-[10px] text-[#6B6560]"><Loader2 size={10} className="animate-spin" /> Loading accounts…</p>
+      ) : (
+        <select value={value || ''} onChange={e => onChange(e.target.value || null)} className={selectCls}>
+          <option value="">Choose an account…</option>
+          {accounts.map(a => (
+            <option key={a.igUserId} value={a.igUserId}>
+              @{a.username}{accountMap[a.igUserId] ? ` · ${accountMap[a.igUserId].adAccountName}` : ' · no ad account assigned'}
+            </option>
+          ))}
+        </select>
+      )}
+    </div>
+  );
+}
+
+/** Pick one of the user's smart links as a Meta ad's destination (tracks streaming clicks). */
+function SmartLinkPicker({ value, onChange, artistSlug }) {
+  const { data } = useAsync(() => fetchSmartLinks().catch(() => ({ links: [] })), []);
+  const links = data?.links || [];
+  if (!links.length) {
+    return <p className="text-[9px] text-[#6B6560] mt-1">Tip: create a smart link on the Links page to track clicks through to each streaming service.</p>;
+  }
+  // The artist's own links first
+  const sorted = [...links].sort((a, b) => (b.artistSlug === artistSlug) - (a.artistSlug === artistSlug));
+  const selected = links.find(l => l.url === value);
+  return (
+    <div className="mt-1.5">
+      <select
+        value={selected?.slug || ''}
+        onChange={e => { const l = links.find(x => x.slug === e.target.value); if (l) onChange(l.url); }}
+        className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-[10px] text-[#9B9590] outline-none"
+      >
+        <option value="">Use a smart link…</option>
+        {sorted.map(l => <option key={l.slug} value={l.slug}>{l.title}{l.artistName ? ` · ${l.artistName}` : ''}</option>)}
+      </select>
+      {selected && <p className="text-[9px] text-[#7BAF73] mt-1">Streaming-service clicks from this ad will be tracked.</p>}
+    </div>
+  );
+}
+
+const STEPS = ['Setup', 'Audience', 'Creative', 'Review'];
+
+function StepBar({ step, maxStep, onGo }) {
+  return (
+    <div className="flex items-center gap-1 mt-2">
+      {STEPS.map((label, i) => {
+        const reachable = i <= maxStep;
+        return (
+          <div key={label} className="flex items-center gap-1">
+            {i > 0 && <span className={`w-4 h-px ${i <= maxStep ? 'bg-[#DA7756]/50' : 'bg-[#2C2B28]'}`} />}
+            <button
+              onClick={() => reachable && onGo(i)}
+              disabled={!reachable}
+              className={`flex items-center gap-1.5 text-[10px] font-mono px-2 py-0.5 rounded transition-colors ${
+                i === step ? 'bg-[#DA7756]/15 text-[#F5F0E8]'
+                  : reachable ? 'text-[#9B9590] hover:text-[#F5F0E8] cursor-pointer' : 'text-[#4A4743] cursor-default'
+              }`}
+            >
+              <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] ${
+                i < step ? 'bg-[#7BAF73]/20 text-[#7BAF73]' : i === step ? 'bg-[#DA7756] text-[#0D0C0B]' : 'bg-[#2C2B28] text-[#6B6560]'
+              }`}>
+                {i < step ? <Check size={9} /> : i + 1}
+              </span>
+              {label}
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function ReviewRow({ label, children, onEdit }) {
+  return (
+    <div className="flex items-start gap-3 py-2 border-b border-[#2C2B28] last:border-0">
+      <p className="w-24 shrink-0 text-[10px] font-mono text-[#6B6560] pt-0.5">{label}</p>
+      <div className="flex-1 min-w-0 text-xs text-[#F5F0E8]">{children}</div>
+      {onEdit && (
+        <button onClick={onEdit} className="text-[10px] font-mono text-[#9B9590] hover:text-[#DA7756] cursor-pointer shrink-0">Edit</button>
+      )}
+    </div>
+  );
+}
+
+export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, onAcceptAllocation, initialData, connectedPlatforms, launchMode, launchProgress, onOpenAccounts }) {
+  // Meta ads can't be submitted until Meta + the artist's ad account are ready
+  const [metaGate, setMetaGate] = useState(null); // null | { checking } | { message, fixable }
   const navigate = useNavigate();
   const editing = !!initialData?.id;
+  // Step-by-step flow; reopen at the first step whenever a different campaign is loaded
+  const [step, setStep] = useState(0);
+  const [maxStep, setMaxStep] = useState(0);
+  const [stepFor, setStepFor] = useState(initialData);
+  if (stepFor !== initialData) {
+    setStepFor(initialData);
+    setStep(0);
+    setMaxStep(0);
+  }
+  const goTo = (i) => { setStep(i); setMaxStep(m => Math.max(m, i)); };
 
-  const [platform, setPlatform] = useState(initialData?.platform || connectedPlatforms?.[0] || 'spotify');
+  const [platform, setPlatform] = useState(initialData?.platform || connectedPlatforms?.[0] || 'meta');
   const [objective, setObjective] = useState(initialData?.objective || '');
   const [budgetAmount, setBudgetAmount] = useState(initialData?.budget?.amount || 500);
   const [budgetPeriod, setBudgetPeriod] = useState(initialData?.budget?.period || 'lifetime');
@@ -104,24 +223,21 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
   const [postId, setPostId] = useState(initialData?.creative?.postId || null);
   const [postSource, setPostSource] = useState(initialData?.creative?.postSource || null);
   const [ownerPlatformId, setOwnerPlatformId] = useState(initialData?.creative?.igUserId || initialData?.creative?.pageId || null);
+  // Instagram account a new (non-boost) Meta ad runs as
+  const [runAsIgUserId, setRunAsIgUserId] = useState(initialData?.creative?.postId ? null : initialData?.creative?.igUserId || null);
   const [rationale, setRationale] = useState(initialData?.rationale || '');
 
   // Generalized content picker state
   const [contentItems, setContentItems] = useState([]);
   const [contentLoading, setContentLoading] = useState(false);
   const [contentLoadingMore, setContentLoadingMore] = useState(false);
-  const [contentTab, setContentTab] = useState('track'); // Spotify: 'track' | 'album'
   const [selectedContentId, setSelectedContentId] = useState(null);
   const [contentTotal, setContentTotal] = useState(0);
   const [contentOffset, setContentOffset] = useState(0);
   const [contentMode, setContentMode] = useState('select'); // 'select' | 'create'
-  const [imageUrl, setImageUrl] = useState(initialData?.creative?.imageUrl || '');
-
-  // Spotify ad creative files
-  const [audioFile, setAudioFile] = useState(null);
-  const [imageFile, setImageFile] = useState(null);
-  const [logoFile, setLogoFile] = useState(null);
-  const [advertiserName, setAdvertiserName] = useState(initialData?.creative?.advertiserName || '');
+  // New-ad images, in the order they appear (2+ make a carousel)
+  const [images, setImages] = useState(() => initialData?.creative?.images
+    || (initialData?.creative?.imageUrl && !initialData?.creative?.postId ? [initialData.creative.imageUrl] : []));
 
   // YouTube ad creative files
   const [videoFile, setVideoFile] = useState(null);
@@ -229,55 +345,7 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
       }
     };
 
-    if (config.source === 'manual') {
-      // Google Search: no content to fetch, go straight to create mode
-      setContentItems([]);
-      setContentTotal(0);
-      setContentLoading(false);
-      setContentMode('create');
-      return;
-    }
-
-    if (config.source === 'artist') {
-      // Spotify: fetch tracks and albums
-      api.getArtist(artistSlug)
-        .then(data => {
-          if (cancelled) return;
-          const items = [];
-          for (const t of (data.tracks || [])) {
-            items.push({
-              _type: 'track',
-              id: `track-${t.id}`,
-              platformId: t.spotifyTrackId,
-              title: t.name,
-              subtitle: t.albumName || '',
-              thumbnailUrl: t.imageUrl,
-              metric: t.streams || 0,
-              metricLabel: 'streams',
-              permalink: t.spotifyTrackId ? `https://open.spotify.com/track/${t.spotifyTrackId}` : null,
-            });
-          }
-          for (const a of (data.albums || [])) {
-            items.push({
-              _type: 'album',
-              id: `album-${a.id}`,
-              platformId: a.spotifyAlbumId,
-              title: a.name,
-              subtitle: a.releaseDate ? new Date(a.releaseDate).getFullYear().toString() : (a.type || ''),
-              thumbnailUrl: a.imageUrl,
-              metric: a.popularity || 0,
-              metricLabel: 'popularity',
-              permalink: a.spotifyAlbumId ? `https://open.spotify.com/album/${a.spotifyAlbumId}` : null,
-            });
-          }
-          setContentItems(items);
-          setContentTotal(items.length);
-          autoSelect(items);
-        })
-        .catch(() => { if (!cancelled) { setContentItems([]); setContentTotal(0); } })
-        .finally(() => { if (!cancelled) setContentLoading(false); });
-    } else {
-      // Social platforms: fetch from content-feed
+    // Fetch the artist's posts on this platform
       api.getContentFeed({ platform: config.feedPlatform, artist: artistSlug, sort: 'engagement', limit: CONTENT_PAGE_SIZE, offset: 0 })
         .then(data => {
           if (cancelled) return;
@@ -289,7 +357,6 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
         })
         .catch(() => { if (!cancelled) { setContentItems([]); setContentTotal(0); } })
         .finally(() => { if (!cancelled) setContentLoading(false); });
-    }
 
     return () => { cancelled = true; };
   }, [platform, artistSlug]);
@@ -297,7 +364,7 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
   // Load more content items
   const loadMoreContent = () => {
     const config = PLATFORM_CONTENT_CONFIG[platform];
-    if (!config || config.source === 'artist' || contentLoadingMore) return;
+    if (!config || contentLoadingMore) return;
 
     setContentLoadingMore(true);
     api.getContentFeed({ platform: config.feedPlatform, artist: artistSlug, sort: 'engagement', limit: CONTENT_PAGE_SIZE, offset: contentOffset })
@@ -310,20 +377,17 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
       .finally(() => setContentLoadingMore(false));
   };
 
-  const hasMoreContent = PLATFORM_CONTENT_CONFIG[platform]?.source !== 'artist' && contentItems.length < contentTotal;
+  const hasMoreContent = contentItems.length < contentTotal;
 
   const selectContent = (item) => {
+    setMetaGate(null);
     setSelectedContentId(item.id);
     setPostId(item.platformId);
     setHeadline(item.title || '');
     setTrackUrl(item.permalink || '');
     setPostSource(item.sourcePlatform || null);
     setOwnerPlatformId(item.ownerPlatformId || null);
-    if (item._type === 'track' || item._type === 'album') {
-      setCreativeType('audio');
-    } else {
-      setCreativeType(item.contentType === 'video' ? 'video' : 'image');
-    }
+    setCreativeType(item.contentType === 'video' ? 'video' : 'image');
   };
 
   const clearContentSelection = () => {
@@ -333,18 +397,31 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
     setOwnerPlatformId(null);
   };
 
-  const filteredContentItems = useMemo(() => {
-    if (platform === 'spotify') {
-      return contentItems.filter(c => c._type === contentTab);
-    }
-    return contentItems;
-  }, [contentItems, contentTab, platform]);
+  const filteredContentItems = contentItems;
 
   const budgetError = constraint?.minBudget && budgetAmount < constraint.minBudget
     ? `Minimum budget: $${constraint.minBudget}`
     : null;
 
   const canSave = artistSlug && effectiveObjective && !budgetError;
+  // Setup must be complete before moving on; later steps have sensible defaults
+  const stepReady = step === 0 ? canSave : true;
+
+  // Review-step preview: the boosted post, the uploaded YouTube video, or the new ad's images
+  const { connection: metaConnection } = useMetaConnection();
+  const videoPreviewUrl = useMemo(() => (videoFile ? URL.createObjectURL(videoFile) : null), [videoFile]);
+  useEffect(() => () => { if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl); }, [videoPreviewUrl]);
+  const selectedItem = contentItems.find(i => i.id === selectedContentId);
+  const boostThumb = selectedItem?.thumbnailUrl
+    || (initialData?.creative?.postId === postId ? initialData?.creative?.imageUrl : null);
+  const previewMedia = postId
+    ? (boostThumb ? [{ url: boostThumb, type: 'image' }] : [])
+    : platform === 'youtube' && videoPreviewUrl ? [{ url: videoPreviewUrl, type: 'video' }]
+    : images.map(url => ({ url, type: 'image' }));
+  const previewIgId = postId ? ownerPlatformId : runAsIgUserId;
+  const previewUsername = platform === 'meta'
+    ? metaConnection?.instagramAccounts?.find(a => a.igUserId === previewIgId)?.username
+    : null;
 
   const buildDirective = async () => {
     const base = {
@@ -370,17 +447,7 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
       approvedAt: initialData?.approvedAt || null,
     };
 
-    if (platform === 'spotify') {
-      const creative = {
-        headline,
-        advertiserName: advertiserName || selectedArtist?.name || artistSlug,
-        trackUrl,
-      };
-      if (audioFile) creative.audioFile = await fileToBase64(audioFile);
-      if (imageFile) creative.imageFile = await fileToBase64(imageFile);
-      if (logoFile) creative.logoFile = await fileToBase64(logoFile);
-      base.creative = creative;
-    } else if (platform === 'youtube') {
+    if (platform === 'youtube') {
       const creative = {
         headline,
         description,
@@ -399,9 +466,10 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
         trackUrl,
         postId: postId || null,
         postSource: postSource || null,
-        igUserId: postSource === 'instagram' ? ownerPlatformId : null,
+        igUserId: postId ? (postSource === 'instagram' ? ownerPlatformId : null) : runAsIgUserId,
         pageId: postSource === 'facebook' ? ownerPlatformId : null,
-        imageUrl: imageUrl || selectedArtist?.imageUrl || initialData?.artistImage || null,
+        images: postId ? [] : images,
+        imageUrl: (!postId && images[0]) || selectedArtist?.imageUrl || initialData?.artistImage || null,
       };
     }
 
@@ -417,6 +485,19 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
   const handleSubmit = async () => {
     if (!canSave) return;
     const d = await buildDirective();
+    if (isMetaDirective(d)) {
+      setMetaGate({ checking: true });
+      try {
+        const ready = await checkMetaLaunch(d);
+        d.adAccountId = ready.adAccountId;
+        d.adAccountName = ready.adAccountName;
+        d.igUsername = ready.igUsername;
+        setMetaGate(null);
+      } catch (e) {
+        setMetaGate({ message: e.message, fixable: ACCOUNT_FIX_CODES.has(e.code) || e.code === 'not_configured' });
+        return;
+      }
+    }
     d.status = 'pending_approval';
     onSubmit(d);
   };
@@ -437,7 +518,7 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
       <motion.div
         initial={{ opacity: 0, scale: 0.96 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="relative bg-[#171614] border border-[#2C2B28] rounded-lg shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col"
+        className={`relative bg-[#171614] border border-[#2C2B28] rounded-lg shadow-2xl w-full ${step === 3 ? 'max-w-4xl' : 'max-w-2xl'} min-h-[min(560px,85vh)] max-h-[85vh] flex flex-col transition-[max-width]`}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -464,9 +545,8 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
                   Platform {launchProgress.current} of {launchProgress.total}
                 </span>
               </div>
-            ) : (
-              <p className="text-[10px] text-[#6B6560] mt-0.5">Configure your advertising directive</p>
-            )}
+            ) : null}
+            <StepBar step={step} maxStep={maxStep} onGo={goTo} />
           </div>
           <button onClick={onClose} className="p-1.5 text-[#6B6560] hover:text-[#F5F0E8] transition-colors cursor-pointer">
             <X size={16} />
@@ -475,6 +555,7 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
 
         {/* Form */}
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+          {step === 0 && (<>
           {/* Artist */}
           <Section label="Artist">
             {launchMode ? (
@@ -680,6 +761,9 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
             </div>
           </Section>
 
+          </>)}
+
+          {step === 1 && (<>
           {/* Audience */}
           <Section label="Audience">
             <div className="space-y-3">
@@ -733,14 +817,16 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
             </div>
           </Section>
 
+          </>)}
+
+          {step === 2 && (<>
           {/* Content to Promote */}
           {artistSlug && PLATFORM_CONTENT_CONFIG[platform] && (
-            <Section label={PLATFORM_CONTENT_CONFIG[platform]?.source === 'manual' ? 'Ad Creative' : 'Content to Promote'}>
-              {/* Mode toggle: Select Existing / Create New (hidden for manual/search platforms) */}
-              {PLATFORM_CONTENT_CONFIG[platform]?.source !== 'manual' && (
+            <Section label="Content to Promote">
+              {/* Mode toggle: Select Existing / Create New */}
               <div className="flex gap-1 mb-3">
                 <button
-                  onClick={() => { setContentMode('select'); clearContentSelection(); }}
+                  onClick={() => { setContentMode('select'); clearContentSelection(); setMetaGate(null); }}
                   className={`text-[9px] font-mono px-2.5 py-1 rounded border transition-colors cursor-pointer ${
                     contentMode === 'select'
                       ? 'border-[#DA7756]/30 bg-[#DA7756]/10 text-[#F5F0E8]'
@@ -750,7 +836,7 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
                   Select Existing
                 </button>
                 <button
-                  onClick={() => { setContentMode('create'); clearContentSelection(); }}
+                  onClick={() => { setContentMode('create'); clearContentSelection(); setMetaGate(null); }}
                   className={`flex items-center gap-1 text-[9px] font-mono px-2.5 py-1 rounded border transition-colors cursor-pointer ${
                     contentMode === 'create'
                       ? 'border-[#DA7756]/30 bg-[#DA7756]/10 text-[#F5F0E8]'
@@ -761,123 +847,14 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
                   Create New
                 </button>
               </div>
-              )}
 
               {contentMode === 'create' ? (
                 /* Create new ad creative */
-                PLATFORM_CONTENT_CONFIG[platform]?.source === 'manual' ? (
-                  /* Google Search: responsive search ad fields */
-                  <div className="space-y-3 bg-[#0D0C0B] border border-[#2C2B28] rounded-lg p-3">
-                    <div>
-                      <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">Headlines <span className="text-[#6B6560]">(30 chars max each)</span></label>
-                      <input
-                        value={headline}
-                        onChange={e => setHeadline(e.target.value)}
-                        maxLength={30}
-                        placeholder={`${selectedArtist?.name || 'Artist'} — New Music Out Now`}
-                        className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none mb-1.5"
-                      />
-                      <input
-                        value={description}
-                        onChange={e => setDescription(e.target.value)}
-                        maxLength={30}
-                        placeholder={`Stream ${selectedArtist?.name || 'Artist'} Now`}
-                        className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none mb-1.5"
-                      />
-                      <input
-                        maxLength={30}
-                        placeholder="Listen on All Platforms"
-                        className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none"
-                      />
-                      <span className="text-[8px] text-[#6B6560] mt-1 block">Google rotates headlines to find the best combination</span>
-                    </div>
-                    <div>
-                      <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">Descriptions <span className="text-[#6B6560]">(90 chars max each)</span></label>
-                      <textarea
-                        maxLength={90}
-                        rows={2}
-                        placeholder={`Discover ${selectedArtist?.name || 'Artist'}'s latest tracks. Stream now on Spotify, Apple Music & more.`}
-                        className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none resize-none mb-1.5"
-                      />
-                      <textarea
-                        maxLength={90}
-                        rows={2}
-                        placeholder="New album available everywhere. Join millions of fans streaming today."
-                        className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none resize-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">
-                        <span className="flex items-center gap-1"><Link2 size={9} /> Final URL</span>
-                      </label>
-                      <input
-                        value={trackUrl}
-                        onChange={e => setTrackUrl(e.target.value)}
-                        placeholder="https://open.spotify.com/artist/..."
-                        className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none font-mono"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">Keywords</label>
-                      <input
-                        placeholder={`${selectedArtist?.name || 'artist name'}, new music, stream ${selectedArtist?.name || 'artist'}`}
-                        className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none"
-                      />
-                      <span className="text-[8px] text-[#6B6560] mt-1 block">Comma-separated search terms that trigger your ad</span>
-                    </div>
-                  </div>
-                ) : (
                 <div className="space-y-3 bg-[#0D0C0B] border border-[#2C2B28] rounded-lg p-3">
-                  {platform === 'x' ? (
-                    /* X (Twitter): promoted tweet */
-                    <>
-                      <div>
-                        <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">Tweet Text <span className="text-[#6B6560]">(280 chars max)</span></label>
-                        <textarea
-                          value={headline}
-                          onChange={e => setHeadline(e.target.value)}
-                          maxLength={280}
-                          rows={3}
-                          placeholder={`🎵 ${selectedArtist?.name || 'Artist'}'s new track just dropped. Stream it now 🔥`}
-                          className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none resize-none"
-                        />
-                        <span className="text-[8px] text-[#6B6560] mt-0.5 block text-right">{(headline || '').length}/280</span>
-                      </div>
-                      <div>
-                        <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">
-                          <span className="flex items-center gap-1"><Image size={9} /> Media URL <span className="text-[#6B6560]">(optional)</span></span>
-                        </label>
-                        <input
-                          value={imageUrl}
-                          onChange={e => setImageUrl(e.target.value)}
-                          placeholder="https://..."
-                          className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none font-mono"
-                        />
-                        {!imageUrl && selectedArtist?.imageUrl && (
-                          <button
-                            onClick={() => setImageUrl(selectedArtist.imageUrl)}
-                            className="text-[9px] text-[#DA7756] hover:text-[#DA7756]/80 mt-1 cursor-pointer"
-                          >
-                            Use artist image
-                          </button>
-                        )}
-                      </div>
-                      <div>
-                        <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">
-                          <span className="flex items-center gap-1"><Link2 size={9} /> Card URL <span className="text-[#6B6560]">(optional)</span></span>
-                        </label>
-                        <input
-                          value={trackUrl}
-                          onChange={e => setTrackUrl(e.target.value)}
-                          placeholder="https://open.spotify.com/track/..."
-                          className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none font-mono"
-                        />
-                        <span className="text-[8px] text-[#6B6560] mt-0.5 block">Link preview card attached to the tweet</span>
-                      </div>
-                    </>
-                  ) : (
-                    /* Meta / TikTok: image or video ad */
-                    <>
+                  <>
+                      {platform === 'meta' && (
+                        <MetaRunAsPicker value={runAsIgUserId} onChange={(v) => { setRunAsIgUserId(v); setMetaGate(null); }} onOpenAccounts={onOpenAccounts} />
+                      )}
                       <div>
                         <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">Headline</label>
                         <input
@@ -896,25 +873,11 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
                           className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none"
                         />
                       </div>
-                      <div>
-                        <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">
-                          <span className="flex items-center gap-1"><Image size={9} /> Image URL</span>
-                        </label>
-                        <input
-                          value={imageUrl}
-                          onChange={e => setImageUrl(e.target.value)}
-                          placeholder="https://..."
-                          className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none font-mono"
-                        />
-                        {!imageUrl && selectedArtist?.imageUrl && (
-                          <button
-                            onClick={() => setImageUrl(selectedArtist.imageUrl)}
-                            className="text-[9px] text-[#DA7756] hover:text-[#DA7756]/80 mt-1 cursor-pointer"
-                          >
-                            Use artist image
-                          </button>
-                        )}
-                      </div>
+                      <AdImagesField
+                        images={images}
+                        onChange={(next) => { setImages(next); setMetaGate(null); }}
+                        fallbackImage={selectedArtist?.imageUrl}
+                      />
                       <div>
                         <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">
                           <span className="flex items-center gap-1"><Link2 size={9} /> Destination URL</span>
@@ -925,6 +888,7 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
                           placeholder="https://open.spotify.com/track/..."
                           className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none font-mono"
                         />
+                        {platform === 'meta' && <SmartLinkPicker value={trackUrl} onChange={setTrackUrl} artistSlug={artistSlug} />}
                       </div>
                       <div>
                         <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">Call to Action</label>
@@ -944,32 +908,11 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
                           ))}
                         </div>
                       </div>
-                    </>
-                  )}
+                  </>
                 </div>
-                )
               ) : (
                 /* Select existing content */
                 <>
-                  {/* Spotify track/album tabs */}
-                  {platform === 'spotify' && (
-                    <div className="flex gap-1 mb-2">
-                      {['track', 'album'].map(tab => (
-                        <button
-                          key={tab}
-                          onClick={() => setContentTab(tab)}
-                          className={`text-[9px] font-mono px-2 py-1 rounded border transition-colors cursor-pointer ${
-                            contentTab === tab
-                              ? 'border-[#DA7756]/30 bg-[#DA7756]/10 text-[#F5F0E8]'
-                              : 'border-[#2C2B28] text-[#6B6560] hover:text-[#9B9590]'
-                          }`}
-                        >
-                          {tab === 'track' ? 'Tracks' : 'Albums'}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-
                   {contentLoading ? (
                     <div className="flex items-center gap-2 py-3">
                       <Loader2 size={12} className="animate-spin text-[#6B6560]" />
@@ -1061,69 +1004,6 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
             </Section>
           )}
 
-          {/* Spotify Ad Creative — file uploads (only if no existing track selected) */}
-          {platform === 'spotify' && artistSlug && !selectedContentId && (
-            <Section label="Ad Creative">
-              <div className="space-y-3 bg-[#0D0C0B] border border-[#2C2B28] rounded-lg p-3">
-                <FileUploadField
-                  label="Audio File (.mp3, .wav)"
-                  accept=".mp3,.wav,.ogg,.m4a,audio/*"
-                  file={audioFile}
-                  onChange={setAudioFile}
-                  onClear={() => setAudioFile(null)}
-                  icon={FileAudio}
-                  required
-                />
-                <FileUploadField
-                  label="Cover Image (.jpg, .png)"
-                  accept=".jpg,.jpeg,.png,image/*"
-                  file={imageFile}
-                  onChange={setImageFile}
-                  onClear={() => setImageFile(null)}
-                  icon={Image}
-                  required
-                />
-                <FileUploadField
-                  label="Logo (optional)"
-                  accept=".jpg,.jpeg,.png,.svg,image/*"
-                  file={logoFile}
-                  onChange={setLogoFile}
-                  onClear={() => setLogoFile(null)}
-                  icon={Image}
-                />
-                <div>
-                  <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">Headline</label>
-                  <input
-                    value={headline}
-                    onChange={e => setHeadline(e.target.value)}
-                    placeholder="New Album Out Now"
-                    className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">Advertiser Name</label>
-                  <input
-                    value={advertiserName}
-                    onChange={e => setAdvertiserName(e.target.value)}
-                    placeholder={selectedArtist?.name || artistSlug}
-                    className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">
-                    <span className="flex items-center gap-1"><Link2 size={9} /> Track URL</span>
-                  </label>
-                  <input
-                    value={trackUrl}
-                    onChange={e => setTrackUrl(e.target.value)}
-                    placeholder="https://open.spotify.com/track/..."
-                    className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none font-mono"
-                  />
-                </div>
-              </div>
-            </Section>
-          )}
-
           {/* YouTube Ad Creative — video upload (only if no existing video selected) */}
           {platform === 'youtube' && artistSlug && !selectedContentId && (
             <Section label="Ad Creative">
@@ -1184,6 +1064,67 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
             </Section>
           )}
 
+          {artistSlug && !PLATFORM_CONTENT_CONFIG[platform] && (
+            <p className="text-[10px] text-[#6B6560]">No creative needed for this platform.</p>
+          )}
+          {!artistSlug && <p className="text-[10px] text-[#6B6560]">Choose an artist in Setup first.</p>}
+          </>)}
+
+          {step === 3 && (<>
+          <div className="grid grid-cols-1 md:grid-cols-[auto_1fr] gap-5 items-start">
+          <Section label="Preview">
+            <AdPreview
+              platform={platform}
+              username={previewUsername}
+              artistName={selectedArtist?.name || initialData?.artistName || artistSlug}
+              avatar={selectedArtist?.imageUrl || initialData?.artistImage}
+              media={previewMedia}
+              headline={postId ? '' : headline}
+              description={postId ? (selectedItem?.title || headline) : description}
+              cta={postId ? null : cta}
+              trackUrl={postId ? '' : trackUrl}
+            />
+          </Section>
+          <div className="space-y-5 min-w-0">
+          <Section label="Review">
+            <div className="bg-[#0D0C0B] border border-[#2C2B28] rounded-lg px-3">
+              <ReviewRow label="Artist" onEdit={launchMode ? null : () => goTo(0)}>
+                {selectedArtist?.name || initialData?.artistName || artistSlug || '–'}
+              </ReviewRow>
+              <ReviewRow label="Platform" onEdit={launchMode ? null : () => goTo(0)}>{PLATFORM_LABELS[platform]}</ReviewRow>
+              <ReviewRow label="Objective" onEdit={() => goTo(0)}>
+                {objectives.find(o => o.key === effectiveObjective)?.label || '–'}
+              </ReviewRow>
+              <ReviewRow label="Budget" onEdit={() => goTo(0)}>
+                ${Number(budgetAmount || 0).toLocaleString()} {budgetPeriod}
+              </ReviewRow>
+              <ReviewRow label="Schedule" onEdit={() => goTo(0)}>
+                {startDate || 'Not set'} → {endDate || 'Not set'}
+              </ReviewRow>
+              <ReviewRow label="Audience" onEdit={() => goTo(1)}>
+                {locations.join(', ') || 'No locations'} · ages {ageMin}–{ageMax}{lookalike ? ' · lookalike' : ''}
+              </ReviewRow>
+              <ReviewRow label="Creative" onEdit={() => goTo(2)}>
+                {postId ? (
+                  <span>Boost an existing post{headline ? `: "${headline}"` : ''}</span>
+                ) : (
+                  <div className="space-y-1.5">
+                    <p>{headline ? `"${headline}"` : 'New ad, no headline'}</p>
+                    {images.length > 0 && (
+                      <div className="flex gap-1">
+                        {images.map((url, i) => (
+                          <img key={url} src={url} alt={`Image ${i + 1}`} className="w-10 h-10 rounded object-cover border border-[#2C2B28]" />
+                        ))}
+                        {images.length > 1 && <span className="text-[10px] text-[#6B6560] self-end ml-1">carousel</span>}
+                      </div>
+                    )}
+                    {trackUrl && <p className="text-[10px] font-mono text-[#9B9590] truncate">→ {trackUrl}</p>}
+                  </div>
+                )}
+              </ReviewRow>
+            </div>
+          </Section>
+
           {/* Rationale */}
           <Section label="Rationale">
             <textarea
@@ -1194,7 +1135,25 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
               className="w-full bg-[#0D0C0B] border border-[#2C2B28] rounded px-3 py-2 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none resize-none"
             />
           </Section>
+          </div>
+          </div>
+          </>)}
         </div>
+
+        {metaGate?.message && (
+          <div className="px-5 py-2.5 border-t border-[#C75F4F]/30 bg-[#C75F4F]/10 shrink-0 flex items-start gap-2">
+            <AlertTriangle size={12} className="text-[#C75F4F] mt-0.5 shrink-0" />
+            <p className="flex-1 text-[11px] text-[#F5F0E8]">{metaGate.message}</p>
+            {metaGate.fixable && onOpenAccounts && (
+              <button
+                onClick={() => onOpenAccounts(metaGate.message)}
+                className="text-[10px] font-medium text-[#0D0C0B] bg-[#DA7756] hover:bg-[#DA7756]/90 rounded px-2.5 py-1 shrink-0 cursor-pointer"
+              >
+                Open Ad Accounts
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Footer */}
         <div className="px-5 py-3 border-t border-[#2C2B28] shrink-0 flex items-center justify-between">
@@ -1213,6 +1172,15 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
                 Skip Platform
               </button>
             )}
+            {!launchMode && step < STEPS.length - 1 && (
+              <button
+                onClick={handleSave}
+                disabled={!canSave}
+                className="text-[10px] text-[#9B9590] hover:text-[#F5F0E8] disabled:text-[#4A4743] transition-colors cursor-pointer"
+              >
+                Save draft
+              </button>
+            )}
           </div>
           <div className="flex items-center gap-2">
             {launchMode && launchProgress && (
@@ -1220,7 +1188,23 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
                 {launchProgress.current} / {launchProgress.total}
               </span>
             )}
-            {launchMode ? (
+            {step > 0 && (
+              <button
+                onClick={() => goTo(step - 1)}
+                className="px-3 py-2 text-xs text-[#9B9590] hover:text-[#F5F0E8] transition-colors cursor-pointer"
+              >
+                Back
+              </button>
+            )}
+            {step < STEPS.length - 1 ? (
+              <button
+                onClick={() => goTo(step + 1)}
+                disabled={!stepReady}
+                className="px-4 py-2 text-xs font-medium bg-[#DA7756] text-[#0D0C0B] rounded hover:bg-[#DA7756]/90 disabled:bg-[#2C2B28] disabled:text-[#6B6560] transition-colors cursor-pointer"
+              >
+                Next: {STEPS[step + 1]}
+              </button>
+            ) : launchMode ? (
               <button
                 onClick={handleSave}
                 disabled={!canSave}
@@ -1239,10 +1223,10 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
                 </button>
                 <button
                   onClick={handleSubmit}
-                  disabled={!canSave}
+                  disabled={!canSave || metaGate?.checking}
                   className="px-4 py-2 text-xs font-medium bg-[#DA7756] text-[#0D0C0B] rounded hover:bg-[#DA7756]/90 disabled:bg-[#2C2B28] disabled:text-[#6B6560] transition-colors cursor-pointer"
                 >
-                  Submit for Approval
+                  {metaGate?.checking ? 'Checking ad account…' : 'Submit for Approval'}
                 </button>
               </>
             )}

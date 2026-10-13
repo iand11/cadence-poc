@@ -12,6 +12,7 @@
     "db:ingest-social": "node scripts/ingest-social-posts.js",
     "db:refresh-stats": "node scripts/refresh-stats.js",
     "db:worker": "node scripts/process-refresh-queue.js",
+    "spotify:sync": "node scripts/sync-spotify-plays.js",
     "lint": "eslint .",
     "preview": "vite preview"
   },
