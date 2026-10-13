@@ -252,3 +252,29 @@ export async function lookupRelease(sourceUrl) {
     links: Object.entries(found).map(([service, url]) => ({ service, url })),
   };
 }
+
+// ── Artist pages from the catalog ───────────────────────────────────────────
+
+// artists.social_urls keys (from the ingest) → smart link services. Each value is a list of URLs.
+const SOCIAL_KEYS = {
+  spotify: 'spotify', itunes: 'appleMusic', youtube: 'youtube', amazon: 'amazonMusic',
+  deezer: 'deezer', tidal: 'tidal', soundcloud: 'soundcloud', pandora: 'pandora',
+};
+
+/**
+ * An artist's streaming-service pages from their social_urls. Some services list several
+ * profiles (aliases, duplicates); the first is used, except Apple Music, which prefers the
+ * profile Shazam points at (Shazam uses Apple's artist ids).
+ */
+export function artistPageLinks(socialUrls) {
+  const urls = socialUrls && typeof socialUrls === 'object' ? socialUrls : {};
+  const list = (key) => (Array.isArray(urls[key]) ? urls[key] : [urls[key]]).filter(u => typeof u === 'string' && /^https?:\/\//.test(u));
+  const shazamIds = list('shazam').map(u => u.match(/\/(\d+)\/?$/)?.[1]).filter(Boolean);
+  const links = [];
+  for (const [key, service] of Object.entries(SOCIAL_KEYS)) {
+    const found = list(key);
+    const pick = (key === 'itunes' && found.find(u => shazamIds.some(id => u.endsWith(`/${id}`)))) || found[0];
+    if (pick) links.push({ service, url: pick });
+  }
+  return links;
+}

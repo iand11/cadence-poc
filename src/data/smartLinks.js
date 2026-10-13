@@ -25,6 +25,9 @@ export const fetchPixels = () => request('/api/links?pixels=1');
 /** Find a release on every service without creating a link: { title, artistName, imageUrl, links: [{ service, url }] } */
 export const lookupSmartLinks = (sourceUrl) => request('/api/links', { method: 'POST', body: { action: 'lookup', sourceUrl } });
 
+/** A followed artist's streaming pages from the catalog, same shape as lookupSmartLinks. */
+export const artistPageSmartLinks = (artistSlug) => request('/api/links', { method: 'POST', body: { action: 'artist', artistSlug } });
+
 /** body: { sourceUrl, artistSlug?, artistName?, title?, imageUrl?, links?, pixelId?, fanCapture? } */
 export const createSmartLink = (body) => request('/api/links', { method: 'POST', body });
 

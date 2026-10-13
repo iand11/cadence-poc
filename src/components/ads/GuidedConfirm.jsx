@@ -7,7 +7,7 @@ import AdImagesField from './AdImagesField';
 import LyricVideoMaker from './LyricVideoMaker';
 import AdVideoField from './AdVideoField';
 import { FileUploadField, MetaRunAsPicker } from './DirectiveBuilder';
-import { createSmartLink, lookupSmartLinks, linksList, linksMap, foundSummary, linkTitle } from '../../data/smartLinks';
+import { createSmartLink, lookupSmartLinks, artistPageSmartLinks, linksList, linksMap, foundSummary, linkTitle } from '../../data/smartLinks';
 import ServiceLinksEditor from './ServiceLinksEditor';
 import { PLATFORM_LABELS, OBJECTIVE_LABELS } from '../../data/directives';
 import { postEngagement } from '../../utils/assistedCampaign';
@@ -55,11 +55,12 @@ function CreateSmartLink({ artist, onCreated, prominent }) {
   const [error, setError] = useState(null);
   const chosen = links ? linksList(links) : [];
 
-  const find = async () => {
+  const find = async (artistPage) => {
     setBusy(true);
     setError(null);
     try {
-      const r = await lookupSmartLinks(sourceUrl.trim());
+      const r = artistPage ? await artistPageSmartLinks(artist.slug) : await lookupSmartLinks(sourceUrl.trim());
+      if (artistPage) setSourceUrl('');
       setRelease(r);
       setLinks(linksMap(r.links));
       setFound(new Set(r.links.map(l => l.service)));
@@ -75,7 +76,7 @@ function CreateSmartLink({ artist, onCreated, prominent }) {
     setError(null);
     try {
       const { link } = await createSmartLink({
-        sourceUrl: sourceUrl.trim(), links: chosen, title: release?.title || undefined,
+        sourceUrl: sourceUrl.trim() || null, links: chosen, title: release?.title || undefined,
         artistSlug: artist?.slug, artistName: artist?.name || release?.artistName,
         imageUrl: release?.imageUrl || artist?.imageUrl || undefined,
       });
@@ -102,16 +103,21 @@ function CreateSmartLink({ artist, onCreated, prominent }) {
         <input
           value={sourceUrl}
           onChange={e => { setSourceUrl(e.target.value); if (links) reset(); }}
-          onKeyDown={e => { if (e.key === 'Enter' && isUrl(sourceUrl) && !busy && !links) find(); }}
+          onKeyDown={e => { if (e.key === 'Enter' && isUrl(sourceUrl) && !busy && !links) find(false); }}
           placeholder="Spotify, Apple Music, Deezer or YouTube link to a release or artist"
           className={`${inputCls} font-mono`}
         />
         {!links && (
-          <button onClick={find} disabled={busy || !isUrl(sourceUrl)} className={btnCls}>
+          <button onClick={() => find(false)} disabled={busy || !isUrl(sourceUrl)} className={btnCls}>
             {busy ? <Loader2 size={10} className="animate-spin" /> : <Search size={10} />}{busy ? 'Finding…' : 'Find links'}
           </button>
         )}
       </div>
+      {!links && artist?.slug && (
+        <button onClick={() => find(true)} disabled={busy} className="mt-1.5 text-[10px] text-[#DA7756] hover:underline cursor-pointer disabled:opacity-40">
+          Or link to {artist.name ? `${artist.name}'s` : 'the'} artist page instead
+        </button>
+      )}
       {links && (
         <div className="mt-2.5 space-y-2">
           <p className="text-[10px] text-[#9B9590]">
