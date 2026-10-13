@@ -1,19 +1,21 @@
 import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  X, Search, Music, ArrowLeft, ArrowRight, ChevronRight,
-  Headphones, Users, Zap, Target, Plus, Eye,
-  MousePointerClick, TrendingDown, Rocket, Info,
-  RotateCcw, Sparkles, Loader2, MessageSquare, ChevronDown,
-  BarChart3, PieChart, Lightbulb, Globe, DollarSign,
+  X, Search, Music, ArrowLeft, ArrowRight,
+  Headphones, Users, Zap, Eye,
+  MousePointerClick, TrendingDown, Rocket, Info, RotateCcw, Sparkles,
+  MessageSquare, ChevronDown, SlidersHorizontal, Check, AlertTriangle,
 } from 'lucide-react';
 import ChatInterface from '../ai/ChatInterface';
 import { searchArtists, getArtistAsync } from '../../data/artists';
 import { useFollowedArtists } from '../../hooks/useFollowedArtists';
-import { generateCampaignSuggestions } from '../../utils/campaignSuggestions';
-import { generateDirective, PLATFORM_LABELS, OBJECTIVE_LABELS, CAMPAIGN_PLATFORMS, isCampaignPlatform } from '../../data/directives';
+import { generateDirective, PLATFORM_LABELS, OBJECTIVE_LABELS, CAMPAIGN_PLATFORMS, PLATFORM_CONSTRAINTS } from '../../data/directives';
 import { recommendBudgetAllocation } from '../../utils/budgetAllocation';
 import { forecastMultiPlatform } from '../../utils/campaignForecaster';
+import {
+  DEFAULT_ANSWERS, visibleQuestions, isAnswered,
+  generateAssistedPlan, objectiveFor,
+} from '../../utils/assistedCampaign';
 import { PLATFORM_COLORS } from '../../constants/colors';
 import { formatNumber, formatDollar } from '../../utils/formatters';
 
@@ -35,18 +37,6 @@ const INSIGHT_BORDER_COLORS = {
   success: '#7BAF73',
 };
 
-const IMPACT_STYLES = {
-  high: { bg: '#DA7756' },
-  medium: { bg: '#D4A574' },
-  low: { bg: '#7BAF73' },
-};
-
-const IMPACT_DESCRIPTIONS = {
-  high: 'High urgency — addresses a significant gap or opportunity',
-  medium: 'Moderate opportunity — could meaningfully improve performance',
-  low: 'Low risk — builds on existing strengths',
-};
-
 const OBJECTIVE_DESCRIPTIONS = {
   awareness: 'Maximize reach and visibility to new audiences',
   engagement: 'Drive likes, comments, shares, and interactions',
@@ -54,22 +44,50 @@ const OBJECTIVE_DESCRIPTIONS = {
   streams: 'Increase plays and listening activity on streaming platforms',
 };
 
-function getStepLabel(step, customMode) {
-  if (step === 1) return 'Step 1 — Select an artist';
-  if (step === 2 && customMode) return 'Step 2 — Describe your goal';
-  if (step === 2) return 'Step 2 — Choose a campaign strategy';
-  return 'Step 3 — Campaign plan';
-}
+const GOAL_LABELS = { ...OBJECTIVE_LABELS, streams: 'Drive Streams' };
+
+// Steps: artist → mode → (manual: budget split → builder) | (assisted: questions → plan → builder)
+const STEP_LABELS = {
+  artist: 'Select an artist',
+  mode: 'Choose how to set it up',
+  manual: 'Budget and platforms',
+  questions: 'Guided setup',
+  plan: 'Campaign plan',
+};
+
+const evenSplit = (platforms) => {
+  const base = Math.floor(100 / platforms.length);
+  return Object.fromEntries(platforms.map((p, i) => [p, i === 0 ? 100 - base * (platforms.length - 1) : base]));
+};
+
+const PRIMARY_BTN = 'flex items-center gap-1.5 px-4 py-2 text-xs font-medium bg-[#DA7756] text-[#0D0C0B] rounded hover:bg-[#DA7756]/90 disabled:bg-[#2C2B28] disabled:text-[#6B6560] transition-colors cursor-pointer disabled:cursor-default';
 
 export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, initialArtistSlug, initialSuggestion }) {
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState('artist');
   const [selectedArtist, setSelectedArtist] = useState(null);
   const [artistSearch, setArtistSearch] = useState('');
   const [selectedSuggestion, setSelectedSuggestion] = useState(null);
 
   const { followedArtists } = useFollowedArtists();
 
-  // Auto-select artist and jump to step 3 when opened from insight
+  // Manual setup: a dollar amount, then platforms and the % each gets
+  const [manualBudget, setManualBudget] = useState(1000);
+  const [manualPcts, setManualPcts] = useState(() => evenSplit(ALL_PLATFORMS));
+
+  // Assisted setup: one question at a time
+  const [answers, setAnswers] = useState(DEFAULT_ANSWERS);
+  const [questionIndex, setQuestionIndex] = useState(0);
+
+  // Plan step state
+  const [totalBudget, setTotalBudgetRaw] = useState(1000);
+  const [enabledPlatforms, setEnabledPlatformsRaw] = useState(ALL_PLATFORMS);
+  const [allocOverrides, setAllocOverrides] = useState({});
+
+  // Wrap setters to clear overrides when inputs change
+  const setTotalBudget = (v) => { setTotalBudgetRaw(v); setAllocOverrides({}); };
+  const setEnabledPlatforms = (v) => { setEnabledPlatformsRaw(v); setAllocOverrides({}); };
+
+  // Opened from an artist profile: artist preselected; a suggestion jumps straight to its plan
   useEffect(() => {
     if (isOpen && initialArtistSlug) {
       // Resolves from the tracked roster/cache, else the catalog
@@ -81,28 +99,12 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, in
         setTotalBudgetRaw(initialSuggestion.suggestedBudget || 1000);
         setEnabledPlatformsRaw(ALL_PLATFORMS);
         setAllocOverrides({});
-        setStep(3);
+        setStep('plan');
       } else {
-        setStep(2);
+        setStep('mode');
       }
     }
   }, [isOpen, initialArtistSlug, initialSuggestion]);
-
-  // Step 3 state
-  const [totalBudget, setTotalBudgetRaw] = useState(1000);
-  const [enabledPlatforms, setEnabledPlatformsRaw] = useState(ALL_PLATFORMS);
-  const [allocOverrides, setAllocOverrides] = useState({});
-
-  // Wrap setters to clear overrides when inputs change
-  const setTotalBudget = (v) => { setTotalBudgetRaw(v); setAllocOverrides({}); };
-  const setEnabledPlatforms = (v) => { setEnabledPlatformsRaw(v); setAllocOverrides({}); };
-
-  // Custom campaign state
-  const [customMode, setCustomMode] = useState(false);
-  const [goalText, setGoalText] = useState('');
-  const [generating, setGenerating] = useState(false);
-  const [generatingStep, setGeneratingStep] = useState(0);
-  const [generateError, setGenerateError] = useState(null);
 
   // Debounced server-side search across the full catalog
   const [rawSearchResults, setRawSearchResults] = useState([]);
@@ -119,12 +121,7 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, in
 
   const searchResults = artistSearch && artistSearch.length >= 2 ? rawSearchResults : [];
 
-  const suggestions = useMemo(() => {
-    if (!selectedArtist || step < 2) return [];
-    return generateCampaignSuggestions(selectedArtist);
-  }, [selectedArtist, step]);
-
-  // Step 3: budget allocation + forecast
+  // Plan step: budget allocation + forecast
   const artistMetrics = useMemo(() => {
     if (!selectedArtist) return null;
     return {
@@ -145,7 +142,6 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, in
       enabledPlatforms,
     );
   }, [selectedSuggestion, artistMetrics, totalBudget, enabledPlatforms]);
-
 
   // Merge user overrides on top of algorithmic allocation
   const allocation = useMemo(() => {
@@ -188,6 +184,12 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, in
     );
   }, [allocation, durationDays]);
 
+  const questions = visibleQuestions(answers);
+  const currentQuestion = questions[Math.min(questionIndex, questions.length - 1)];
+  const manualPlatforms = ALL_PLATFORMS.filter(p => p in manualPcts);
+  const manualTotalPct = manualPlatforms.reduce((s, p) => s + (manualPcts[p] || 0), 0);
+  const manualReady = manualBudget > 0 && manualPlatforms.length > 0 && manualTotalPct === 100;
+
   // --- Handlers ---
 
   const handleSelectArtist = (artist) => {
@@ -195,158 +197,71 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, in
     setArtistSearch('');
   };
 
-  const handleContinue = () => {
-    if (selectedArtist) setStep(2);
-  };
-
   const handleBack = () => {
-    if (step === 3 && customMode) {
+    if (step === 'plan' && selectedSuggestion?.source === 'assisted') {
       setSelectedSuggestion(null);
       setAllocOverrides({});
-      setStep(2); // back to goal input
-    } else if (step === 3) {
+      setStep('questions');
+    } else if (step === 'plan') {
       setSelectedSuggestion(null);
       setAllocOverrides({});
-      setStep(2);
-    } else if (step === 2 && customMode) {
-      setCustomMode(false);
-      setGoalText('');
-      setGenerateError(null);
-    } else if (step === 2) {
-      setStep(1);
+      setStep('mode');
+    } else if (step === 'questions' && questionIndex > 0) {
+      setQuestionIndex(i => i - 1);
+    } else if (step === 'questions' || step === 'manual') {
+      setStep('mode');
+    } else if (step === 'mode') {
+      setStep('artist');
     }
   };
 
-  const handleSelectSuggestion = (suggestion) => {
-    setSelectedSuggestion(suggestion);
-    setTotalBudgetRaw(totalBudget || 1000);
-    setEnabledPlatforms(ALL_PLATFORMS);
+  const startAssisted = () => {
+    setAnswers(DEFAULT_ANSWERS);
+    setQuestionIndex(0);
+    setStep('questions');
+  };
+
+  const handleNextQuestion = () => {
+    if (questionIndex < questions.length - 1) {
+      setQuestionIndex(i => i + 1);
+      return;
+    }
+    const plan = generateAssistedPlan(selectedArtist, answers);
+    setSelectedSuggestion(plan);
+    setTotalBudgetRaw(plan.suggestedBudget);
+    setEnabledPlatformsRaw(plan.platforms);
     setAllocOverrides({});
-    setStep(3);
+    setStep('plan');
   };
 
-  const handleCustom = () => {
-    setCustomMode(true);
-    setGoalText('');
-    setGenerateError(null);
+  // Manual: one draft per platform with its share of the budget, then the
+  // builder's Setup → Audience → Creative → Review for each.
+  const handleManualContinue = () => {
+    if (!manualReady || !selectedArtist) return;
+    const directives = manualPlatforms
+      .filter(p => manualPcts[p] > 0)
+      .map(platform => generateDirective({
+        artistSlug: selectedArtist.slug,
+        artistName: selectedArtist.name,
+        artistImage: selectedArtist.imageUrl,
+        platform,
+      }, platform, {
+        budget: { amount: Math.round(manualBudget * manualPcts[platform]) / 100, currency: 'USD', period: 'lifetime' },
+        rationale: `${manualPcts[platform]}% of a ${formatDollar(manualBudget)} campaign.`,
+      }));
+    onLaunch(directives);
+    handleClose();
   };
 
-  const handleGenerateCampaign = async () => {
-    if (!selectedArtist || !goalText.trim()) return;
-    setGenerating(true);
-    setGeneratingStep(0);
-    setGenerateError(null);
+  const setManualPct = (platform, pct) => {
+    setManualPcts(prev => ({ ...prev, [platform]: Math.max(0, Math.min(100, Math.round(pct) || 0)) }));
+  };
 
-    const budget = totalBudget || 1000;
-
-    try {
-      const response = await fetch('/api/campaign/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ artistData: selectedArtist, budget, goal: goalText.trim() }),
-      });
-
-      if (!response.ok && !response.headers.get('content-type')?.includes('event-stream')) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(err.error || `Request failed (${response.status})`);
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-      let result = null;
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          try {
-            const data = JSON.parse(line.slice(6));
-            if (data.type === 'progress') {
-              setGeneratingStep(data.step);
-            } else if (data.type === 'result') {
-              result = data.data;
-            } else if (data.type === 'error') {
-              throw new Error(data.message);
-            }
-          } catch (e) {
-            if (e.message && !e.message.includes('JSON')) throw e;
-          }
-        }
-      }
-
-      if (!result) throw new Error('No result received from server');
-
-      // Determine primary platform from the AI's allocation
-      const alloc = result.recommendation?.allocation || {};
-      const primaryPlatform = Object.entries(alloc)
-        .filter(([p]) => isCampaignPlatform(p))
-        .sort(([, a], [, b]) => b - a)[0]?.[0] || 'meta';
-
-      // Map the rich response into the suggestion shape Step 3 expects
-      const rec = result.recommendation || {};
-      const analysis = result.artistAnalysis || {};
-      const objective = goalText.toLowerCase().includes('engage') ? 'engagement'
-        : goalText.toLowerCase().includes('convert') ? 'conversions'
-        : 'awareness';
-
-      const suggestion = {
-        id: `custom-${Date.now()}`,
-        title: rec.strategicApproach || 'Custom Campaign',
-        platform: primaryPlatform,
-        objective,
-        impact: 'high',
-        insightType: 'info',
-        suggestedBudget: budget,
-        suggestedAudience: analysis.coreAudience || '',
-        rationale: rec.rationale || '',
-        action: rec.messaging || '',
-        dataPoints: [
-          ...(analysis.strengths?.slice(0, 2) || []),
-          ...(analysis.opportunities?.slice(0, 1) || []),
-        ],
-        dataType: 'social',
-        aiAnalysis: result,
-        directive: generateDirective({
-          artistSlug: selectedArtist.slug,
-          artistName: selectedArtist.name,
-          artistImage: selectedArtist.imageUrl,
-          platform: primaryPlatform,
-          dataType: 'social',
-          insightType: 'info',
-          text: rec.rationale || '',
-          action: rec.messaging || '',
-        }, primaryPlatform, {
-          objective,
-          budget: { amount: budget, currency: 'USD', period: 'lifetime' },
-          rationale: rec.rationale || '',
-        }),
-      };
-
-      setSelectedSuggestion(suggestion);
-      setTotalBudgetRaw(budget);
-      setEnabledPlatformsRaw(ALL_PLATFORMS);
-      if (Object.keys(alloc).length > 0) {
-        const overrides = {};
-        for (const [p, amount] of Object.entries(alloc)) {
-          if (ALL_PLATFORMS.includes(p)) overrides[p] = amount;
-        }
-        setAllocOverrides(overrides);
-      } else {
-        setAllocOverrides({});
-      }
-      setStep(3);
-    } catch (err) {
-      setGenerateError(err.message || 'Failed to generate campaign');
-    } finally {
-      setGenerating(false);
-    }
+  const toggleManualPlatform = (platform) => {
+    const next = manualPlatforms.includes(platform)
+      ? manualPlatforms.filter(p => p !== platform)
+      : ALL_PLATFORMS.filter(p => p === platform || manualPlatforms.includes(p));
+    setManualPcts(next.length ? evenSplit(next) : {});
   };
 
   const handleAllocOverride = (platform, newAmount) => {
@@ -387,6 +302,8 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, in
     if (!allocation || !selectedSuggestion || !selectedArtist) return;
 
     const directives = allocation.allocations.map(alloc => {
+      // Assisted plans carry per-platform objective, schedule, audience and creative
+      const planned = selectedSuggestion.directiveOptions?.[alloc.platform] || {};
       return generateDirective({
         artistSlug: selectedArtist.slug,
         artistName: selectedArtist.name,
@@ -397,7 +314,8 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, in
         text: selectedSuggestion.rationale,
         action: selectedSuggestion.action,
       }, alloc.platform, {
-        objective: selectedSuggestion.objective,
+        ...planned,
+        objective: planned.objective || objectiveFor(alloc.platform, selectedSuggestion.objective),
         budget: { amount: alloc.amount, currency: 'USD', period: 'lifetime' },
         rationale: `${selectedSuggestion.rationale} [${alloc.percentage}% allocation: ${alloc.reason}]`,
       });
@@ -418,21 +336,32 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, in
   };
 
   const handleClose = () => {
-    setStep(1);
+    setStep('artist');
     setSelectedArtist(null);
     setArtistSearch('');
     setSelectedSuggestion(null);
     setAllocOverrides({});
-    setCustomMode(false);
-    setGoalText('');
-    setGenerating(false);
-    setGenerateError(null);
+    setManualBudget(1000);
+    setManualPcts(evenSplit(ALL_PLATFORMS));
+    setAnswers(DEFAULT_ANSWERS);
+    setQuestionIndex(0);
     onClose();
   };
 
   if (!isOpen) return null;
 
   const topSocial = selectedArtist ? getTopSocial(selectedArtist) : null;
+  const assisted = step === 'questions' || selectedSuggestion?.source === 'assisted';
+  const flowSteps = step === 'manual' ? ['artist', 'mode', 'manual']
+    : assisted ? ['artist', 'mode', 'questions', 'plan']
+    : step === 'plan' ? ['artist', 'plan']
+    : ['artist', 'mode'];
+  const stepIndex = flowSteps.indexOf(step);
+  const stepLabel = step === 'questions'
+    ? `Guided setup · Question ${questionIndex + 1} of ${questions.length}`
+    : STEP_LABELS[step];
+  const transition = { duration: 0.2 };
+  const slide = { initial: { opacity: 0, x: 20 }, animate: { opacity: 1, x: 0 }, exit: { opacity: 0, x: -20 }, transition };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={handleClose}>
@@ -440,26 +369,28 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, in
       <motion.div
         initial={{ opacity: 0, scale: 0.96 }}
         animate={{ opacity: 1, scale: 1 }}
-        className={`relative bg-[#171614] border border-[#2C2B28] rounded-lg shadow-2xl w-full ${step === 3 ? 'max-w-3xl' : 'max-w-2xl'} max-h-[85vh] flex flex-col`}
+        className={`relative bg-[#171614] border border-[#2C2B28] rounded-lg shadow-2xl w-full ${step === 'plan' ? 'max-w-3xl' : 'max-w-2xl'} max-h-[85vh] flex flex-col`}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-[#2C2B28] shrink-0">
           <div className="flex items-center gap-3">
-            {step > 1 && (
+            {step !== 'artist' && (
               <button onClick={handleBack} className="p-1 text-[#6B6560] hover:text-[#F5F0E8] transition-colors cursor-pointer">
                 <ArrowLeft size={14} />
               </button>
             )}
             <div>
               <h3 className="text-sm font-medium text-[#F5F0E8]">New Campaign</h3>
-              <p className="text-[10px] text-[#6B6560] mt-0.5">{getStepLabel(step, customMode)}</p>
+              <p className="text-[10px] text-[#6B6560] mt-0.5">
+                Step {stepIndex + 1} — {stepLabel}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1">
-              {[1, 2, 3].map(s => (
-                <div key={s} className={`w-1.5 h-1.5 rounded-full ${step >= s ? 'bg-[#DA7756]' : 'bg-[#2C2B28]'}`} />
+              {flowSteps.map((s, i) => (
+                <div key={s} className={`w-1.5 h-1.5 rounded-full ${stepIndex >= i ? 'bg-[#DA7756]' : 'bg-[#2C2B28]'}`} />
               ))}
             </div>
             <button onClick={handleClose} className="p-1.5 text-[#6B6560] hover:text-[#F5F0E8] transition-colors cursor-pointer">
@@ -471,8 +402,8 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, in
         {/* Content */}
         <div className="flex-1 overflow-y-auto px-5 py-4">
           <AnimatePresence mode="wait">
-            {step === 1 && (
-              <motion.div key="step1" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
+            {step === 'artist' && (
+              <motion.div key="artist" {...slide}>
                 <Step1
                   selectedArtist={selectedArtist}
                   artistSearch={artistSearch}
@@ -485,34 +416,42 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, in
                 />
               </motion.div>
             )}
-            {step === 2 && !customMode && (
-              <motion.div key="step2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} transition={{ duration: 0.2 }}>
-                <Step2
+            {step === 'mode' && (
+              <motion.div key="mode" {...slide}>
+                <StepMode
                   selectedArtist={selectedArtist}
-                  suggestions={suggestions}
-                  totalBudget={totalBudget}
-                  setTotalBudget={setTotalBudgetRaw}
-                  onSelect={handleSelectSuggestion}
-                  onCustom={handleCustom}
+                  onManual={() => setStep('manual')}
+                  onAssisted={startAssisted}
                 />
               </motion.div>
             )}
-            {step === 2 && customMode && (
-              <motion.div key="step2-custom" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} transition={{ duration: 0.2 }}>
-                <StepCustomGoal
-                  selectedArtist={selectedArtist}
-                  goalText={goalText}
-                  setGoalText={setGoalText}
-                  totalBudget={totalBudget}
-                  setTotalBudget={setTotalBudgetRaw}
-                  generating={generating}
-                  generatingStep={generatingStep}
-                  generateError={generateError}
+            {step === 'manual' && (
+              <motion.div key="manual" {...slide}>
+                <StepManual
+                  budget={manualBudget}
+                  setBudget={setManualBudget}
+                  pcts={manualPcts}
+                  platforms={manualPlatforms}
+                  totalPct={manualTotalPct}
+                  onPct={setManualPct}
+                  onToggle={toggleManualPlatform}
+                  onEven={() => manualPlatforms.length && setManualPcts(evenSplit(manualPlatforms))}
                 />
               </motion.div>
             )}
-            {step === 3 && selectedSuggestion && (
-              <motion.div key="step3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} transition={{ duration: 0.2 }}>
+            {step === 'questions' && currentQuestion && (
+              <motion.div key={`q-${currentQuestion.key}`} {...slide}>
+                <StepQuestion
+                  question={currentQuestion}
+                  answers={answers}
+                  setAnswer={(key, value) => setAnswers(prev => ({ ...prev, [key]: value }))}
+                  index={questionIndex}
+                  total={questions.length}
+                />
+              </motion.div>
+            )}
+            {step === 'plan' && selectedSuggestion && (
+              <motion.div key="plan" {...slide}>
                 <Step3
                   suggestion={selectedSuggestion}
                   selectedArtist={selectedArtist}
@@ -538,36 +477,28 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, in
             Cancel
           </button>
           <div className="flex items-center gap-2">
-            {step === 1 && (
-              <button
-                onClick={handleContinue}
-                disabled={!selectedArtist}
-                className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium bg-[#DA7756] text-[#0D0C0B] rounded hover:bg-[#DA7756]/90 disabled:bg-[#2C2B28] disabled:text-[#6B6560] transition-colors cursor-pointer"
-              >
+            {step === 'artist' && (
+              <button onClick={() => selectedArtist && setStep('mode')} disabled={!selectedArtist} className={PRIMARY_BTN}>
                 Continue
                 <ArrowRight size={12} />
               </button>
             )}
-            {step === 2 && customMode && (
-              <button
-                onClick={handleGenerateCampaign}
-                disabled={!goalText.trim() || generating}
-                className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium bg-[#DA7756] text-[#0D0C0B] rounded hover:bg-[#DA7756]/90 disabled:bg-[#2C2B28] disabled:text-[#6B6560] transition-colors cursor-pointer"
-              >
-                {generating ? (
-                  <>
-                    <Loader2 size={12} className="animate-spin" />
-                    Generating...
-                  </>
+            {step === 'manual' && (
+              <button onClick={handleManualContinue} disabled={!manualReady} className={PRIMARY_BTN}>
+                Set up {manualPlatforms.filter(p => manualPcts[p] > 0).length} campaign{manualPlatforms.filter(p => manualPcts[p] > 0).length !== 1 ? 's' : ''}
+                <ArrowRight size={12} />
+              </button>
+            )}
+            {step === 'questions' && currentQuestion && (
+              <button onClick={handleNextQuestion} disabled={!isAnswered(currentQuestion, answers)} className={PRIMARY_BTN}>
+                {questionIndex < questions.length - 1 ? (
+                  <>Next<ArrowRight size={12} /></>
                 ) : (
-                  <>
-                    <Sparkles size={12} />
-                    Generate Campaign
-                  </>
+                  <><Sparkles size={12} />Generate Campaign</>
                 )}
               </button>
             )}
-            {step === 3 && (
+            {step === 'plan' && (
               <>
                 <button
                   onClick={handleCustomize}
@@ -578,7 +509,7 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, in
                 <button
                   onClick={handleLaunch}
                   disabled={!allocation || allocation.allocations.length === 0}
-                  className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium bg-[#DA7756] text-[#0D0C0B] rounded hover:bg-[#DA7756]/90 disabled:bg-[#2C2B28] disabled:text-[#6B6560] transition-colors cursor-pointer"
+                  className={PRIMARY_BTN}
                 >
                   <Rocket size={12} />
                   Launch {enabledPlatforms.length} Campaign{enabledPlatforms.length !== 1 ? 's' : ''}
@@ -642,7 +573,7 @@ function Step1({ selectedArtist, artistSearch, setArtistSearch, searchResults, h
 
   return (
     <div>
-      <p className="text-[10px] text-[#6B6560] mb-3">Choose the artist you want to promote. Campaign suggestions will be tailored to their data.</p>
+      <p className="text-[10px] text-[#6B6560] mb-3">Choose the artist you want to promote. The campaign is set up around their audience.</p>
       <div>
         <div className="flex items-center gap-2 bg-[#0D0C0B] border border-[#2C2B28] rounded px-3 py-2.5">
           <Search size={14} className="text-[#6B6560] shrink-0" />
@@ -710,120 +641,277 @@ function Step1({ selectedArtist, artistSearch, setArtistSearch, searchResults, h
   );
 }
 
-// ─── Step 2: Suggestions ───
 
-function Step2({ selectedArtist, suggestions, totalBudget, setTotalBudget, onSelect, onCustom }) {
+// ─── Mode: set it up yourself or guided ───
+
+function StepMode({ selectedArtist, onManual, onAssisted }) {
+  const cards = [
+    {
+      key: 'assisted',
+      icon: Sparkles,
+      title: 'Guided setup',
+      body: 'Answer a few questions about the goal, budget and audience. Prelude builds the campaign, and you review it before anything launches.',
+      onClick: onAssisted,
+      accent: true,
+    },
+    {
+      key: 'manual',
+      icon: SlidersHorizontal,
+      title: 'Set it up myself',
+      body: 'Choose the budget, the platforms and how much each one gets, then configure targeting and creative for each platform.',
+      onClick: onManual,
+    },
+  ];
   return (
-    <>
-      {/* Artist mini-header */}
-      <div className="flex items-center gap-2 mb-4">
-        {selectedArtist?.imageUrl ? (
-          <img src={selectedArtist.imageUrl} alt="" className="w-6 h-6 rounded object-cover" />
-        ) : (
-          <div className="w-6 h-6 rounded bg-[#2C2B28] flex items-center justify-center">
-            <Music size={8} className="text-[#6B6560]" />
+    <div className="space-y-4">
+      {selectedArtist && (
+        <div className="flex items-center gap-2.5">
+          {selectedArtist.imageUrl ? (
+            <img src={selectedArtist.imageUrl} alt="" className="w-8 h-8 rounded object-cover" />
+          ) : (
+            <div className="w-8 h-8 rounded bg-[#2C2B28] flex items-center justify-center">
+              <Music size={12} className="text-[#6B6560]" />
+            </div>
+          )}
+          <div>
+            <p className="text-xs font-medium text-[#F5F0E8]">{selectedArtist.name}</p>
+            <p className="text-[9px] font-mono text-[#6B6560]">How do you want to build this campaign?</p>
           </div>
-        )}
-        <span className="text-xs font-medium text-[#F5F0E8]">{selectedArtist?.name}</span>
-        <span className="text-[10px] text-[#6B6560]">·</span>
-        <span className="text-[10px] font-mono text-[#6B6560]">
-          {suggestions.length} suggestion{suggestions.length !== 1 ? 's' : ''} based on data
-        </span>
-      </div>
-
-      {/* Budget input */}
-      <div className="bg-[#0D0C0B] border border-[#2C2B28] rounded-lg px-4 py-3 mb-4 flex items-center gap-3">
-        <label className="text-[10px] text-[#9B9590] whitespace-nowrap">Total budget</label>
-        <div className="relative flex-1 max-w-[160px]">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#6B6560]">$</span>
-          <input
-            type="text"
-            inputMode="numeric"
-            value={totalBudget ? totalBudget.toLocaleString('en-US') : ''}
-            onChange={e => setTotalBudget(Number(e.target.value.replace(/[^0-9]/g, '')) || 0)}
-            className="w-full bg-[#171614] border border-[#2C2B28] rounded pl-7 pr-3 py-1.5 text-sm text-[#F5F0E8] outline-none focus:border-[#3D3B37] transition-colors"
-          />
-        </div>
-        <span className="text-[9px] text-[#6B6560]">Split across platforms in the next step</span>
-      </div>
-
-      <p className="text-[10px] text-[#6B6560] mb-3">These campaigns are generated from your artist's real performance data and market signals.</p>
-
-      {suggestions.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {suggestions.map((s, i) => (
-            <motion.button
-              key={s.id}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.05, duration: 0.25 }}
-              onClick={() => onSelect(s)}
-              className="text-left bg-[#0D0C0B] border border-[#2C2B28] hover:border-[#3D3B37] rounded-lg p-3.5 transition-all cursor-pointer group"
-              style={{ borderLeftWidth: 3, borderLeftColor: INSIGHT_BORDER_COLORS[s.insightType] }}
-            >
-              <div className="flex items-center gap-2 mb-2">
-                <span
-                  className="text-[8px] font-mono px-1.5 py-0.5 rounded"
-                  style={{
-                    color: PLATFORM_COLOR_MAP[s.platform],
-                    backgroundColor: (PLATFORM_COLOR_MAP[s.platform] || '#9B9590') + '15',
-                    border: `1px solid ${(PLATFORM_COLOR_MAP[s.platform] || '#9B9590')}30`,
-                  }}
-                >
-                  {PLATFORM_LABELS[s.platform]}
-                </span>
-                <span className="text-[8px] font-mono text-[#6B6560]" title={OBJECTIVE_DESCRIPTIONS[s.objective]}>
-                  {OBJECTIVE_LABELS[s.objective] || s.objective}
-                </span>
-                <span
-                  className="ml-auto text-[7px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded-full"
-                  style={{ backgroundColor: IMPACT_STYLES[s.impact].bg + '20', color: IMPACT_STYLES[s.impact].bg }}
-                  title={IMPACT_DESCRIPTIONS[s.impact]}
-                >
-                  {s.impact}
-                </span>
-              </div>
-              <p className="text-[11px] font-medium text-[#F5F0E8] mb-1">{s.title}</p>
-              {s.suggestedAudience && (
-                <div className="flex items-center gap-2 mb-1.5">
-                  <span className="text-[8px] font-mono text-[#6B6560]">{s.suggestedAudience}</span>
-                </div>
-              )}
-              <div className="flex flex-wrap gap-1 mb-2">
-                {(s.dataPoints || []).map((dp, j) => (
-                  <span key={j} className="text-[8px] font-mono px-1.5 py-0.5 rounded bg-[#171614] border border-[#2C2B28] text-[#9B9590]">
-                    {dp}
-                  </span>
-                ))}
-              </div>
-              <p className="text-[9px] text-[#6B6560] line-clamp-2 mb-2">{s.rationale}</p>
-              <div className="flex items-center gap-1 text-[9px] font-mono text-[#DA7756] opacity-0 group-hover:opacity-100 transition-opacity">
-                <span>Configure</span>
-                <ChevronRight size={10} />
-              </div>
-            </motion.button>
-          ))}
-        </div>
-      ) : (
-        <div className="flex flex-col items-center justify-center py-10 text-center">
-          <Target size={20} className="text-[#6B6560] mb-2" />
-          <p className="text-xs text-[#9B9590] mb-1">No automated suggestions available</p>
-          <p className="text-[10px] text-[#6B6560]">Create a custom campaign instead</p>
         </div>
       )}
-
-      <button
-        onClick={onCustom}
-        className="w-full mt-4 flex items-center justify-center gap-2 py-2.5 text-[10px] font-mono text-[#9B9590] border border-dashed border-[#2C2B28] hover:border-[#3D3B37] hover:text-[#F5F0E8] rounded transition-colors cursor-pointer"
-      >
-        <Plus size={11} />
-        Custom Campaign
-      </button>
-    </>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {cards.map(c => (
+          <button
+            key={c.key}
+            onClick={c.onClick}
+            className={`group text-left p-4 rounded-lg border bg-[#0D0C0B] transition-colors cursor-pointer ${
+              c.accent ? 'border-[#DA7756]/30 hover:border-[#DA7756]/60' : 'border-[#2C2B28] hover:border-[#3D3B37]'
+            }`}
+          >
+            <div className={`w-8 h-8 rounded flex items-center justify-center mb-3 ${c.accent ? 'bg-[#DA7756]/15' : 'bg-[#2C2B28]'}`}>
+              <c.icon size={14} className={c.accent ? 'text-[#DA7756]' : 'text-[#9B9590]'} />
+            </div>
+            <p className="text-xs font-medium text-[#F5F0E8] mb-1">{c.title}</p>
+            <p className="text-[10px] text-[#9B9590] leading-relaxed">{c.body}</p>
+            <span className="inline-flex items-center gap-1 mt-3 text-[10px] font-medium text-[#DA7756]">
+              Continue <ArrowRight size={10} className="transition-transform group-hover:translate-x-0.5" />
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 
-// ─── Step 3: Campaign Plan ───
+// ─── Manual: budget, then platforms and % split ───
+
+function StepManual({ budget, setBudget, pcts, platforms, totalPct, onPct, onToggle, onEven }) {
+  const tiktokMin = PLATFORM_CONSTRAINTS.tiktok.minBudget;
+  return (
+    <div className="space-y-4">
+      <div className="bg-[#0D0C0B] border border-[#2C2B28] rounded-lg p-4">
+        <p className="text-[9px] font-mono uppercase tracking-wider text-[#6B6560] mb-2">Total budget</p>
+        <div className="flex items-center gap-1 bg-[#171614] border border-[#2C2B28] focus-within:border-[#DA7756]/50 rounded px-3 py-2.5 w-full sm:w-64">
+          <span className="text-sm text-[#6B6560]">$</span>
+          <input
+            type="text"
+            inputMode="numeric"
+            value={budget ? budget.toLocaleString('en-US') : ''}
+            onChange={e => setBudget(Math.max(0, Number(e.target.value.replace(/[^0-9]/g, '')) || 0))}
+            placeholder="1,000"
+            className="flex-1 min-w-0 bg-transparent text-lg text-[#F5F0E8] outline-none font-mono"
+            autoFocus
+          />
+          <span className="text-[10px] font-mono text-[#6B6560]">USD</span>
+        </div>
+        <div className="flex flex-wrap gap-1.5 mt-2">
+          {[500, 1000, 2500, 5000].map(v => (
+            <button
+              key={v}
+              onClick={() => setBudget(v)}
+              className={`px-2.5 py-1 text-[10px] font-mono rounded border transition-colors cursor-pointer ${
+                budget === v ? 'border-[#DA7756]/50 text-[#DA7756] bg-[#DA7756]/10' : 'border-[#2C2B28] text-[#9B9590] hover:text-[#F5F0E8]'
+              }`}
+            >
+              {formatDollar(v)}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="bg-[#0D0C0B] border border-[#2C2B28] rounded-lg p-4">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-[9px] font-mono uppercase tracking-wider text-[#6B6560]">Platforms and split</p>
+          <button onClick={onEven} className="text-[9px] font-mono text-[#DA7756] hover:text-[#F5F0E8] transition-colors cursor-pointer">
+            Split evenly
+          </button>
+        </div>
+        <div className="space-y-2">
+          {ALL_PLATFORMS.map(platform => {
+            const enabled = platforms.includes(platform);
+            const pct = pcts[platform] || 0;
+            const amount = Math.round(budget * pct) / 100;
+            const color = PLATFORM_COLOR_MAP[platform] || '#9B9590';
+            const underMin = platform === 'tiktok' && enabled && pct > 0 && amount < tiktokMin;
+            return (
+              <div key={platform} className={`rounded border px-3 py-2 transition-colors ${enabled ? 'border-[#2C2B28] bg-[#171614]' : 'border-[#2C2B28]/50 opacity-50'}`}>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    checked={enabled}
+                    onChange={() => onToggle(platform)}
+                    className="accent-[#DA7756] cursor-pointer shrink-0"
+                  />
+                  <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                  <span className="text-[10px] font-mono text-[#F5F0E8] w-16 shrink-0">{PLATFORM_LABELS[platform]}</span>
+                  {enabled ? (
+                    <>
+                      <input
+                        type="range"
+                        min={0}
+                        max={100}
+                        value={pct}
+                        onChange={e => onPct(platform, Number(e.target.value))}
+                        className="flex-1 min-w-0 h-1.5 rounded-full appearance-none cursor-pointer alloc-slider"
+                        style={{ background: `linear-gradient(to right, ${color} 0%, ${color} ${pct}%, #2C2B28 ${pct}%, #2C2B28 100%)` }}
+                      />
+                      <div className="flex items-center gap-0.5 bg-[#0D0C0B] border border-[#2C2B28] rounded px-1.5 py-0.5 shrink-0">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={pct}
+                          onChange={e => onPct(platform, Number(e.target.value.replace(/[^0-9]/g, '')))}
+                          className="bg-transparent text-xs text-[#F5F0E8] outline-none font-mono w-7 text-right"
+                        />
+                        <span className="text-[9px] text-[#6B6560]">%</span>
+                      </div>
+                      <span className="text-[10px] font-mono text-[#9B9590] w-16 text-right shrink-0">{formatDollar(amount)}</span>
+                    </>
+                  ) : (
+                    <span className="text-[9px] text-[#6B6560] italic">Not included</span>
+                  )}
+                </div>
+                {underMin && (
+                  <p className="flex items-center gap-1 text-[9px] text-[#D4A574] mt-1.5 pl-7">
+                    <AlertTriangle size={9} />
+                    TikTok requires at least {formatDollar(tiktokMin)} per campaign.
+                  </p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        <div className="flex items-center justify-between mt-3 text-[10px] font-mono">
+          <span className={totalPct === 100 ? 'text-[#7BAF73]' : 'text-[#C75F4F]'}>
+            {totalPct === 100 ? <span className="inline-flex items-center gap-1"><Check size={10} />100% allocated</span> : `${totalPct}% allocated · must equal 100%`}
+          </span>
+          <span className="text-[#6B6560]">{formatDollar(budget)} total</span>
+        </div>
+      </div>
+      <p className="text-[10px] text-[#6B6560]">Next you set the objective, schedule, audience and creative for each platform.</p>
+    </div>
+  );
+}
+
+// ─── Assisted: one question at a time ───
+
+function StepQuestion({ question, answers, setAnswer, index, total }) {
+  const value = answers[question.key];
+  const toggle = (v) => {
+    const list = Array.isArray(value) ? value : [];
+    setAnswer(question.key, list.includes(v) ? list.filter(x => x !== v) : [...list, v]);
+  };
+  const chip = (selected) => `text-left rounded-lg border px-3 py-2.5 transition-colors cursor-pointer ${
+    selected ? 'border-[#DA7756]/60 bg-[#DA7756]/10' : 'border-[#2C2B28] bg-[#0D0C0B] hover:border-[#3D3B37]'
+  }`;
+
+  return (
+    <div>
+      <div className="h-1 bg-[#2C2B28] rounded-full overflow-hidden mb-5">
+        <motion.div className="h-full bg-[#DA7756]" initial={false} animate={{ width: `${((index + 1) / total) * 100}%` }} />
+      </div>
+      <p className="text-sm font-medium text-[#F5F0E8] mb-1">{question.title}</p>
+      <p className="text-[10px] text-[#6B6560] mb-4">
+        {question.hint || (question.type === 'multi' ? 'Pick all that apply.' : 'Pick one.')}
+      </p>
+
+      {question.type === 'single' && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {question.options.map(o => (
+            <button key={o.value} onClick={() => setAnswer(question.key, o.value)} className={chip(value === o.value)}>
+              <p className="text-xs text-[#F5F0E8] font-medium">{o.label}</p>
+              {o.hint && <p className="text-[10px] text-[#9B9590] mt-0.5">{o.hint}</p>}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {question.type === 'multi' && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          {question.options.map(o => {
+            const selected = Array.isArray(value) && value.includes(o.value);
+            return (
+              <button key={o.value} onClick={() => toggle(o.value)} className={`${chip(selected)} flex items-center gap-2`}>
+                <span className={`w-3.5 h-3.5 rounded-sm border flex items-center justify-center shrink-0 ${selected ? 'bg-[#DA7756] border-[#DA7756]' : 'border-[#3D3B37]'}`}>
+                  {selected && <Check size={9} className="text-[#0D0C0B]" />}
+                </span>
+                <span className="text-xs text-[#F5F0E8]">{o.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {question.type === 'platforms' && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          {ALL_PLATFORMS.map(p => {
+            const selected = Array.isArray(value) && value.includes(p);
+            return (
+              <button key={p} onClick={() => toggle(p)} className={`${chip(selected)} flex items-center gap-2`}>
+                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: PLATFORM_COLOR_MAP[p] }} />
+                <span className="text-xs text-[#F5F0E8] flex-1">{PLATFORM_LABELS[p]}</span>
+                {selected && <Check size={11} className="text-[#DA7756]" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {question.type === 'budget' && (
+        <div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
+            {question.presets.map(v => (
+              <button key={v} onClick={() => setAnswer(question.key, v)} className={chip(value === v)}>
+                <p className="text-sm font-mono text-[#F5F0E8]">{formatDollar(v)}</p>
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-1 bg-[#0D0C0B] border border-[#2C2B28] focus-within:border-[#DA7756]/50 rounded px-3 py-2 w-full sm:w-56">
+            <span className="text-[10px] text-[#6B6560]">Other: $</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={value ? Number(value).toLocaleString('en-US') : ''}
+              onChange={e => setAnswer(question.key, Math.max(0, Number(e.target.value.replace(/[^0-9]/g, '')) || 0))}
+              className="flex-1 min-w-0 bg-transparent text-xs text-[#F5F0E8] outline-none font-mono"
+            />
+          </div>
+        </div>
+      )}
+
+      {question.type === 'date' && (
+        <input
+          type="date"
+          value={value || ''}
+          onChange={e => setAnswer(question.key, e.target.value)}
+          className="bg-[#0D0C0B] border border-[#2C2B28] rounded px-3 py-2 text-xs text-[#F5F0E8] font-mono outline-none focus:border-[#DA7756]/50 [color-scheme:dark]"
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Plan review (assisted) ───
 
 function Step3({ suggestion, selectedArtist, totalBudget, setTotalBudget, enabledPlatforms, togglePlatform, allocation, forecast, durationDays, allocOverrides, onAllocOverride, onResetAlloc }) {
   const [chatOpen, setChatOpen] = useState(false);
@@ -854,7 +942,7 @@ function Step3({ suggestion, selectedArtist, totalBudget, setTotalBudget, enable
                 {PLATFORM_LABELS[suggestion.platform]}
               </span>
               <span className="text-[8px] font-mono text-[#6B6560]" title={OBJECTIVE_DESCRIPTIONS[suggestion.objective]}>
-                {OBJECTIVE_LABELS[suggestion.objective]} · {durationDays} days
+                {GOAL_LABELS[suggestion.objective]} · {durationDays} days
               </span>
             </div>
           </div>
@@ -896,7 +984,7 @@ function Step3({ suggestion, selectedArtist, totalBudget, setTotalBudget, enable
         <div className="flex items-start gap-1.5 mb-2 rounded border border-[#2C2B28] bg-[#171614] px-2 py-1.5">
           <Info size={11} className="text-[#DA7756] mt-0.5 shrink-0" />
           <p className="text-[9px] text-[#9B9590] leading-relaxed">
-            <span className="text-[#F5F0E8]">{OBJECTIVE_LABELS[suggestion.objective] || suggestion.objective} goal.</span>{' '}
+            <span className="text-[#F5F0E8]">{GOAL_LABELS[suggestion.objective] || suggestion.objective} goal.</span>{' '}
             {allocation?.strategy}
             {' '}Those weights are then adjusted for {selectedArtist?.name || 'the artist'}&rsquo;s audience size on each platform (5% minimum for testing).
             Per-platform rationale is shown below each slider.
@@ -1083,7 +1171,7 @@ function Step3({ suggestion, selectedArtist, totalBudget, setTotalBudget, enable
                   `Campaign Plan: ${suggestion.title}`,
                   `Artist: ${selectedArtist?.name || 'Unknown'}`,
                   `Platform: ${PLATFORM_LABELS[suggestion.platform] || suggestion.platform}`,
-                  `Objective: ${OBJECTIVE_LABELS[suggestion.objective] || suggestion.objective}`,
+                  `Objective: ${GOAL_LABELS[suggestion.objective] || suggestion.objective}`,
                   `Budget: ${formatDollar(totalBudget)} over ${durationDays} days`,
                   `Rationale: ${suggestion.rationale || ''}`,
                   suggestion.action ? `Action: ${suggestion.action}` : '',
@@ -1102,152 +1190,6 @@ function Step3({ suggestion, selectedArtist, totalBudget, setTotalBudget, enable
             </motion.div>
           )}
         </AnimatePresence>
-      </div>
-    </div>
-  );
-}
-
-// ─── Step Custom: Goal Input ───
-
-const GENERATION_STEPS = [
-  { icon: BarChart3, text: 'Analyzing streaming metrics', color: '#DA7756' },
-  { icon: Users, text: 'Profiling audience demographics', color: '#D4A574' },
-  { icon: Globe, text: 'Evaluating platform performance', color: '#7BAF73' },
-  { icon: PieChart, text: 'Optimizing budget allocation', color: '#DA7756' },
-  { icon: Lightbulb, text: 'Generating creative strategy', color: '#D4A574' },
-  { icon: Target, text: 'Building campaign plan', color: '#7BAF73' },
-];
-
-function GeneratingOverlay({ artistName, activeStep = 0 }) {
-  return (
-    <div className="flex flex-col items-center py-8">
-      {/* Pulsing artist image area */}
-      <div className="relative mb-6">
-        <div className="w-16 h-16 rounded-full bg-[#DA7756]/10 flex items-center justify-center">
-          <Sparkles size={24} className="text-[#DA7756] animate-pulse" />
-        </div>
-        <div className="absolute inset-0 w-16 h-16 rounded-full border-2 border-[#DA7756]/30 animate-ping" style={{ animationDuration: '2s' }} />
-      </div>
-
-      <p className="text-sm font-medium text-[#F5F0E8] mb-1">Building campaign for {artistName}</p>
-      <p className="text-[10px] text-[#6B6560] mb-6">Analyzing real performance data with AI</p>
-
-      {/* Step list */}
-      <div className="w-full max-w-xs space-y-2">
-        {GENERATION_STEPS.map((step, i) => {
-          const StepIcon = step.icon;
-          const isActive = i === activeStep;
-          const isDone = i < activeStep;
-
-          return (
-            <motion.div
-              key={i}
-              initial={false}
-              animate={{
-                opacity: isDone ? 0.4 : isActive ? 1 : 0.25,
-                x: isActive ? 0 : -4,
-              }}
-              transition={{ duration: 0.4, ease: 'easeOut' }}
-              className="flex items-center gap-3 px-3 py-2 rounded"
-              style={isActive ? { backgroundColor: step.color + '10', border: `1px solid ${step.color}25` } : { border: '1px solid transparent' }}
-            >
-              <div className="shrink-0">
-                {isDone ? (
-                  <div className="w-5 h-5 rounded-full bg-[#7BAF73]/20 flex items-center justify-center">
-                    <div className="w-1.5 h-1.5 rounded-full bg-[#7BAF73]" />
-                  </div>
-                ) : isActive ? (
-                  <div className="w-5 h-5 flex items-center justify-center">
-                    <Loader2 size={14} className="animate-spin" style={{ color: step.color }} />
-                  </div>
-                ) : (
-                  <div className="w-5 h-5 rounded-full bg-[#2C2B28] flex items-center justify-center">
-                    <StepIcon size={10} className="text-[#6B6560]" />
-                  </div>
-                )}
-              </div>
-              <span className={`text-[11px] font-mono ${isActive ? 'text-[#F5F0E8]' : isDone ? 'text-[#6B6560]' : 'text-[#6B6560]'}`}>
-                {step.text}
-              </span>
-            </motion.div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function StepCustomGoal({ selectedArtist, goalText, setGoalText, totalBudget, setTotalBudget, generating, generatingStep, generateError }) {
-  if (generating) {
-    return <GeneratingOverlay artistName={selectedArtist?.name || 'your artist'} activeStep={generatingStep} />;
-  }
-
-  return (
-    <div>
-      {/* Artist mini-header */}
-      <div className="flex items-center gap-2 mb-4">
-        {selectedArtist?.imageUrl ? (
-          <img src={selectedArtist.imageUrl} alt="" className="w-6 h-6 rounded object-cover" />
-        ) : (
-          <div className="w-6 h-6 rounded bg-[#2C2B28] flex items-center justify-center">
-            <Music size={8} className="text-[#6B6560]" />
-          </div>
-        )}
-        <span className="text-xs font-medium text-[#F5F0E8]">{selectedArtist?.name}</span>
-      </div>
-
-      <div className="bg-[#0D0C0B] border border-[#2C2B28] rounded-lg p-4">
-        <div className="flex items-center gap-2 mb-2">
-          <Sparkles size={12} className="text-[#DA7756]" />
-          <p className="text-xs font-medium text-[#F5F0E8]">Describe your campaign goal</p>
-        </div>
-        <p className="text-[10px] text-[#6B6560] mb-3">
-          Tell us what you want to achieve and we'll create a data-driven campaign plan using the artist's real performance metrics.
-        </p>
-        <textarea
-          value={goalText}
-          onChange={e => setGoalText(e.target.value)}
-          placeholder="e.g. Grow TikTok presence and drive streams for the new single, target Gen Z listeners in the US..."
-          className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-2.5 text-sm text-[#F5F0E8] placeholder-[#6B6560]/60 outline-none resize-none focus:border-[#3D3B37] transition-colors"
-          rows={4}
-          autoFocus
-        />
-
-        {/* Budget input */}
-        <div className="mt-3">
-          <label className="text-[10px] text-[#9B9590] mb-1.5 block">Total budget (USD)</label>
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#6B6560]">$</span>
-            <input
-              type="text"
-              inputMode="numeric"
-              value={totalBudget ? totalBudget.toLocaleString('en-US') : ''}
-              onChange={e => setTotalBudget(Number(e.target.value.replace(/[^0-9]/g, '')) || 0)}
-              className="w-full bg-[#171614] border border-[#2C2B28] rounded pl-7 pr-3 py-2 text-sm text-[#F5F0E8] outline-none focus:border-[#3D3B37] transition-colors"
-            />
-          </div>
-        </div>
-
-        {generateError && (
-          <p className="text-[10px] text-[#C75F4F] mt-2">{generateError}</p>
-        )}
-      </div>
-
-      <div className="mt-4 space-y-2">
-        <p className="text-[9px] font-mono uppercase tracking-wider text-[#6B6560]">Example goals</p>
-        {[
-          'Drive streams of the new single with Instagram and TikTok ads pointing at a smart link',
-          'Build Instagram following with video ad campaigns for upcoming album release',
-          'Run a TikTok awareness campaign to reach new fans in Europe',
-        ].map((example, i) => (
-          <button
-            key={i}
-            onClick={() => setGoalText(example)}
-            className="w-full text-left px-3 py-2 text-[10px] text-[#9B9590] bg-[#0D0C0B] border border-[#2C2B28] hover:border-[#3D3B37] hover:text-[#F5F0E8] rounded transition-colors cursor-pointer"
-          >
-            {example}
-          </button>
-        ))}
       </div>
     </div>
   );
