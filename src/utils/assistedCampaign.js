@@ -192,7 +192,7 @@ export function campaignIssue(c, destination) {
   } else if (!c.draft.videoFile) {
     return 'Add a video.';
   }
-  if (!destination) return 'Add the link to the release.';
+  if (!destination) return 'Create a smart link for the release.';
   return null;
 }
 

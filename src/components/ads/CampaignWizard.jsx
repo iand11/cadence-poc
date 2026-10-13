@@ -313,11 +313,7 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, on
 
   const setPlanMode = (platform, mode) => updatePlanCampaign(platform, c => ({ ...c, mode }));
   const setPlanDraft = (platform, patch) => updatePlanCampaign(platform, c => ({ ...c, draft: { ...c.draft, ...patch } }));
-  // A pasted release link becomes a smart link in the background; the pasted URL is used until it's ready
-  const handleLinkCreated = (link, fromUrl) => {
-    setSmartLinks(prev => [link, ...(prev || [])]);
-    setDestination(d => (d === fromUrl ? link.url : d));
-  };
+  const handleLinkCreated = (link) => setSmartLinks(prev => [link, ...(prev || [])]);
 
   const nextFromContent = () => {
     if (returnToConfirm || contentIndex >= planCampaigns.length - 1) {

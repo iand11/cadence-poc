@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   Music, Eye, Heart, AlertTriangle, Info, Calendar, MapPin, Users,
-  Link2, Check, FileVideo, Sparkles, Image as ImageIcon, Pencil,
+  Link2, Loader2, Plus, Check, FileVideo, Sparkles, Image as ImageIcon, Pencil,
 } from 'lucide-react';
 import AdImagesField from './AdImagesField';
 import { FileUploadField, MetaRunAsPicker } from './DirectiveBuilder';
@@ -38,29 +38,69 @@ function StepTitle({ title, hint }) {
 }
 
 // ─── Where a new post sends fans ───
-// The artist's smart link is picked automatically. A pasted release link is used right away and
-// turned into a smart link in the background, so the user never has to know what one is up front.
+// The artist's smart link is filled in automatically. Without one, creating a smart link is the
+// main action (it gives the campaign per-service click data); a plain link is a small fallback.
 
 const isUrl = (v) => /^https?:\/\/\S+\.\S+/.test(v.trim());
+
+function CreateSmartLink({ artist, onCreated, prominent }) {
+  const [sourceUrl, setSourceUrl] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+
+  const create = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const { link } = await createSmartLink({ sourceUrl: sourceUrl.trim(), artistSlug: artist?.slug, artistName: artist?.name, imageUrl: artist?.imageUrl || undefined });
+      onCreated(link);
+    } catch (e) {
+      setError(e.message || 'Could not create the smart link.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className={`rounded-lg border p-3 ${prominent ? 'border-[#DA7756]/50 bg-[#DA7756]/[0.07]' : 'border-[#2C2B28] bg-[#0D0C0B]'}`}>
+      <p className="flex items-center gap-1.5 text-xs text-[#F5F0E8] font-medium">
+        <Link2 size={12} className="text-[#DA7756]" />Create a smart link{artist?.name ? ` for ${artist.name}` : ''}
+      </p>
+      <p className="text-[10px] text-[#9B9590] mt-1 mb-2.5">
+        One page with every streaming service. Fans pick theirs, and you see clicks to each service from this campaign.
+      </p>
+      <div className="flex gap-2">
+        <input
+          value={sourceUrl}
+          onChange={e => setSourceUrl(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && isUrl(sourceUrl) && !busy) create(); }}
+          placeholder="Spotify, Apple Music or YouTube link to the release"
+          className={`${inputCls} font-mono`}
+        />
+        <button
+          onClick={create}
+          disabled={busy || !isUrl(sourceUrl)}
+          className="flex items-center gap-1 px-3 py-2 text-[10px] font-medium bg-[#DA7756] text-[#0D0C0B] rounded hover:bg-[#DA7756]/90 disabled:bg-[#2C2B28] disabled:text-[#6B6560] cursor-pointer disabled:cursor-default shrink-0"
+        >
+          {busy ? <Loader2 size={10} className="animate-spin" /> : <Plus size={10} />}{busy ? 'Creating…' : 'Create smart link'}
+        </button>
+      </div>
+      {error && <p className="text-[9px] text-[#C75F4F] mt-1.5">{error}</p>}
+    </div>
+  );
+}
 
 function DestinationField({ artist, smartLinks, destination, onDestination, onLinkCreated }) {
   const links = smartLinks || [];
   const ownLinks = links.filter(l => l.artistSlug === artist?.slug);
   const current = links.find(l => l.url === destination);
   const [editing, setEditing] = useState(false);
-  const [pasted, setPasted] = useState('');
+  const [plain, setPlain] = useState(false);
+  const [creating, setCreating] = useState(false);
   const open = editing || !destination;
 
-  const applyPasted = (value) => {
-    const url = value.trim();
-    if (!isUrl(url)) return;
-    onDestination(url);
-    setPasted('');
-    setEditing(false);
-    createSmartLink({ sourceUrl: url, artistSlug: artist?.slug, artistName: artist?.name, imageUrl: artist?.imageUrl || undefined })
-      .then(({ link }) => link && onLinkCreated(link, url))
-      .catch(() => {});
-  };
+  const choose = (url) => { onDestination(url); setEditing(false); setPlain(false); setCreating(false); };
+  const created = (link) => { onLinkCreated(link); choose(link.url); };
 
   return (
     <div>
@@ -70,26 +110,40 @@ function DestinationField({ artist, smartLinks, destination, onDestination, onLi
           <Link2 size={12} className="text-[#DA7756] shrink-0" />
           <div className="flex-1 min-w-0">
             <p className="text-xs text-[#F5F0E8] truncate">{current ? current.title : destination}</p>
-            <p className="text-[9px] text-[#6B6560] truncate">{current ? 'Every streaming service on one page' : 'Pasted link'}</p>
+            <p className="text-[9px] text-[#6B6560] truncate">{current ? 'Smart link · every streaming service on one page' : "Plain link · clicks per streaming service aren't tracked"}</p>
           </div>
           <button onClick={() => setEditing(true)} className="text-[10px] text-[#DA7756] hover:underline cursor-pointer shrink-0">Change</button>
+        </div>
+      ) : plain ? (
+        <div className="space-y-1.5">
+          <input
+            defaultValue={current ? '' : destination}
+            onBlur={e => { if (isUrl(e.target.value)) choose(e.target.value.trim()); }}
+            onKeyDown={e => { if (e.key === 'Enter' && isUrl(e.target.value)) choose(e.target.value.trim()); }}
+            placeholder="https://…"
+            className={`${inputCls} font-mono`}
+            autoFocus
+          />
+          <button onClick={() => setPlain(false)} className="text-[10px] text-[#DA7756] hover:underline cursor-pointer">Create a smart link instead</button>
         </div>
       ) : (
         <div className="space-y-1.5">
           {ownLinks.map(l => (
-            <button key={l.slug} onClick={() => { onDestination(l.url); setEditing(false); }} className={`${choiceCls(l.url === destination)} w-full flex items-center gap-2 py-2`}>
+            <button key={l.slug} onClick={() => choose(l.url)} className={`${choiceCls(l.url === destination)} w-full flex items-center gap-2 py-2`}>
               <Link2 size={12} className="text-[#DA7756] shrink-0" />
               <span className="text-xs text-[#F5F0E8] truncate">{l.title}</span>
+              <span className="text-[9px] text-[#6B6560] ml-auto shrink-0">Smart link</span>
             </button>
           ))}
-          <input
-            value={pasted}
-            onChange={e => { setPasted(e.target.value); if (isUrl(e.target.value) && e.nativeEvent.inputType === 'insertFromPaste') applyPasted(e.target.value); }}
-            onBlur={() => applyPasted(pasted)}
-            onKeyDown={e => { if (e.key === 'Enter') applyPasted(pasted); }}
-            placeholder={ownLinks.length ? 'Or paste a link to a different release' : 'Paste the Spotify, Apple Music or YouTube link to the release'}
-            className={`${inputCls} font-mono`}
-          />
+          {!ownLinks.length || creating ? (
+            <CreateSmartLink artist={artist} onCreated={created} prominent={!ownLinks.length} />
+          ) : (
+            <button onClick={() => setCreating(true)} className={`${choiceCls(false)} w-full flex items-center gap-2 py-2`}>
+              <Plus size={12} className="text-[#DA7756] shrink-0" />
+              <span className="text-xs text-[#F5F0E8]">Create a new smart link</span>
+            </button>
+          )}
+          <button onClick={() => setPlain(true)} className="text-[10px] text-[#6B6560] hover:text-[#9B9590] cursor-pointer">Use a plain link instead</button>
         </div>
       )}
     </div>
