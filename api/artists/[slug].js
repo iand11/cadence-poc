@@ -38,7 +38,7 @@ export default async function handler(req, res) {
 
   try {
     const row = await queryOne(
-      `SELECT a.*, sc.rank, sc.score, sc.stats, sc.where_people_listen, sc.as_of AS stats_as_of
+      `SELECT a.*, sc.rank, sc.score, sc.stats, sc.as_of AS stats_as_of
        FROM artists a
        LEFT JOIN artist_stats_current sc ON sc.artist_id = a.id
        WHERE a.slug = $1`,

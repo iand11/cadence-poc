@@ -9,27 +9,10 @@
 //                position, peakPosition, addedAt, firstSeenAt, lastSeenAt, removedAt, current, daysOn }
 //   placement  { playlist, ...entry, artistSlug }
 
-const cache = new Map();
+import { getJson, qs } from './http';
 
-async function getJson(url) {
-  if (cache.has(url)) return cache.get(url);
-  const p = fetch(url).then((res) => {
-    if (!res.ok) throw new Error(`${url} → ${res.status}`);
-    return res.json();
-  });
-  cache.set(url, p);
-  p.catch(() => cache.delete(url));
-  return p;
-}
-
-const qs = (opts) => {
-  const params = new URLSearchParams();
-  for (const [k, v] of Object.entries(opts)) {
-    if (v === undefined || v === null || v === '' || v === false) continue;
-    params.set(k, Array.isArray(v) ? v.join(',') : v === true ? '1' : String(v));
-  }
-  return params.toString();
-};
+// Crawls land daily, so playlist responses can be reused for a few minutes.
+const TTL = 5 * 60_000;
 
 /**
  * Playlist universe, filtered/sorted server-side.
@@ -38,13 +21,13 @@ const qs = (opts) => {
  */
 export function fetchPlaylists(opts = {}) {
   if (opts.slugs && !opts.slugs.length) return Promise.resolve({ playlists: [], total: 0, page: 1, perPage: opts.perPage || 50 });
-  return getJson(`/api/playlists?${qs(opts)}`);
+  return getJson(`/api/playlists?${qs(opts)}`, { ttl: TTL });
 }
 
 /** One playlist: tracks, followerHistory, changes, similar (+ roster flags when slugs given). */
 export async function fetchPlaylist(id, { slugs, days } = {}) {
   try {
-    return await getJson(`/api/playlists/${encodeURIComponent(id)}?${qs({ slugs, days })}`);
+    return await getJson(`/api/playlists/${encodeURIComponent(id)}?${qs({ slugs, days })}`, { ttl: TTL });
   } catch {
     return null;
   }
@@ -53,13 +36,14 @@ export async function fetchPlaylist(id, { slugs, days } = {}) {
 /**
  * Placements for artists (slugs) or one catalog track (track).
  * @param {object} opts { slugs, track, status: current|past|all, platform, editorial, limit }
+ *   limit: 0 returns only the summary (no placement rows).
  * @returns {Promise<{placements, summary}>}
  */
 export function fetchPlacements(opts = {}) {
   if (!opts.track && !opts.slugs?.length) {
     return Promise.resolve({ placements: [], summary: { playlists: 0, placements: 0, editorialPlaylists: 0, reach: 0, editorialReach: 0, added30d: 0, removed30d: 0, byPlatform: {} } });
   }
-  return getJson(`/api/playlists/placements?${qs(opts)}`);
+  return getJson(`/api/playlists/placements?${qs(opts)}`, { ttl: TTL });
 }
 
 export const PLATFORM_LABELS = { spotify: 'Spotify', apple: 'Apple Music', deezer: 'Deezer' };

@@ -458,7 +458,7 @@ function PlaylistWidget({ dragProps, followedArtists }) {
   const slugs = useMemo(() => followedArtists.map((a) => a.slug), [followedArtists]);
   const { data } = useAsync(
     () => Promise.all([
-      fetchPlacements({ slugs, limit: 1 }),
+      fetchPlacements({ slugs, limit: 0 }),
       fetchPlaylists({ slugs, sort: 'roster', perPage: 5 }),
     ]),
     [slugs.join(',')],
