@@ -41,14 +41,19 @@ export default async function handler(req, res) {
                     OR (e.first_seen_at >= now() - make_interval(days => $2)
                         AND e.first_seen_at > (SELECT min(first_seen_at) + interval '1 hour' FROM playlist_entries WHERE playlist_id = $1)))
              ORDER BY changed_at DESC LIMIT 200`, [id, days]),
-      // Playlists sharing the most current catalog artists
-      query(`WITH mine AS (SELECT DISTINCT unnest(artist_ids) AS aid FROM playlist_entries WHERE playlist_id = $1 AND removed_at IS NULL)
+      // Playlists sharing the most current catalog artists. `&&` against this
+      // playlist's artist array is served by the artist_ids GIN index.
+      query(`WITH mine AS (
+               SELECT array_agg(DISTINCT x) AS ids
+               FROM playlist_entries, unnest(artist_ids) AS x
+               WHERE playlist_id = $1 AND removed_at IS NULL
+             )
              SELECT ${PLAYLIST_COLUMNS}, count(DISTINCT x.aid)::int AS overlap
-             FROM playlist_entries e2
+             FROM mine
+             JOIN playlist_entries e2 ON e2.artist_ids && mine.ids
              CROSS JOIN LATERAL unnest(e2.artist_ids) AS x(aid)
-             JOIN mine ON mine.aid = x.aid
              JOIN playlists p ON p.id = e2.playlist_id AND p.active
-             WHERE e2.removed_at IS NULL AND e2.playlist_id <> $1
+             WHERE e2.removed_at IS NULL AND e2.playlist_id <> $1 AND x.aid = ANY(mine.ids)
              GROUP BY p.id ORDER BY overlap DESC, p.followers DESC NULLS LAST LIMIT 8`, [id]),
       slugs.length ? query(`SELECT id FROM artists WHERE slug = ANY($1)`, [slugs]) : Promise.resolve([]),
     ]);
@@ -58,7 +63,7 @@ export default async function handler(req, res) {
     const tracklist = tracks.map(shapeEntry);
     const positions = tracklist.filter((t) => t.roster && t.position != null).map((t) => t.position);
 
-    res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
+    res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=600');
     return res.status(200).json({
       ...playlistRowToUI(pl),
       tracks: tracklist,

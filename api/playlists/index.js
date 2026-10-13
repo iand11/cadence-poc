@@ -14,6 +14,7 @@
 // Response: { playlists: [playlistRowToUI], total, page, perPage }
 import { query } from '../lib/db.js';
 import { PLAYLIST_COLUMNS, playlistRowToUI, intParam, list } from '../lib/playlist-shape.js';
+import { artistIdArrayType, artistIdsForSlugs } from '../lib/artist-ids.js';
 
 const SORTS = {
   followers: 'followers DESC NULLS LAST, name',
@@ -39,36 +40,52 @@ export default async function handler(req, res) {
   if (p.get('editorial') === '1') where.push('p.is_editorial');
 
   const slugs = list(p, 'slugs');
-  let rosterJoin = '';
-  if (slugs.length) {
-    params.push(slugs);
-    rosterJoin = `
-      JOIN (
-        SELECT e.playlist_id, count(DISTINCT e.id) AS roster_tracks, count(DISTINCT a.id) AS roster_artists
-        FROM playlist_entries e
-        JOIN artists a ON a.id = ANY(e.artist_ids) AND a.slug = ANY($${params.length})
-        WHERE e.removed_at IS NULL
-        GROUP BY e.playlist_id
-      ) r ON r.playlist_id = p.id`;
-  }
-
   const perPage = intParam(p.get('perPage'), 50, 1, 200);
   const page = intParam(p.get('page'), 1, 1, 100000);
   const sort = SORTS[p.get('sort')] || (slugs.length ? SORTS.roster : SORTS.followers);
 
   try {
-    const base = `
-      SELECT ${PLAYLIST_COLUMNS}${slugs.length ? ', r.roster_tracks, r.roster_artists' : ''}
-      FROM playlists p ${rosterJoin}
-      WHERE ${where.join(' AND ')}`;
-    const [rows, count] = await Promise.all([
-      query(`SELECT * FROM (${base}) x ORDER BY ${sort} LIMIT ${perPage} OFFSET ${(page - 1) * perPage}`, params),
-      query(`SELECT count(*)::int AS n FROM (${base}) x`, params),
-    ]);
-    res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
-    return res.status(200).json({ playlists: rows.map(playlistRowToUI), total: count[0].n, page, perPage });
+    let base;
+    if (slugs.length) {
+      const ids = await artistIdsForSlugs(slugs);
+      if (!ids.length) return send(res, { playlists: [], total: 0, page, perPage });
+      params.push(ids);
+      const idsParam = `$${params.length}::${await artistIdArrayType()}`;
+      // Roster counts per playlist, found through the artist_ids GIN index.
+      base = `
+        WITH r AS (
+          SELECT e.playlist_id, count(DISTINCT e.id) AS roster_tracks, count(DISTINCT x.aid) AS roster_artists
+          FROM playlist_entries e
+          CROSS JOIN LATERAL unnest(e.artist_ids) AS x(aid)
+          WHERE e.removed_at IS NULL AND e.artist_ids && ${idsParam} AND x.aid = ANY(${idsParam})
+          GROUP BY e.playlist_id
+        )
+        SELECT ${PLAYLIST_COLUMNS}, r.roster_tracks, r.roster_artists
+        FROM playlists p JOIN r ON r.playlist_id = p.id
+        WHERE ${where.join(' AND ')}`;
+    } else {
+      base = `SELECT ${PLAYLIST_COLUMNS} FROM playlists p WHERE ${where.join(' AND ')}`;
+    }
+    // One pass returns the page and the total; only an out-of-range page
+    // (no rows to carry the total) needs a separate count.
+    const rows = await query(
+      `SELECT x.*, count(*) OVER ()::int AS total_count FROM (${base}) x
+       ORDER BY ${sort} LIMIT ${perPage} OFFSET ${(page - 1) * perPage}`,
+      params
+    );
+    const total = rows.length
+      ? rows[0].total_count
+      : page > 1
+        ? (await query(`SELECT count(*)::int AS n FROM (${base}) x`, params))[0].n
+        : 0;
+    return send(res, { playlists: rows.map(playlistRowToUI), total, page, perPage });
   } catch (err) {
     console.error('GET /api/playlists failed:', err.message);
     return res.status(500).json({ error: 'Database unavailable' });
   }
+}
+
+function send(res, body) {
+  res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=600');
+  return res.status(200).json(body);
 }

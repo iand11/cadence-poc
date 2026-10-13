@@ -75,7 +75,7 @@ export default function PlaylistsPage() {
   const total = listData?.total || 0;
 
   const { data: summaryData } = useAsync(
-    () => (slugs.length ? fetchPlacements({ slugs, limit: 1 }) : Promise.resolve(null)),
+    () => (slugs.length ? fetchPlacements({ slugs, limit: 0 }) : Promise.resolve(null)),
     [slugKey],
   );
   const summary = summaryData?.summary;

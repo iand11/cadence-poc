@@ -13,15 +13,10 @@
 // and let Postgres do the work.
 
 import { getIdToken } from '../lib/firebase';
+import { getJson, qs } from './http';
 
-const summaryCache = new Map(); // slug → artist summary
-const detailCache = new Map();  // slug|include → full response
-
-async function getJson(url) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`${url} → ${res.status}`);
-  return res.json();
-}
+const summaryCache = new Map(); // slug → artist summary (sync lookups via getCachedArtist)
+const MAX_PER_PAGE = 200;
 
 /**
  * Paginated, filtered artist index.
@@ -29,12 +24,7 @@ async function getJson(url) {
  * @returns {Promise<{artists: Array, total: number, page: number, perPage: number}>}
  */
 export async function fetchArtists(opts = {}) {
-  const params = new URLSearchParams();
-  for (const [k, v] of Object.entries(opts)) {
-    if (v === undefined || v === null || v === '') continue;
-    params.set(k, Array.isArray(v) ? v.join(',') : String(v));
-  }
-  const data = await getJson(`/api/artists?${params}`);
+  const data = await getJson(`/api/artists?${qs(opts)}`, { ttl: 60_000 });
   for (const a of data.artists) summaryCache.set(a.slug, a);
   return data;
 }
@@ -42,10 +32,11 @@ export async function fetchArtists(opts = {}) {
 /** Batch-fetch specific artists by slug (e.g. the user's tracked roster). */
 export async function fetchArtistsBySlugs(slugs) {
   if (!slugs?.length) return [];
-  const missing = slugs.filter((s) => !summaryCache.has(s));
-  if (missing.length) {
-    await fetchArtists({ slugs: missing, perPage: Math.min(missing.length, 200) });
-  }
+  const missing = [...new Set(slugs.filter((s) => !summaryCache.has(s)))].sort();
+  // The API pages at 200 — fetch larger sets in parallel chunks.
+  const chunks = [];
+  for (let i = 0; i < missing.length; i += MAX_PER_PAGE) chunks.push(missing.slice(i, i + MAX_PER_PAGE));
+  await Promise.all(chunks.map((chunk) => fetchArtists({ slugs: chunk, perPage: chunk.length })));
   return slugs.map((s) => summaryCache.get(s)).filter(Boolean);
 }
 
@@ -56,7 +47,7 @@ export function getCachedArtist(slug) {
 
 /** Facet option lists + catalog-wide stats for the artists list page. */
 export async function fetchFacets() {
-  return getJson('/api/artists/facets');
+  return getJson('/api/artists/facets', { ttl: 60 * 60_000 });
 }
 
 async function authHeaders(base = {}) {
@@ -118,13 +109,7 @@ export async function fetchTrack(id) {
  */
 export async function fetchTracks({ slugs, q, sort, dedupe, page, perPage } = {}) {
   if (!slugs?.length) return { tracks: [], total: 0, page: 1, perPage: perPage || 50 };
-  const params = new URLSearchParams({ slugs: slugs.join(',') });
-  if (q) params.set('q', q);
-  if (sort) params.set('sort', sort);
-  if (dedupe) params.set('dedupe', '1');
-  if (page) params.set('page', String(page));
-  if (perPage) params.set('perPage', String(perPage));
-  return getJson(`/api/tracks?${params}`);
+  return getJson(`/api/tracks?${qs({ slugs, q, sort, dedupe: !!dedupe, page, perPage })}`);
 }
 
 /** One album by canonical id (+ tracks) — drop-in for getAlbumAsync/getAlbumTracksAsync. */
@@ -145,11 +130,7 @@ export async function fetchAlbum(id, { tracks = false } = {}) {
  */
 export async function fetchAlbums({ slugs, sort, page, perPage } = {}) {
   if (!slugs?.length) return { albums: [], total: 0, page: 1, perPage: perPage || 20 };
-  const params = new URLSearchParams({ slugs: slugs.join(',') });
-  if (sort) params.set('sort', sort);
-  if (page) params.set('page', String(page));
-  if (perPage) params.set('perPage', String(perPage));
-  return getJson(`/api/albums?${params}`);
+  return getJson(`/api/albums?${qs({ slugs, sort, page, perPage })}`);
 }
 
 /** Name search — same result shape as searchArtists() in artists.js. */
@@ -167,13 +148,11 @@ export async function searchArtists(query, limit = 20) {
  */
 export async function fetchArtist(slug, { history = false, days = 90 } = {}) {
   const include = history ? 'tracks,albums,history' : 'tracks,albums';
-  const cacheKey = `${slug}|${include}|${days}`;
-  if (detailCache.has(cacheKey)) return detailCache.get(cacheKey);
   const data = await getJson(
-    `/api/artists/${encodeURIComponent(slug)}?include=${include}&days=${days}`
+    `/api/artists/${encodeURIComponent(slug)}?include=${include}&days=${days}`,
+    { ttl: 5 * 60_000 }
   );
   summaryCache.set(slug, data.artist);
-  detailCache.set(cacheKey, data);
   return data;
 }
 
@@ -197,5 +176,5 @@ export async function fetchContentFeed({ platform, platforms, type, sort = 'rece
   else if (artists?.length) params.set('artists', artists.join(','));
   params.set('limit', String(limit));
   params.set('offset', String(offset));
-  return getJson(`/api/feed?${params}`);
+  return getJson(`/api/feed?${params}`, { ttl: 60_000 });
 }

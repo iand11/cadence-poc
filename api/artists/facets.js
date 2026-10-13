@@ -9,6 +9,7 @@
 //   stats:     { total, totalListeners, totalFollowers, avgScore }
 // }
 import { query } from '../lib/db.js';
+import { cached } from '../lib/cache.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -17,7 +18,8 @@ export default async function handler(req, res) {
   }
 
   try {
-    const [genres, countries, labels, stages, stats] = await Promise.all([
+    // Five GROUP BYs over the whole catalog; the result changes only on ingest.
+    const [genres, countries, labels, stages, stats] = await cached('artists:facets', 3600_000, () => Promise.all([
       query(`SELECT primary_genre AS value, count(*)::int AS count FROM artists
              WHERE primary_genre IS NOT NULL GROUP BY 1 ORDER BY 2 DESC LIMIT 40`),
       query(`SELECT country AS value, count(*)::int AS count FROM artists
@@ -31,9 +33,9 @@ export default async function handler(req, res) {
                     COALESCE(sum(sc.sp_followers), 0)::bigint AS total_followers,
                     COALESCE(avg(sc.score), 0)::float AS avg_score
              FROM artists a LEFT JOIN artist_stats_current sc ON sc.artist_id = a.id`),
-    ]);
+    ]));
 
-    res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=86400');
+    res.setHeader('Cache-Control', 'public, max-age=600, s-maxage=3600, stale-while-revalidate=86400');
     return res.status(200).json({
       genres,
       countries,

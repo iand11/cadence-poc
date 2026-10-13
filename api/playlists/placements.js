@@ -7,7 +7,7 @@
 //   status    current (default) | past | all
 //   platform  spotify | apple | deezer (comma ok)
 //   editorial 1 → editorial + chart only
-//   limit     default 200, max 1000
+//   limit     default 200, max 1000; 0 → summary only (no placement rows)
 //
 // Response: { placements: [{ playlist, ...entry, artistSlug }],
 //             summary: { playlists, placements, editorialPlaylists, reach, editorialReach,
@@ -16,6 +16,9 @@
 // platform's own added date where it has one (so a first crawl isn't "new").
 import { query } from '../lib/db.js';
 import { PLAYLIST_COLUMNS, playlistRowToUI, entryRowToUI, intParam, list } from '../lib/playlist-shape.js';
+import { artistIdArrayType, artistIdsForSlugs } from '../lib/artist-ids.js';
+
+const EMPTY_SUMMARY = { playlists: 0, placements: 0, editorialPlaylists: 0, reach: 0, editorialReach: 0, added30d: 0, removed30d: 0, byPlatform: {} };
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -29,35 +32,39 @@ export default async function handler(req, res) {
 
   const params = [];
   const base = ['p.active'];
-  let scopeJoin = '';
-  if (slugs.length) {
-    params.push(slugs);
-    scopeJoin = `JOIN artists sa ON sa.id = ANY(e.artist_ids) AND sa.slug = ANY($${params.length})`;
-  } else {
-    params.push(track);
-    base.push(`e.track_id = $${params.length}`);
-  }
-  if (list(p, 'platform').length) { params.push(list(p, 'platform')); base.push(`p.platform = ANY($${params.length})`); }
-  if (p.get('editorial') === '1') base.push('p.is_editorial');
-
-  const status = p.get('status') || 'current';
-  const statusSql = status === 'past' ? 'e.removed_at IS NOT NULL' : status === 'all' ? 'true' : 'e.removed_at IS NULL';
-  const limit = intParam(p.get('limit'), 200, 1, 1000);
-  const from = `FROM playlist_entries e JOIN playlists p ON p.id = e.playlist_id ${scopeJoin}`;
-  const slugSql = slugs.length ? 'sa.slug' : 'NULL::text';
-
+  let slugSql = 'NULL::text';
   try {
+    if (slugs.length) {
+      const ids = await artistIdsForSlugs(slugs);
+      if (!ids.length) return send(res, { placements: [], summary: EMPTY_SUMMARY });
+      params.push(ids);
+      const idsParam = `$${params.length}::${await artistIdArrayType()}`;
+      // && is served by the artist_ids GIN index; one row per entry.
+      base.push(`e.artist_ids && ${idsParam}`);
+      slugSql = `(SELECT a.slug FROM artists a WHERE a.id = ANY(e.artist_ids) AND a.id = ANY(${idsParam}) LIMIT 1)`;
+    } else {
+      params.push(track);
+      base.push(`e.track_id = $${params.length}`);
+    }
+    if (list(p, 'platform').length) { params.push(list(p, 'platform')); base.push(`p.platform = ANY($${params.length})`); }
+    if (p.get('editorial') === '1') base.push('p.is_editorial');
+
+    const status = p.get('status') || 'current';
+    const statusSql = status === 'past' ? 'e.removed_at IS NOT NULL' : status === 'all' ? 'true' : 'e.removed_at IS NULL';
+    const limit = p.get('limit') === '0' ? 0 : intParam(p.get('limit'), 200, 1, 1000);
+    const from = 'FROM playlist_entries e JOIN playlists p ON p.id = e.playlist_id';
+
     const [rows, summary, removed] = await Promise.all([
-      query(`SELECT DISTINCT ON (p.followers, e.id) ${PLAYLIST_COLUMNS},
+      limit ? query(`SELECT ${PLAYLIST_COLUMNS},
                     e.id AS entry_id, e.track_id, e.platform_track_id, e.track_name, e.artist_names,
                     e.position, e.peak_position, e.added_at, e.first_seen_at, e.last_seen_at, e.removed_at,
                     (SELECT json_agg(json_build_object('slug', a.slug, 'name', a.name)) FROM artists a WHERE a.id = ANY(e.artist_ids)) AS artists,
                     ${slugSql} AS artist_slug
              ${from} WHERE ${base.join(' AND ')} AND ${statusSql}
              ORDER BY p.followers DESC NULLS LAST, e.id
-             LIMIT ${limit}`, params),
+             LIMIT ${limit}`, params) : [],
       query(`WITH cur AS (
-               SELECT DISTINCT ON (e.id) e.id, COALESCE(e.added_at, e.first_seen_at) AS since,
+               SELECT COALESCE(e.added_at, e.first_seen_at) AS since,
                       p.id AS pid, p.platform, p.is_editorial, p.followers
                ${from} WHERE ${base.join(' AND ')} AND e.removed_at IS NULL
              ), pl AS (SELECT DISTINCT pid, platform, is_editorial, followers FROM cur),
@@ -70,7 +77,7 @@ export default async function handler(req, res) {
                           COALESCE(sum(followers) FILTER (WHERE is_editorial), 0)::bigint AS editorial_reach
                    FROM pl GROUP BY platform)
              SELECT * FROM a JOIN b USING (platform)`, params),
-      query(`SELECT count(DISTINCT e.id)::int AS n ${from}
+      query(`SELECT count(*)::int AS n ${from}
              WHERE ${base.join(' AND ')} AND e.removed_at >= now() - interval '30 days'`, params),
     ]);
 
@@ -90,10 +97,14 @@ export default async function handler(req, res) {
       .map((r) => ({ playlist: playlistRowToUI(r), ...entryRowToUI(r), artistSlug: r.artist_slug || null }))
       .sort((x, y) => (y.current - x.current) || ((y.playlist.followers ?? -1) - (x.playlist.followers ?? -1)) || ((x.position ?? 9999) - (y.position ?? 9999)));
 
-    res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
-    return res.status(200).json({ placements, summary: { ...total, removed30d: removed[0].n, byPlatform } });
+    return send(res, { placements, summary: { ...total, removed30d: removed[0].n, byPlatform } });
   } catch (err) {
     console.error('GET /api/playlists/placements failed:', err.message);
     return res.status(500).json({ error: 'Database unavailable' });
   }
+}
+
+function send(res, body) {
+  res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=600');
+  return res.status(200).json(body);
 }

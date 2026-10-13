@@ -93,6 +93,15 @@ the artist, saves the release and stores them in `smart_link_fans`. Their encryp
 them, Meta campaigns are blocked, not simulated. Details in
 docs/CAMPAIGN_PLAN.md.
 
+Request caching: client GETs go through `src/data/http.js` (`getJson(url, { ttl })` —
+in-flight dedupe + bounded TTL cache; `qs()` sorts `slugs` so the same artist set hits
+the same cache entry). API responses send `max-age=60` for the browser plus `s-maxage`
+for the CDN. Server-side, `api/lib/cache.js` (`cached(key, ttl, load)`) memoizes slow-moving
+results (facets, artist totals, slug → id). Playlist endpoints resolve slugs to ids
+(`api/lib/artist-ids.js`) and filter with `e.artist_ids && $ids` so the GIN index in
+`db/schema.sql` is used — never join `artists ON a.id = ANY(e.artist_ids)` to scope by
+artist (it unnests every entry row). `/api/playlists/placements?limit=0` returns only the summary.
+
 ### Data Modules (`src/data/`)
 
 The app is scoped to the artists a user **follows** (user-facing copy never says "roster" or
