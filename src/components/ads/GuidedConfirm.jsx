@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import AdImagesField from './AdImagesField';
 import LyricVideoMaker from './LyricVideoMaker';
+import AdVideoField from './AdVideoField';
 import { FileUploadField, MetaRunAsPicker } from './DirectiveBuilder';
 import { createSmartLink } from '../../data/smartLinks';
 import { PLATFORM_LABELS, OBJECTIVE_LABELS } from '../../data/directives';
@@ -173,7 +174,7 @@ export function GuidedContentStep({ campaign, posts, artist, recommendNew, smart
             New post
             {recommendNew && <span className="text-[8px] font-mono uppercase tracking-wider text-[#DA7756] border border-[#DA7756]/30 rounded px-1">Recommended</span>}
           </p>
-          <p className="text-[10px] text-[#9B9590] mt-0.5">{platform === 'meta' ? 'Upload images that link' : 'Upload a video that links'} to the release</p>
+          <p className="text-[10px] text-[#9B9590] mt-0.5">{platform === 'meta' ? 'Images or a video that link' : 'Upload a video that links'} to the release</p>
         </button>
       </div>
 
@@ -217,7 +218,26 @@ export function GuidedContentStep({ campaign, posts, artist, recommendNew, smart
             <input value={draft.headline} onChange={e => set({ headline: e.target.value })} placeholder={`New music from ${artist?.name || 'the artist'}`} className={inputCls} />
           </div>
           {platform === 'meta' ? (
-            <AdImagesField images={draft.images} onChange={(images) => set({ images })} fallbackImage={artist?.imageUrl} />
+            <>
+              <div className="flex gap-1">
+                {[['images', 'Images'], ['video', 'Video']].map(([key, text]) => (
+                  <button
+                    key={key}
+                    onClick={() => set({ metaMedia: key })}
+                    className={`flex items-center gap-1 text-[9px] font-mono px-2.5 py-1 rounded border transition-colors cursor-pointer ${
+                      (draft.metaMedia || 'images') === key ? 'border-[#DA7756]/30 bg-[#DA7756]/10 text-[#F5F0E8]' : 'border-[#2C2B28] text-[#6B6560] hover:text-[#9B9590]'
+                    }`}
+                  >
+                    {key === 'video' ? <FileVideo size={9} /> : <ImageIcon size={9} />}{text}
+                  </button>
+                ))}
+              </div>
+              {draft.metaMedia === 'video' ? (
+                <AdVideoField value={draft.metaVideo} onChange={(metaVideo) => set({ metaVideo })} artist={artist} />
+              ) : (
+                <AdImagesField images={draft.images} onChange={(images) => set({ images })} fallbackImage={artist?.imageUrl} />
+              )}
+            </>
           ) : (
             <div>
               <FileUploadField
@@ -304,7 +324,8 @@ export default function GuidedConfirm({ plan, artist, campaigns, posts, errors, 
           const post = (posts[c.platform] || [])[c.postIndex];
           const amount = d.budget?.amount || 0;
           const error = errors[c.platform];
-          const thumb = c.mode === 'boost' ? post?.thumbnailUrl : c.platform === 'meta' ? c.draft.images[0] : null;
+          const newVideo = c.mode === 'new' && (c.platform !== 'meta' || c.draft.metaMedia === 'video');
+          const thumb = c.mode === 'boost' ? post?.thumbnailUrl : c.platform === 'meta' && !newVideo ? c.draft.images[0] : null;
           return (
             <div key={c.platform} className="p-3">
               <div className="flex items-center gap-3">
@@ -312,7 +333,7 @@ export default function GuidedConfirm({ plan, artist, campaigns, posts, errors, 
                   <img src={thumb} alt="" className="w-10 h-10 rounded object-cover shrink-0" />
                 ) : (
                   <div className="w-10 h-10 rounded bg-[#2C2B28] flex items-center justify-center shrink-0">
-                    {c.mode === 'new' && c.platform !== 'meta' ? <FileVideo size={13} className="text-[#6B6560]" /> : c.mode === 'new' ? <ImageIcon size={13} className="text-[#6B6560]" /> : <Music size={13} className="text-[#6B6560]" />}
+                    {newVideo ? <FileVideo size={13} className="text-[#6B6560]" /> : c.mode === 'new' ? <ImageIcon size={13} className="text-[#6B6560]" /> : <Music size={13} className="text-[#6B6560]" />}
                   </div>
                 )}
                 <div className="flex-1 min-w-0">

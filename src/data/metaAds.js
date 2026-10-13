@@ -64,3 +64,23 @@ export const setMetaCampaignStatus = (id, status) =>
 
 /** Upload an ad image ({ dataUrl, width, height }). Returns { id, url }. */
 export const uploadAdImage = (image) => request('/api/ad-images', { method: 'POST', body: image });
+
+// Ad videos go up in chunks (one request is capped at 4.5 MB on Vercel). Returns { id, url }.
+const VIDEO_CHUNK = 2 * 1024 * 1024;
+const toBase64 = (blob) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
+  reader.onerror = () => reject(reader.error);
+  reader.readAsDataURL(blob);
+});
+export async function uploadAdVideo(file, onProgress) {
+  const contentType = (file.type || '').split(';')[0] || (/\.mov$/i.test(file.name) ? 'video/quicktime' : 'video/mp4');
+  const { id } = await request('/api/ad-videos', { method: 'POST', body: { action: 'start', name: file.name, contentType, size: file.size } });
+  let offset = 0;
+  while (offset < file.size) {
+    const data = await toBase64(file.slice(offset, offset + VIDEO_CHUNK));
+    ({ received: offset } = await request('/api/ad-videos', { method: 'POST', body: { action: 'chunk', id, offset, data } }));
+    onProgress?.(offset / file.size);
+  }
+  return request('/api/ad-videos', { method: 'POST', body: { action: 'finish', id } });
+}

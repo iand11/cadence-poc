@@ -78,7 +78,11 @@ chosen individually.
   `link_data` with one image, or `child_attachments` in order for a carousel with
   `multi_share_optimized: false` so Meta keeps that order, `trackUrl` as the link, headline → `name`, description → `message`, CTA Listen
   Now / Learn More / Watch Now / Shop Now → `LISTEN_NOW` / `LEARN_MORE` / `WATCH_MORE` /
-  `SHOP_NOW`). Video ads are rejected for now (boost an existing video post instead).
+  `SHOP_NOW`). A video ad (`creative.type: 'video'`, `creative.videoUrl` from
+  `/api/ad-videos`, uploaded in chunks or made with the lyric video maker) is sent to
+  `act_x/advideos` in a resumable upload session, cached per ad account, and polled until
+  Meta finishes processing (409 `video_processing` if it takes too long; nothing is created).
+  The creative then uses `video_data` with Meta's preferred thumbnail.
   The directive gets `platformCampaignId`, `platformAdSetId`, `platformAdId`,
   `platformCreativeId`, `adAccountId`, `igUsername` and status `paused`.
 - Field mapping: awareness → `OUTCOME_AWARENESS`/`REACH`; otherwise a boost is
@@ -97,7 +101,6 @@ chosen individually.
   page, with a spend confirm. It only touches campaigns in the user's selected ad account.
 - Meta campaigns always run for real. With no Meta credentials on the server they're
   blocked, not simulated. Other platforms are still simulated.
-- Video upload for new ads is still a later phase.
 
 ### 2b. Smart links (streaming-service clicks) — built
 

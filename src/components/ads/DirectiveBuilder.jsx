@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router';
 import { motion } from 'motion/react';
 import { X, Check, Search, Music, Loader2, Heart, Eye, CheckCircle, Play, Plus, ChevronDown, Link2, Upload, FileVideo, Trash2, AlertTriangle } from 'lucide-react';
 import AdImagesField from './AdImagesField';
+import AdVideoField from './AdVideoField';
 import AdPreview from './AdPreview';
 import { PLATFORM_OBJECTIVES, PLATFORM_CONSTRAINTS, PLATFORM_LABELS, CREATIVE_TYPES } from '../../data/directives';
 import BudgetAllocator from './BudgetAllocator';
@@ -239,6 +240,10 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
   const [images, setImages] = useState(() => initialData?.creative?.images
     || (initialData?.creative?.imageUrl && !initialData?.creative?.postId ? [initialData.creative.imageUrl] : []));
 
+  // New Meta video ad: uploaded to /api/ad-videos ({ url, name, size })
+  const [metaVideo, setMetaVideo] = useState(() => (initialData?.creative?.videoUrl
+    ? { url: initialData.creative.videoUrl, name: initialData.creative.videoName || 'Video', size: 0 } : null));
+
   // YouTube ad creative files
   const [videoFile, setVideoFile] = useState(null);
   const [targetCpm, setTargetCpm] = useState(initialData?.budget?.targetCpm ? initialData.budget.targetCpm / 1000000 : 2);
@@ -290,6 +295,7 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
   // Auto-select first objective/creative when platform changes
   const effectiveObjective = objective && objectives.some(o => o.key === objective) ? objective : objectives[0]?.key || '';
   const effectiveCreativeType = creativeType && creativeTypes.includes(creativeType) ? creativeType : creativeTypes[0] || '';
+  const metaVideoAd = platform === 'meta' && !postId && effectiveCreativeType === 'video';
 
   // Map content-feed API items to normalized shape
   const mapFeedItems = (items) => (items || []).map(item => ({
@@ -417,6 +423,7 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
   const previewMedia = postId
     ? (boostThumb ? [{ url: boostThumb, type: 'image' }] : [])
     : platform === 'youtube' && videoPreviewUrl ? [{ url: videoPreviewUrl, type: 'video' }]
+    : metaVideoAd ? (metaVideo ? [{ url: metaVideo.url, type: 'video' }] : [])
     : images.map(url => ({ url, type: 'image' }));
   const previewIgId = postId ? ownerPlatformId : runAsIgUserId;
   const previewUsername = platform === 'meta'
@@ -468,8 +475,9 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
         postSource: postSource || null,
         igUserId: postId ? (postSource === 'instagram' ? ownerPlatformId : null) : runAsIgUserId,
         pageId: postSource === 'facebook' ? ownerPlatformId : null,
-        images: postId ? [] : images,
-        imageUrl: (!postId && images[0]) || selectedArtist?.imageUrl || initialData?.artistImage || null,
+        images: postId || metaVideoAd ? [] : images,
+        imageUrl: (!postId && !metaVideoAd && images[0]) || selectedArtist?.imageUrl || initialData?.artistImage || null,
+        ...(metaVideoAd && metaVideo ? { videoUrl: metaVideo.url, videoName: metaVideo.name } : {}),
       };
     }
 
@@ -873,11 +881,30 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
                           className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none"
                         />
                       </div>
-                      <AdImagesField
-                        images={images}
-                        onChange={(next) => { setImages(next); setMetaGate(null); }}
-                        fallbackImage={selectedArtist?.imageUrl}
-                      />
+                      {platform === 'meta' && (
+                        <div className="flex gap-1">
+                          {[['image', 'Images'], ['video', 'Video']].map(([key, text]) => (
+                            <button
+                              key={key}
+                              onClick={() => { setCreativeType(key); setMetaGate(null); }}
+                              className={`text-[9px] font-mono px-2.5 py-1 rounded border transition-colors cursor-pointer ${
+                                effectiveCreativeType === key ? 'border-[#DA7756]/30 bg-[#DA7756]/10 text-[#F5F0E8]' : 'border-[#2C2B28] text-[#6B6560] hover:text-[#9B9590]'
+                              }`}
+                            >
+                              {text}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {metaVideoAd ? (
+                        <AdVideoField value={metaVideo} onChange={(v) => { setMetaVideo(v); setMetaGate(null); }} artist={selectedArtist} />
+                      ) : (
+                        <AdImagesField
+                          images={images}
+                          onChange={(next) => { setImages(next); setMetaGate(null); }}
+                          fallbackImage={selectedArtist?.imageUrl}
+                        />
+                      )}
                       <div>
                         <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">
                           <span className="flex items-center gap-1"><Link2 size={9} /> Destination URL</span>

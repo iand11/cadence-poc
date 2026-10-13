@@ -570,6 +570,19 @@ CREATE TABLE IF NOT EXISTS ad_images (
   created_at   timestamptz NOT NULL DEFAULT now()
 );
 
+-- Videos uploaded for new Meta ads (api/ad-videos, sent in chunks; meta-launch reads the bytes)
+CREATE TABLE IF NOT EXISTS ad_videos (
+  id           uuid PRIMARY KEY,
+  user_id      text NOT NULL,
+  name         text,
+  content_type text NOT NULL,
+  size         bigint NOT NULL,
+  bytes        bytea NOT NULL DEFAULT ''::bytea,
+  complete     boolean NOT NULL DEFAULT false,
+  meta_videos  jsonb NOT NULL DEFAULT '{}'::jsonb,  -- ad account → Meta video id (skip re-uploads)
+  created_at   timestamptz NOT NULL DEFAULT now()
+);
+
 -- ---------------------------------------------------------------------------
 -- Playlist crawl indexes
 -- playlists / playlist_entries / playlist_snapshots are created and filled by

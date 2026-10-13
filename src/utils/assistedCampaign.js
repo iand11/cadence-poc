@@ -180,7 +180,7 @@ export function boostCreative(post, platform, goal) {
 
 /** Empty "new post" fields for a campaign; filled in on the confirm screen. */
 export function newPostDraft(artist) {
-  return { headline: artist?.name ? `New music from ${artist.name}` : '', images: [], runAsIgUserId: null, videoFile: null };
+  return { headline: artist?.name ? `New music from ${artist.name}` : '', images: [], runAsIgUserId: null, videoFile: null, metaMedia: 'images', metaVideo: null };
 }
 
 /** What still blocks a campaign from being confirmed, or null. */
@@ -188,7 +188,9 @@ export function campaignIssue(c, destination) {
   if (c.mode !== 'new') return null;
   if (c.platform === 'meta') {
     if (!c.draft.runAsIgUserId) return 'Choose the Instagram account the ad runs as.';
-    if (!c.draft.images.length) return 'Add at least one image.';
+    if (c.draft.metaMedia === 'video') {
+      if (!c.draft.metaVideo?.url) return 'Add a video.';
+    } else if (!c.draft.images.length) return 'Add at least one image.';
   } else if (!c.draft.videoFile) {
     return 'Add a video.';
   }
@@ -208,13 +210,16 @@ function readAsDataUrl(file) {
 /** The directive to save for a confirmed campaign: boosts as planned, new posts built from their fields. */
 export async function finalizeCampaign(c, destination, artist) {
   if (c.mode !== 'new') return c.directive;
-  const { headline, images, runAsIgUserId, videoFile } = c.draft;
+  const { headline, images, runAsIgUserId, videoFile, metaMedia, metaVideo } = c.draft;
   const callToAction = c.directive.creative?.callToAction || 'Learn More';
+  const metaIsVideo = metaMedia === 'video';
   const creative = c.platform === 'meta'
     ? {
-        type: 'image', assetUrl: null, headline, description: '', callToAction, trackUrl: destination,
+        type: metaIsVideo ? 'video' : 'image', assetUrl: null, headline, description: '', callToAction, trackUrl: destination,
         postId: null, postSource: null, igUserId: runAsIgUserId, pageId: null,
-        images, imageUrl: images[0] || artist?.imageUrl || null,
+        images: metaIsVideo ? [] : images,
+        imageUrl: (!metaIsVideo && images[0]) || artist?.imageUrl || null,
+        ...(metaIsVideo ? { videoUrl: metaVideo.url, videoName: metaVideo.name } : {}),
       }
     : {
         type: 'video', headline, description: '', callToAction, trackUrl: destination, postId: null,

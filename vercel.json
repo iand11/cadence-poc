@@ -26,5 +26,10 @@
       "path": "/api/cron/spotify-plays",
       "schedule": "0 7 * * *"
     }
-  ]
+  ],
+  "functions": {
+    "api/campaign/meta-launch.js": {
+      "maxDuration": 60
+    }
+  }
 }
