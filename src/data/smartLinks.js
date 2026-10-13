@@ -22,8 +22,17 @@ export const syncLinkFans = (slug) => request('/api/links', { method: 'POST', bo
 /** Meta Pixels in the user's assigned ad accounts. */
 export const fetchPixels = () => request('/api/links?pixels=1');
 
+/** Find a release on every service without creating a link: { title, artistName, imageUrl, links: [{ service, url }] } */
+export const lookupSmartLinks = (sourceUrl) => request('/api/links', { method: 'POST', body: { action: 'lookup', sourceUrl } });
+
 /** body: { sourceUrl, artistSlug?, artistName?, title?, imageUrl?, links?, pixelId?, fanCapture? } */
 export const createSmartLink = (body) => request('/api/links', { method: 'POST', body });
+
+/** { service: url } → [{ service, url }] with empty rows dropped, for createSmartLink. */
+export const linksList = (links) => Object.entries(links).filter(([, url]) => url.trim()).map(([service, url]) => ({ service, url: url.trim() }));
+
+/** [{ service, url }] → { service: url } */
+export const linksMap = (list) => Object.fromEntries((list || []).map(l => [l.service, l.url]));
 
 /** A link's name for lists: its title, else the artist (titles are optional). */
 export const linkTitle = (l) => l?.title || l?.artistName || 'Untitled link';

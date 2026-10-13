@@ -187,6 +187,11 @@ export default async function handler(req, res) {
           [listeners.map(l => l.spotify_user_id)]) : [];
         return res.status(200).json({ listeners: listeners.length, plays, errors: failed.map(f => f.sync_error) });
       }
+      // Look a release up without creating anything, so the user can check the links first
+      if (body.action === 'lookup') {
+        if (!isHttpUrl(body.sourceUrl)) throw bad('Paste a Spotify, Apple Music, Deezer or YouTube link to the release.');
+        return res.status(200).json(await resolveLinks(body.sourceUrl));
+      }
       if (!isHttpUrl(body.sourceUrl) && !body.links?.length) {
         throw bad('Paste a Spotify, Apple Music, Deezer or YouTube link to the release.');
       }

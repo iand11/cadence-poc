@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import {
   Music, Eye, Heart, AlertTriangle, Info, Calendar, MapPin, Users,
-  Link2, Loader2, Plus, Check, FileVideo, Sparkles, Image as ImageIcon, Pencil,
+  Link2, Loader2, Plus, Check, Search, FileVideo, Sparkles, Image as ImageIcon, Pencil,
 } from 'lucide-react';
 import AdImagesField from './AdImagesField';
 import LyricVideoMaker from './LyricVideoMaker';
 import AdVideoField from './AdVideoField';
 import { FileUploadField, MetaRunAsPicker } from './DirectiveBuilder';
-import { createSmartLink, linkTitle } from '../../data/smartLinks';
+import { createSmartLink, lookupSmartLinks, linksList, linksMap, linkTitle } from '../../data/smartLinks';
+import ServiceLinksEditor from './ServiceLinksEditor';
 import { PLATFORM_LABELS, OBJECTIVE_LABELS } from '../../data/directives';
 import { postEngagement } from '../../utils/assistedCampaign';
 import { PLATFORM_COLORS } from '../../constants/colors';
@@ -47,14 +48,37 @@ const isUrl = (v) => /^https?:\/\/\S+\.\S+/.test(v.trim());
 
 function CreateSmartLink({ artist, onCreated, prominent }) {
   const [sourceUrl, setSourceUrl] = useState('');
+  const [release, setRelease] = useState(null); // lookup result: { title, artistName, imageUrl }
+  const [links, setLinks] = useState(null); // { service: url } to review before creating
+  const [found, setFound] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  const chosen = links ? linksList(links) : [];
+
+  const find = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await lookupSmartLinks(sourceUrl.trim());
+      setRelease(r);
+      setLinks(linksMap(r.links));
+      setFound(new Set(r.links.map(l => l.service)));
+    } catch (e) {
+      setError(e.message || 'Could not look up that link.');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const create = async () => {
     setBusy(true);
     setError(null);
     try {
-      const { link } = await createSmartLink({ sourceUrl: sourceUrl.trim(), artistSlug: artist?.slug, artistName: artist?.name, imageUrl: artist?.imageUrl || undefined });
+      const { link } = await createSmartLink({
+        sourceUrl: sourceUrl.trim(), links: chosen, title: release?.title || undefined,
+        artistSlug: artist?.slug, artistName: artist?.name || release?.artistName,
+        imageUrl: release?.imageUrl || artist?.imageUrl || undefined,
+      });
       onCreated(link);
     } catch (e) {
       setError(e.message || 'Could not create the smart link.');
@@ -62,6 +86,9 @@ function CreateSmartLink({ artist, onCreated, prominent }) {
       setBusy(false);
     }
   };
+
+  const reset = () => { setLinks(null); setFound(null); setRelease(null); };
+  const btnCls = 'flex items-center gap-1 px-3 py-2 text-[10px] font-medium bg-[#DA7756] text-[#0D0C0B] rounded hover:bg-[#DA7756]/90 disabled:bg-[#2C2B28] disabled:text-[#6B6560] cursor-pointer disabled:cursor-default shrink-0';
 
   return (
     <div className={`rounded-lg border p-3 ${prominent ? 'border-[#DA7756]/50 bg-[#DA7756]/[0.07]' : 'border-[#2C2B28] bg-[#0D0C0B]'}`}>
@@ -74,20 +101,38 @@ function CreateSmartLink({ artist, onCreated, prominent }) {
       <div className="flex gap-2">
         <input
           value={sourceUrl}
-          onChange={e => setSourceUrl(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter' && isUrl(sourceUrl) && !busy) create(); }}
-          placeholder="Spotify, Apple Music or YouTube link to the release"
+          onChange={e => { setSourceUrl(e.target.value); if (links) reset(); }}
+          onKeyDown={e => { if (e.key === 'Enter' && isUrl(sourceUrl) && !busy && !links) find(); }}
+          placeholder="Spotify, Apple Music, Deezer or YouTube link to the release"
           className={`${inputCls} font-mono`}
         />
-        <button
-          onClick={create}
-          disabled={busy || !isUrl(sourceUrl)}
-          className="flex items-center gap-1 px-3 py-2 text-[10px] font-medium bg-[#DA7756] text-[#0D0C0B] rounded hover:bg-[#DA7756]/90 disabled:bg-[#2C2B28] disabled:text-[#6B6560] cursor-pointer disabled:cursor-default shrink-0"
-        >
-          {busy ? <Loader2 size={10} className="animate-spin" /> : <Plus size={10} />}{busy ? 'Creating…' : 'Create smart link'}
-        </button>
+        {!links && (
+          <button onClick={find} disabled={busy || !isUrl(sourceUrl)} className={btnCls}>
+            {busy ? <Loader2 size={10} className="animate-spin" /> : <Search size={10} />}{busy ? 'Finding…' : 'Find links'}
+          </button>
+        )}
       </div>
-      {error && <p className="text-[9px] text-[#C75F4F] mt-1.5">{error}</p>}
+      {links && (
+        <div className="mt-2.5 space-y-2">
+          <p className="text-[10px] text-[#9B9590]">
+            {found.size
+              ? `Found ${release?.title ? `"${release.title}"${release.artistName ? ` by ${release.artistName}` : ''} ` : ''}on ${found.size} service${found.size === 1 ? '' : 's'}. Check the links, then add any that are missing.`
+              : 'No services found. Add the links yourself.'}
+          </p>
+          <ServiceLinksEditor links={links} found={found} onChange={setLinks} />
+          <div className="flex justify-end">
+            <button onClick={create} disabled={busy || !chosen.length} className={btnCls}>
+              {busy ? <Loader2 size={10} className="animate-spin" /> : <Plus size={10} />}
+              {busy ? 'Creating…' : `Create smart link (${chosen.length} service${chosen.length === 1 ? '' : 's'})`}
+            </button>
+          </div>
+        </div>
+      )}
+      {error && (
+        <p className="text-[9px] text-[#C75F4F] mt-1.5">
+          {error}{!links && <> <button onClick={() => { setLinks({ spotify: '', appleMusic: '' }); setFound(new Set()); setError(null); }} className="text-[#DA7756] hover:underline cursor-pointer">Add links yourself</button></>}
+        </p>
+      )}
     </div>
   );
 }
