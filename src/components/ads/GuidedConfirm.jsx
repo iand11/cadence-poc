@@ -4,6 +4,7 @@ import {
   Link2, Loader2, Plus, Check, FileVideo, Sparkles, Image as ImageIcon, Pencil,
 } from 'lucide-react';
 import AdImagesField from './AdImagesField';
+import LyricVideoMaker from './LyricVideoMaker';
 import { FileUploadField, MetaRunAsPicker } from './DirectiveBuilder';
 import { createSmartLink } from '../../data/smartLinks';
 import { PLATFORM_LABELS, OBJECTIVE_LABELS } from '../../data/directives';
@@ -156,6 +157,7 @@ export function GuidedContentStep({ campaign, posts, artist, recommendNew, smart
   const { platform, mode, draft } = campaign;
   const label = PLATFORM_LABELS[platform];
   const set = (patch) => onDraft(platform, patch);
+  const [makingVideo, setMakingVideo] = useState(false);
 
   return (
     <div>
@@ -217,15 +219,33 @@ export function GuidedContentStep({ campaign, posts, artist, recommendNew, smart
           {platform === 'meta' ? (
             <AdImagesField images={draft.images} onChange={(images) => set({ images })} fallbackImage={artist?.imageUrl} />
           ) : (
-            <FileUploadField
-              label="Video (.mp4, .mov, .webm)"
-              accept=".mp4,.webm,.mov,video/*"
-              file={draft.videoFile}
-              onChange={(videoFile) => set({ videoFile })}
-              onClear={() => set({ videoFile: null })}
-              icon={FileVideo}
-              required
-            />
+            <div>
+              <FileUploadField
+                label="Video (.mp4, .mov, .webm)"
+                accept=".mp4,.webm,.mov,video/*"
+                file={draft.videoFile}
+                onChange={(videoFile) => set({ videoFile })}
+                onClear={() => set({ videoFile: null })}
+                icon={FileVideo}
+                required
+              />
+              {!draft.videoFile && (
+                <button onClick={() => setMakingVideo(true)} className="mt-2 w-full flex items-center gap-2 rounded-lg border border-[#DA7756]/40 bg-[#DA7756]/[0.07] hover:border-[#DA7756]/70 px-3 py-2.5 text-left cursor-pointer transition-colors">
+                  <Sparkles size={12} className="text-[#DA7756] shrink-0" />
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-xs text-[#F5F0E8] font-medium">No video? Make a lyric video</span>
+                    <span className="block text-[10px] text-[#9B9590]">Upload the song, paste the lyrics and tap along. Ready in about a minute.</span>
+                  </span>
+                </button>
+              )}
+              {makingVideo && (
+                <LyricVideoMaker
+                  artist={artist}
+                  onClose={() => setMakingVideo(false)}
+                  onDone={(videoFile) => { set({ videoFile }); setMakingVideo(false); }}
+                />
+              )}
+            </div>
           )}
           <DestinationField
             artist={artist}
