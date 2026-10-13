@@ -8,7 +8,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import ChatInterface from '../ai/ChatInterface';
-import GuidedConfirm from './GuidedConfirm';
+import GuidedConfirm, { GuidedLinkStep, GuidedContentStep } from './GuidedConfirm';
 import { fetchSmartLinks } from '../../data/smartLinks';
 import { searchArtists, getArtistAsync } from '../../data/artists';
 import { fetchContentFeed } from '../../data/artistsRemote';
@@ -52,7 +52,7 @@ const OBJECTIVE_DESCRIPTIONS = {
 
 const GOAL_LABELS = { ...OBJECTIVE_LABELS, streams: 'Drive Streams' };
 
-// Steps: artist → mode → (manual: budget split → builder) | (assisted: questions → confirm).
+// Steps: artist → mode → (manual: budget split → builder) | (assisted: questions → link → content per platform → confirm).
 // 'plan' is only reached from an artist-profile suggestion.
 const STEP_LABELS = {
   artist: 'Select an artist',
@@ -60,6 +60,7 @@ const STEP_LABELS = {
   manual: 'Budget and platforms',
   questions: 'Guided setup',
   plan: 'Campaign plan',
+  link: 'Where fans go',
   confirm: 'Review and confirm',
 };
 
@@ -97,6 +98,10 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, on
   // Where new posts send people: a smart link by default (null = still loading)
   const [smartLinks, setSmartLinks] = useState(null);
   const [destination, setDestination] = useState('');
+  const [contentIndex, setContentIndex] = useState(0);
+  // Where "Done" goes after a side trip: 'confirm', or a content step index when the link is changed from there
+  const [returnTo, setReturnTo] = useState(null);
+  const returnToConfirm = returnTo === 'confirm';
 
   // Plan step state
   const [totalBudget, setTotalBudgetRaw] = useState(1000);
@@ -220,6 +225,17 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, on
   const handleBack = () => {
     if (step === 'confirm') {
       setConfirmErrors({});
+      setContentIndex(planCampaigns.length - 1);
+      setStep('content');
+    } else if (step === 'content' && returnToConfirm) {
+      setStep('confirm');
+    } else if (step === 'content' && contentIndex > 0) {
+      setContentIndex(i => i - 1);
+    } else if (step === 'content') {
+      setStep('link');
+    } else if (step === 'link' && returnTo !== null) {
+      nextFromLink();
+    } else if (step === 'link') {
       setStep('questions');
     } else if (step === 'plan') {
       setSelectedSuggestion(null);
@@ -269,7 +285,9 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, on
       setPlanCampaigns(next.campaigns);
       setPlanPosts(posts);
       setConfirmErrors({});
-      setStep('confirm');
+      setContentIndex(0);
+      setReturnTo(null);
+      setStep('link');
     } catch (e) {
       setGenerateError(e.message || 'Could not build the campaign.');
     } finally {
@@ -282,15 +300,9 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, on
     setConfirmErrors(prev => ({ ...prev, [platform]: undefined }));
   };
 
-  const setPlanBudget = (platform, amount) => updatePlanCampaign(platform, c => ({
-    ...c, directive: { ...c.directive, budget: { ...c.directive.budget, amount: Math.max(0, Math.round(amount) || 0) } },
+  const setPlanPost = (platform, postIndex) => updatePlanCampaign(platform, c => ({
+    ...c, postIndex, directive: { ...c.directive, creative: boostCreative(planPosts[platform][postIndex], platform, plan.goal) },
   }));
-
-  const swapPlanPost = (platform) => updatePlanCampaign(platform, c => {
-    const options = planPosts[platform] || [];
-    const postIndex = (c.postIndex + 1) % options.length;
-    return { ...c, postIndex, directive: { ...c.directive, creative: boostCreative(options[postIndex], platform, plan.goal) } };
-  });
 
   const setPlanMode = (platform, mode) => updatePlanCampaign(platform, c => ({ ...c, mode }));
   const setPlanDraft = (platform, patch) => updatePlanCampaign(platform, c => ({ ...c, draft: { ...c.draft, ...patch } }));
@@ -299,9 +311,27 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, on
     setDestination(link.url);
   };
 
-  const removePlanCampaign = (platform) => {
-    setPlanCampaigns(prev => prev.filter(c => c.platform !== platform));
-    setConfirmErrors(prev => ({ ...prev, [platform]: undefined }));
+  const nextFromLink = () => {
+    if (returnTo === 'confirm') { setStep('confirm'); return; }
+    setContentIndex(typeof returnTo === 'number' ? returnTo : 0);
+    setReturnTo(null);
+    setStep('content');
+  };
+
+  const nextFromContent = () => {
+    if (returnToConfirm || contentIndex >= planCampaigns.length - 1) {
+      setReturnTo(null);
+      setStep('confirm');
+      return;
+    }
+    setContentIndex(i => i + 1);
+  };
+
+  const editFromConfirm = (target, index = 0) => {
+    setReturnTo('confirm');
+    setConfirmErrors({});
+    if (target === 'link') setStep('link');
+    else { setContentIndex(index); setStep('content'); }
   };
 
   // Confirm: Meta campaigns are checked against the connected ad account (nothing is
@@ -452,21 +482,29 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, on
     setConfirmErrors({});
     setSmartLinks(null);
     setDestination('');
+    setContentIndex(0);
+    setReturnTo(null);
     onClose();
   };
 
   if (!isOpen) return null;
 
   const topSocial = selectedArtist ? getTopSocial(selectedArtist) : null;
-  const assisted = step === 'questions' || step === 'confirm';
+  const assisted = ['questions', 'link', 'content', 'confirm'].includes(step);
+  const contentCampaign = planCampaigns[Math.min(contentIndex, planCampaigns.length - 1)];
+  const selectedLink = (smartLinks || []).find(l => l.url === destination);
+  const destinationLabel = selectedLink ? `${selectedLink.title} (smart link)` : destination || '';
+  const recommendNew = !!plan && (plan.goal === 'streams' || plan.answers?.promoting === 'release');
   const flowSteps = step === 'manual' ? ['artist', 'mode', 'manual']
-    : assisted ? ['artist', 'mode', 'questions', 'confirm']
+    : assisted ? ['artist', 'mode', 'questions', 'link', 'content', 'confirm']
     : step === 'plan' ? ['artist', 'plan']
     : ['artist', 'mode'];
   const stepIndex = flowSteps.indexOf(step);
   const stepLabel = step === 'questions'
     ? `Guided setup · Question ${questionIndex + 1} of ${questions.length}`
-    : STEP_LABELS[step];
+    : step === 'content' && contentCampaign
+      ? `${PLATFORM_LABELS[contentCampaign.platform]} ad${planCampaigns.length > 1 ? ` · ${contentIndex + 1} of ${planCampaigns.length}` : ''}`
+      : STEP_LABELS[step];
   const transition = { duration: 0.2 };
   const slide = { initial: { opacity: 0, x: 20 }, animate: { opacity: 1, x: 0 }, exit: { opacity: 0, x: -20 }, transition };
 
@@ -476,7 +514,7 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, on
       <motion.div
         initial={{ opacity: 0, scale: 0.96 }}
         animate={{ opacity: 1, scale: 1 }}
-        className={`relative bg-[#171614] border border-[#2C2B28] rounded-lg shadow-2xl w-full ${step === 'plan' || step === 'confirm' ? 'max-w-3xl' : 'max-w-2xl'} max-h-[85vh] flex flex-col`}
+        className={`relative bg-[#171614] border border-[#2C2B28] rounded-lg shadow-2xl w-full ${step === 'plan' ? 'max-w-3xl' : 'max-w-2xl'} max-h-[85vh] flex flex-col`}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -557,6 +595,33 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, on
                 />
               </motion.div>
             )}
+            {step === 'link' && plan && (
+              <motion.div key="link" {...slide}>
+                <GuidedLinkStep
+                  artist={selectedArtist}
+                  smartLinks={smartLinks}
+                  destination={destination}
+                  onDestination={setDestination}
+                  onLinkCreated={handleLinkCreated}
+                />
+              </motion.div>
+            )}
+            {step === 'content' && contentCampaign && (
+              <motion.div key={`content-${contentCampaign.platform}`} {...slide}>
+                <GuidedContentStep
+                  campaign={contentCampaign}
+                  posts={planPosts[contentCampaign.platform] || []}
+                  artist={selectedArtist}
+                  destinationLabel={destinationLabel}
+                  recommendNew={recommendNew && !!selectedLink}
+                  onMode={setPlanMode}
+                  onPost={setPlanPost}
+                  onDraft={setPlanDraft}
+                  onOpenAccounts={onOpenAccounts}
+                  onEditLink={() => { if (!returnToConfirm) setReturnTo(contentIndex); setStep('link'); }}
+                />
+              </motion.div>
+            )}
             {step === 'confirm' && plan && (
               <motion.div key="confirm" {...slide}>
                 <GuidedConfirm
@@ -565,16 +630,9 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, on
                   campaigns={planCampaigns}
                   posts={planPosts}
                   errors={confirmErrors}
-                  smartLinks={smartLinks}
-                  destination={destination}
-                  onDestination={setDestination}
-                  onLinkCreated={handleLinkCreated}
-                  onBudget={setPlanBudget}
-                  onSwap={swapPlanPost}
-                  onRemove={removePlanCampaign}
-                  onMode={setPlanMode}
-                  onDraft={setPlanDraft}
-                  onOpenAccounts={onOpenAccounts}
+                  destinationLabel={destinationLabel}
+                  onEditContent={(i) => editFromConfirm('content', i)}
+                  onEditLink={() => editFromConfirm('link')}
                 />
               </motion.div>
             )}
@@ -628,6 +686,21 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, on
                   ) : (
                     <><Sparkles size={12} />Build Campaign</>
                   )}
+                </button>
+              </>
+            )}
+            {step === 'link' && (
+              <button onClick={nextFromLink} disabled={smartLinks === null} className={PRIMARY_BTN}>
+                {returnTo !== null ? 'Done' : 'Next'}<ArrowRight size={12} />
+              </button>
+            )}
+            {step === 'content' && contentCampaign && (
+              <>
+                {campaignIssue(contentCampaign, destination) && (
+                  <span className="text-[10px] text-[#D4A574]">{campaignIssue(contentCampaign, destination)}</span>
+                )}
+                <button onClick={nextFromContent} disabled={!!campaignIssue(contentCampaign, destination)} className={PRIMARY_BTN}>
+                  {returnToConfirm ? 'Done' : contentIndex < planCampaigns.length - 1 ? 'Next' : 'Review'}<ArrowRight size={12} />
                 </button>
               </>
             )}
