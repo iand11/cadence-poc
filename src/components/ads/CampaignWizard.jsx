@@ -680,11 +680,9 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, on
                 {generateError && <span className="text-[10px] text-[#C75F4F]">{generateError}</span>}
                 <button onClick={handleNextQuestion} disabled={!isAnswered(currentQuestion, answers) || generating} className={PRIMARY_BTN}>
                   {generating ? (
-                    <><Loader2 size={12} className="animate-spin" />Building campaign…</>
-                  ) : questionIndex < questions.length - 1 ? (
-                    <>Next<ArrowRight size={12} /></>
+                    <><Loader2 size={12} className="animate-spin" />Loading…</>
                   ) : (
-                    <><Sparkles size={12} />Build Campaign</>
+                    <>Next<ArrowRight size={12} /></>
                   )}
                 </button>
               </>
@@ -719,7 +717,7 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, on
                   {confirming ? (
                     <><Loader2 size={12} className="animate-spin" />Checking…</>
                   ) : (
-                    <><Check size={12} />Confirm {planCampaigns.length} campaign{planCampaigns.length !== 1 ? 's' : ''} · {formatDollar(planCampaigns.reduce((sum, c) => sum + (c.directive.budget?.amount || 0), 0))}</>
+                    <><Sparkles size={12} />Build {planCampaigns.length} campaign{planCampaigns.length !== 1 ? 's' : ''} · {formatDollar(planCampaigns.reduce((sum, c) => sum + (c.directive.budget?.amount || 0), 0))}</>
                   )}
                 </button>
               </>

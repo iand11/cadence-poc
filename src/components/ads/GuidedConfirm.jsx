@@ -317,7 +317,7 @@ export default function GuidedConfirm({ plan, artist, campaigns, posts, errors, 
       </div>
 
       <p className="text-[10px] text-[#6B6560]">
-        Confirming submits {campaigns.length === 1 ? 'this campaign' : `these ${campaigns.length} campaigns`} for approval. Nothing goes live or spends until you launch it from Campaigns.
+        Building submits {campaigns.length === 1 ? 'this campaign' : `these ${campaigns.length} campaigns`} for approval. Nothing goes live or spends until you launch it from Campaigns.
       </p>
     </div>
   );
