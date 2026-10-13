@@ -195,13 +195,14 @@ export default async function handler(req, res) {
       else found = await resolveLinks(body.sourceUrl);
       if (!found.links.length) throw bad('No streaming service links found for that release. Add them yourself.');
 
-      const title = String(body.title || found.title || '').trim();
-      if (!title) throw bad('Give the link a title.');
-      const slug = makeSlug(title);
+      // Title is optional: fall back to the release title, else leave it blank
+      const title = String(body.title || found.title || '').trim() || null;
+      const artistName = body.artistName || found.artistName || null;
+      const slug = makeSlug(title || artistName || 'link');
       const row = await queryOne(
         `INSERT INTO smart_links (slug, user_id, artist_slug, artist_name, title, image_url, source_url, links, pixel_id, fan_capture)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
-        [slug, uid, body.artistSlug || null, body.artistName || found.artistName || null, title,
+        [slug, uid, body.artistSlug || null, artistName, title,
           (isHttpUrl(body.imageUrl) && body.imageUrl) || found.imageUrl || null,
           isHttpUrl(body.sourceUrl) ? body.sourceUrl : null,
           JSON.stringify(found.links), await validPixel(uid, body.pixelId), !!body.fanCapture]);
@@ -217,7 +218,7 @@ export default async function handler(req, res) {
       const updated = await queryOne(
         `UPDATE smart_links SET title = $3, links = $4, pixel_id = $5, fan_capture = $6, updated_at = now()
          WHERE slug = $1 AND user_id = $2 RETURNING *`,
-        [row.slug, uid, String(body.title || row.title).trim(), JSON.stringify(links), pixelId,
+        [row.slug, uid, 'title' in body ? String(body.title || '').trim() || null : row.title, JSON.stringify(links), pixelId,
           'fanCapture' in body ? !!body.fanCapture : row.fan_capture]);
       return res.status(200).json({ link: shape(req, updated) });
     }

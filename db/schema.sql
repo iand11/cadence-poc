@@ -355,7 +355,7 @@ CREATE TABLE IF NOT EXISTS notifications (
   id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   user_id      text NOT NULL,
   type         text NOT NULL,          -- artist_added | artist_request_rejected
-  title        text NOT NULL,
+  title        text,
   body         text,
   data         jsonb,                  -- type-specific payload (slug, name, imageUrl, requestId)
   created_at   timestamptz NOT NULL DEFAULT now(),

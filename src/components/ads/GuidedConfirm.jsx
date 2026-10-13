@@ -7,7 +7,7 @@ import AdImagesField from './AdImagesField';
 import LyricVideoMaker from './LyricVideoMaker';
 import AdVideoField from './AdVideoField';
 import { FileUploadField, MetaRunAsPicker } from './DirectiveBuilder';
-import { createSmartLink } from '../../data/smartLinks';
+import { createSmartLink, linkTitle } from '../../data/smartLinks';
 import { PLATFORM_LABELS, OBJECTIVE_LABELS } from '../../data/directives';
 import { postEngagement } from '../../utils/assistedCampaign';
 import { PLATFORM_COLORS } from '../../constants/colors';
@@ -111,7 +111,7 @@ function DestinationField({ artist, smartLinks, destination, onDestination, onLi
         <div className="flex items-center gap-2 bg-[#171614] border border-[#2C2B28] rounded px-3 py-2">
           <Link2 size={12} className="text-[#DA7756] shrink-0" />
           <div className="flex-1 min-w-0">
-            <p className="text-xs text-[#F5F0E8] truncate">{current ? current.title : destination}</p>
+            <p className="text-xs text-[#F5F0E8] truncate">{current ? linkTitle(current) : destination}</p>
             <p className="text-[9px] text-[#6B6560] truncate">{current ? 'Smart link · every streaming service on one page' : "Plain link · clicks per streaming service aren't tracked"}</p>
           </div>
           <button onClick={() => setEditing(true)} className="text-[10px] text-[#DA7756] hover:underline cursor-pointer shrink-0">Change</button>
@@ -133,7 +133,7 @@ function DestinationField({ artist, smartLinks, destination, onDestination, onLi
           {ownLinks.map(l => (
             <button key={l.slug} onClick={() => choose(l.url)} className={`${choiceCls(l.url === destination)} w-full flex items-center gap-2 py-2`}>
               <Link2 size={12} className="text-[#DA7756] shrink-0" />
-              <span className="text-xs text-[#F5F0E8] truncate">{l.title}</span>
+              <span className="text-xs text-[#F5F0E8] truncate">{linkTitle(l)}</span>
               <span className="text-[9px] text-[#6B6560] ml-auto shrink-0">Smart link</span>
             </button>
           ))}

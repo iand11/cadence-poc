@@ -34,7 +34,7 @@ export function ensureTables() {
       await query(`
         CREATE TABLE IF NOT EXISTS smart_links (
           slug text PRIMARY KEY, user_id text NOT NULL, artist_slug text, artist_name text,
-          title text NOT NULL, image_url text, source_url text,
+          title text, image_url text, source_url text,
           links jsonb NOT NULL DEFAULT '[]'::jsonb, pixel_id text,
           created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now()
         )`);
@@ -47,6 +47,7 @@ export function ensureTables() {
         )`);
       await query('CREATE INDEX IF NOT EXISTS smart_link_events_slug_idx ON smart_link_events (slug, created_at)');
       await query('ALTER TABLE smart_links ADD COLUMN IF NOT EXISTS fan_capture boolean NOT NULL DEFAULT false');
+      await query('ALTER TABLE smart_links ALTER COLUMN title DROP NOT NULL'); // title is optional
       await query(`
         CREATE TABLE IF NOT EXISTS smart_link_fans (
           slug text NOT NULL REFERENCES smart_links (slug) ON DELETE CASCADE,

@@ -5,7 +5,7 @@ import { useAsync } from '../../hooks/useAsync';
 import { useFollowedArtists } from '../../context/FollowedArtistsContext';
 import { useDirectives } from '../../hooks/useDirectives';
 import {
-  fetchSmartLinks, fetchSmartLink, fetchPixels, createSmartLink, updateSmartLink, deleteSmartLink, fetchLinkFans, fetchFanPlays, syncLinkFans,
+  fetchSmartLinks, fetchSmartLink, fetchPixels, createSmartLink, updateSmartLink, linkTitle, deleteSmartLink, fetchLinkFans, fetchFanPlays, syncLinkFans,
   SERVICE_LABELS, SERVICE_COLORS,
 } from '../../data/smartLinks';
 import { AXIS_STYLE, TOOLTIP_STYLE } from '../../utils/chartTheme';
@@ -313,7 +313,7 @@ function NewLinkForm({ pixels, spotifyLogin, onCreated, onCancel }) {
       )}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div>
-          <label className={labelCls}>Title {manual ? '' : '(optional, defaults to the release title)'}</label>
+          <label className={labelCls}>Title {manual ? '(optional)' : '(optional, defaults to the release title)'}</label>
           <input value={title} onChange={e => setTitle(e.target.value)} placeholder="EMBERS" className={inputCls} />
         </div>
         <div>
@@ -568,7 +568,7 @@ export default function SmartLinksPanel() {
                     <a href={l.url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} className="p-1 text-[#9B9590] hover:text-[#F5F0E8]" title="Open link"><ExternalLink size={11} /></a>
                   </div>
                   <div className="absolute inset-x-0 bottom-0 p-3">
-                    <p className="text-[13px] font-medium text-[#F5F0E8] truncate">{l.title}</p>
+                    <p className="text-[13px] font-medium text-[#F5F0E8] truncate">{linkTitle(l)}</p>
                     {l.artistName && <p className="text-[10px] text-[#C9C3BB] truncate">{l.artistName}</p>}
                     <div className="flex items-center gap-3 mt-1.5 text-[10px] font-mono text-[#C9C3BB]">
                       <span className="flex items-center gap-1" title="Views"><Eye size={10} /> {formatNumber(l.views)}</span>
@@ -588,7 +588,7 @@ export default function SmartLinksPanel() {
                   ? <img src={artistImage(openLink) || openLink.imageUrl} alt="" className="w-9 h-9 rounded object-cover shrink-0" />
                   : <div className="w-9 h-9 rounded bg-[#2C2B28] shrink-0" />}
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs text-[#F5F0E8] truncate">{openLink.title}{openLink.artistName ? <span className="text-[#6B6560]"> · {openLink.artistName}</span> : null}</p>
+                  <p className="text-xs text-[#F5F0E8] truncate">{linkTitle(openLink)}{openLink.title && openLink.artistName ? <span className="text-[#6B6560]"> · {openLink.artistName}</span> : null}</p>
                   <div className="flex items-center gap-1">
                     <span className="text-[9px] font-mono text-[#6B6560] truncate">{openLink.url}</span>
                     <CopyButton text={openLink.url} />

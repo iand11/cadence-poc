@@ -136,7 +136,7 @@ export function releaseFilter(link) {
   if (!item) return 'false';
   if (item.type === 'album') return `p.album_id = ${sqlText(item.id)}`;
   const byId = `p.track_id = ${sqlText(item.id)}`;
-  const name = link.spotify_track_name || link.title;
+  const name = link.spotify_track_name || link.title || '';
   const artists = (link.spotify_artist_ids || []).filter(id => SPOTIFY_ID.test(id));
   if (!name || !artists.length) return byId;
   return `(${byId} OR (lower(p.track_name) = lower(${sqlText(name)}) AND p.artist_ids && ARRAY[${artists.map(sqlText).join(',')}]::text[]))`;

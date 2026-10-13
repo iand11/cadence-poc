@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import ChatInterface from '../ai/ChatInterface';
 import GuidedConfirm, { GuidedContentStep } from './GuidedConfirm';
-import { fetchSmartLinks } from '../../data/smartLinks';
+import { fetchSmartLinks, linkTitle } from '../../data/smartLinks';
 import { searchArtists, getArtistAsync } from '../../data/artists';
 import { fetchContentFeed } from '../../data/artistsRemote';
 import { checkMetaLaunch, isMetaDirective } from '../../data/metaAds';
@@ -509,7 +509,7 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, on
   const assisted = ['questions', 'content', 'confirm'].includes(step);
   const contentCampaign = planCampaigns[Math.min(contentIndex, planCampaigns.length - 1)];
   const selectedLink = (smartLinks || []).find(l => l.url === destination);
-  const destinationLabel = selectedLink ? `${selectedLink.title} smart link` : destination || '';
+  const destinationLabel = selectedLink ? `${linkTitle(selectedLink)} smart link` : destination || '';
   const firstNewPost = planCampaigns.findIndex(c => c.mode === 'new');
   const recommendNew = !!plan && (plan.goal === 'streams' || plan.answers?.promoting === 'release');
   const flowSteps = step === 'manual' ? ['artist', 'mode', 'manual']

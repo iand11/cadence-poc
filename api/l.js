@@ -62,17 +62,18 @@ function consentPage({ link, params }) {
   for (const k of ['c', 'fbclid', 'e']) if (params.get(k)) carry.set(k, params.get(k));
   const q = carry.size ? `&${carry}` : '';
   const artist = link.artist_name || 'the artist';
+  const name = link.title || link.artist_name || 'this release';
   return `<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${esc(link.title)} on Spotify</title><meta name="robots" content="noindex">
+<title>${esc(name)} on Spotify</title><meta name="robots" content="noindex">
 <style>${STYLE}</style>
 </head><body><main>
 <div class="head">
   ${link.image_url ? `<img class="thumb" src="${esc(link.image_url)}" alt="">` : '<div class="thumb"></div>'}
-  <div><h1>${esc(link.title)}</h1><p>${esc(link.artist_name || '')}</p></div>
+  <div><h1>${esc(link.title || link.artist_name || '')}</h1><p>${esc(link.title ? link.artist_name || '' : '')}</p></div>
 </div>
-<p style="color:#F5F0E8;font-size:16px;margin-bottom:10px">Follow ${esc(artist)} and save "${esc(link.title)}" on Spotify?</p>
+<p style="color:#F5F0E8;font-size:16px;margin-bottom:10px">Follow ${esc(artist)} and save ${link.title ? `"${esc(link.title)}"` : `this ${esc(spotifyKind(link))}`} on Spotify?</p>
 <ul>
   <li>Continuing follows ${esc(artist)} and adds the ${esc(spotifyKind(link))} to your library.</li>
   <li>${esc(artist)}'s team sees your Spotify name, email, country, favorite artists and what you listen to.</li>
@@ -101,7 +102,8 @@ function page({ link, params, pixelId, preview }) {
       <span class="logo">${dspIconSvg(service, { size: 30, color: iconColor(service) })}<span>${esc(s.label)}</span></span>
       <span class="play">Play</span></a>`;
   }).join('\n');
-  const title = link.artist_name ? `${link.title} · ${link.artist_name}` : link.title;
+  const parts = [link.title, link.artist_name].filter(Boolean);
+  const title = parts.join(' · ') || 'Listen';
   return `<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -117,7 +119,7 @@ ${preview ? '' : pixelSnippet(pixelId, params.get('_view'))}
 <main>
 <div class="card">
 ${link.image_url ? `<img class="art" src="${esc(link.image_url)}" alt="">` : '<div class="art"></div>'}
-<div class="bar"><h1>${esc(link.artist_name ? `${link.artist_name} | ${link.title}` : link.title)}</h1><p>Choose your preferred music service</p></div>
+<div class="bar"><h1>${esc(parts.slice().reverse().join(' | ') || 'Listen')}</h1><p>Choose your preferred music service</p></div>
 ${buttons}
 </div>
 <footer>Powered by Prelude</footer>
