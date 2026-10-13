@@ -189,11 +189,11 @@ export default async function handler(req, res) {
       }
       // Look a release up without creating anything, so the user can check the links first
       if (body.action === 'lookup') {
-        if (!isHttpUrl(body.sourceUrl)) throw bad('Paste a Spotify, Apple Music, Deezer or YouTube link to the release.');
+        if (!isHttpUrl(body.sourceUrl)) throw bad('Paste a Spotify, Apple Music, Deezer or YouTube link to the release or artist.');
         return res.status(200).json(await resolveLinks(body.sourceUrl));
       }
       if (!isHttpUrl(body.sourceUrl) && !body.links?.length) {
-        throw bad('Paste a Spotify, Apple Music, Deezer or YouTube link to the release.');
+        throw bad('Paste a Spotify, Apple Music, Deezer or YouTube link to the release or artist.');
       }
       let found = { title: null, artistName: null, imageUrl: null, links: [] };
       if (body.links?.length) found.links = cleanLinks(body.links);

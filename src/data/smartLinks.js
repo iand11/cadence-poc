@@ -34,6 +34,13 @@ export const linksList = (links) => Object.entries(links).filter(([, url]) => ur
 /** [{ service, url }] → { service: url } */
 export const linksMap = (list) => Object.fromEntries((list || []).map(l => [l.service, l.url]));
 
+/** "Found "Hey Ya!" by Outkast on 3 services…" for a lookup result (an artist page has no title). */
+export function foundSummary(release, n) {
+  const what = release?.title ? `"${release.title}"${release.artistName ? ` by ${release.artistName}` : ''} `
+    : release?.artistName ? `${release.artistName}'s artist page ` : '';
+  return `Found ${what}on ${n} service${n === 1 ? '' : 's'}. Check the links, then add any that are missing.`;
+}
+
 /** A link's name for lists: its title, else the artist (titles are optional). */
 export const linkTitle = (l) => l?.title || l?.artistName || 'Untitled link';
 

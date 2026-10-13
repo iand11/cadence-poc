@@ -5,7 +5,7 @@ import { useAsync } from '../../hooks/useAsync';
 import { useFollowedArtists } from '../../context/FollowedArtistsContext';
 import { useDirectives } from '../../hooks/useDirectives';
 import {
-  fetchSmartLinks, fetchSmartLink, fetchPixels, createSmartLink, lookupSmartLinks, linksList, linksMap, updateSmartLink, linkTitle, deleteSmartLink, fetchLinkFans, fetchFanPlays, syncLinkFans,
+  fetchSmartLinks, fetchSmartLink, fetchPixels, createSmartLink, lookupSmartLinks, linksList, linksMap, foundSummary, updateSmartLink, linkTitle, deleteSmartLink, fetchLinkFans, fetchFanPlays, syncLinkFans,
   SERVICE_LABELS, SERVICE_COLORS,
 } from '../../data/smartLinks';
 import { AXIS_STYLE, TOOLTIP_STYLE } from '../../utils/chartTheme';
@@ -308,7 +308,7 @@ function NewLinkForm({ pixels, spotifyLogin, onCreated, onCancel }) {
   return (
     <div className="p-4 rounded border border-[#2C2B28] bg-[#0D0C0B] space-y-3 mb-4">
       <div>
-        <label className={labelCls}>Release link (Spotify, Apple Music, Deezer, YouTube)</label>
+        <label className={labelCls}>Release or artist link (Spotify, Apple Music, Deezer, YouTube)</label>
         <div className="flex gap-2">
           <input
             value={sourceUrl}
@@ -328,7 +328,7 @@ function NewLinkForm({ pixels, spotifyLogin, onCreated, onCancel }) {
         </div>
         {!links && (
           <p className="text-[9px] text-[#6B6560] mt-1">
-            Prelude finds the release on Spotify, Apple Music and Deezer, and you check the links before creating.{' '}
+            Prelude finds the song, album or artist page on Spotify, Apple Music and Deezer, and you check the links before creating.{' '}
             <button onClick={addYourself} className="text-[#DA7756] hover:underline cursor-pointer">Add service links yourself</button>
           </p>
         )}
@@ -337,7 +337,7 @@ function NewLinkForm({ pixels, spotifyLogin, onCreated, onCancel }) {
         <div className="rounded border border-[#2C2B28] p-3">
           <p className={labelCls}>
             {!found ? 'Service links'
-              : found.size ? `Found ${release?.title ? `"${release.title}"${release.artistName ? ` by ${release.artistName}` : ''} ` : ''}on ${found.size} service${found.size === 1 ? '' : 's'}. Check the links, then add any that are missing.`
+              : found.size ? foundSummary(release, found.size)
               : 'No services found. Add the links yourself.'}
           </p>
           <ServiceLinksEditor links={links} found={found} onChange={setLinks} />

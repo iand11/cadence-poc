@@ -7,7 +7,7 @@ import AdImagesField from './AdImagesField';
 import LyricVideoMaker from './LyricVideoMaker';
 import AdVideoField from './AdVideoField';
 import { FileUploadField, MetaRunAsPicker } from './DirectiveBuilder';
-import { createSmartLink, lookupSmartLinks, linksList, linksMap, linkTitle } from '../../data/smartLinks';
+import { createSmartLink, lookupSmartLinks, linksList, linksMap, foundSummary, linkTitle } from '../../data/smartLinks';
 import ServiceLinksEditor from './ServiceLinksEditor';
 import { PLATFORM_LABELS, OBJECTIVE_LABELS } from '../../data/directives';
 import { postEngagement } from '../../utils/assistedCampaign';
@@ -103,7 +103,7 @@ function CreateSmartLink({ artist, onCreated, prominent }) {
           value={sourceUrl}
           onChange={e => { setSourceUrl(e.target.value); if (links) reset(); }}
           onKeyDown={e => { if (e.key === 'Enter' && isUrl(sourceUrl) && !busy && !links) find(); }}
-          placeholder="Spotify, Apple Music, Deezer or YouTube link to the release"
+          placeholder="Spotify, Apple Music, Deezer or YouTube link to a release or artist"
           className={`${inputCls} font-mono`}
         />
         {!links && (
@@ -116,7 +116,7 @@ function CreateSmartLink({ artist, onCreated, prominent }) {
         <div className="mt-2.5 space-y-2">
           <p className="text-[10px] text-[#9B9590]">
             {found.size
-              ? `Found ${release?.title ? `"${release.title}"${release.artistName ? ` by ${release.artistName}` : ''} ` : ''}on ${found.size} service${found.size === 1 ? '' : 's'}. Check the links, then add any that are missing.`
+              ? foundSummary(release, found.size)
               : 'No services found. Add the links yourself.'}
           </p>
           <ServiceLinksEditor links={links} found={found} onChange={setLinks} />

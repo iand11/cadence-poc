@@ -73,9 +73,11 @@ function consentPage({ link, params }) {
   ${link.image_url ? `<img class="thumb" src="${esc(link.image_url)}" alt="">` : '<div class="thumb"></div>'}
   <div><h1>${esc(link.title || link.artist_name || '')}</h1><p>${esc(link.title ? link.artist_name || '' : '')}</p></div>
 </div>
-<p style="color:#F5F0E8;font-size:16px;margin-bottom:10px">Follow ${esc(artist)} and save ${link.title ? `"${esc(link.title)}"` : `this ${esc(spotifyKind(link))}`} on Spotify?</p>
+${spotifyKind(link) === 'artist' ? `<p style="color:#F5F0E8;font-size:16px;margin-bottom:10px">Follow ${esc(artist)} on Spotify?</p>
 <ul>
-  <li>Continuing follows ${esc(artist)} and adds the ${esc(spotifyKind(link))} to your library.</li>
+  <li>Continuing follows ${esc(artist)}.</li>` : `<p style="color:#F5F0E8;font-size:16px;margin-bottom:10px">Follow ${esc(artist)} and save ${link.title ? `"${esc(link.title)}"` : `this ${esc(spotifyKind(link))}`} on Spotify?</p>
+<ul>
+  <li>Continuing follows ${esc(artist)} and adds the ${esc(spotifyKind(link))} to your library.</li>`}
   <li>${esc(artist)}'s team sees your Spotify name, email, country, favorite artists and what you listen to.</li>
   <li>You can remove access anytime in your Spotify account under Apps.</li>
 </ul>
@@ -85,7 +87,10 @@ function consentPage({ link, params }) {
 </main></body></html>`;
 }
 
-const spotifyKind = (link) => /\/album\//.test(link.links?.find(l => l.service === 'spotify')?.url || '') ? 'album' : 'song';
+const spotifyKind = (link) => {
+  const m = (link.links?.find(l => l.service === 'spotify')?.url || '').match(/\/(album|artist)\//);
+  return m ? m[1] : 'song';
+};
 
 function page({ link, params, pixelId, preview }) {
   const carry = new URLSearchParams();

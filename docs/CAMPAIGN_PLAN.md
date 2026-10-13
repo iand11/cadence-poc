@@ -109,8 +109,8 @@ the way feature.fm does, without depending on it.
 
 - A **smart link** is a Prelude landing page, `/l/<slug>` (`api/l.js`, rewritten in
   `vercel.json`), with a button per streaming service. It's created on the Links page (`/app/links`)
-  from one release URL. `api/lib/link-lookup.js` finds it on Spotify (by ISRC/UPC), Apple Music
-  and Deezer from a Spotify, Apple Music, Deezer or YouTube link (Odesli's keyless API was
+  from one release or artist URL. `api/lib/link-lookup.js` finds it on Spotify (releases by ISRC/UPC,
+  artists by name), Apple Music and Deezer from a Spotify, Apple Music, Deezer or YouTube link (Odesli's keyless API was
   retired 2026-07-31; set `ODESLI_API_KEY` to use Odesli instead), or the user adds links by hand.
   Tables: `smart_links`, `smart_link_events`.
 - Buttons go through `/go/<slug>/<service>` (`api/go.js`), which records the click and
