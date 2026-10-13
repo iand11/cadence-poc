@@ -60,7 +60,7 @@ function Section({ label, children }) {
   );
 }
 
-function FileUploadField({ label, accept, file, onChange, onClear, icon: Icon = Upload, required }) {
+export function FileUploadField({ label, accept, file, onChange, onClear, icon: Icon = Upload, required }) {
   return (
     <div>
       <label className="text-[9px] font-mono text-[#9B9590] mb-1 flex items-center gap-1">
@@ -86,7 +86,7 @@ function FileUploadField({ label, accept, file, onChange, onClear, icon: Icon = 
 }
 
 /** New Meta ads run as one of the Instagram accounts shared with Prelude. */
-function MetaRunAsPicker({ value, onChange, onOpenAccounts }) {
+export function MetaRunAsPicker({ value, onChange, onOpenAccounts }) {
   const { connection, refresh } = useMetaConnection();
   useEffect(() => { refresh(true); }, [refresh]);
 

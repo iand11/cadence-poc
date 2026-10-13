@@ -5,9 +5,11 @@ import {
   Headphones, Users, Zap, Eye,
   MousePointerClick, TrendingDown, Rocket, Info, RotateCcw, Sparkles,
   MessageSquare, ChevronDown, SlidersHorizontal, Check, AlertTriangle,
-  Loader2, Calendar, MapPin, Shuffle, Heart, Trash2,
+  Loader2,
 } from 'lucide-react';
 import ChatInterface from '../ai/ChatInterface';
+import GuidedConfirm from './GuidedConfirm';
+import { fetchSmartLinks } from '../../data/smartLinks';
 import { searchArtists, getArtistAsync } from '../../data/artists';
 import { fetchContentFeed } from '../../data/artistsRemote';
 import { checkMetaLaunch, isMetaDirective } from '../../data/metaAds';
@@ -17,7 +19,8 @@ import { recommendBudgetAllocation } from '../../utils/budgetAllocation';
 import { forecastMultiPlatform } from '../../utils/campaignForecaster';
 import {
   DEFAULT_ANSWERS, visibleQuestions, isAnswered,
-  generateAssistedPlan, objectiveFor, boostCreative, postEngagement, POST_SOURCE,
+  generateAssistedPlan, objectiveFor, boostCreative, POST_SOURCE,
+  campaignIssue, finalizeCampaign,
 } from '../../utils/assistedCampaign';
 import { PLATFORM_COLORS } from '../../constants/colors';
 import { formatNumber, formatDollar } from '../../utils/formatters';
@@ -67,7 +70,7 @@ const evenSplit = (platforms) => {
 
 const PRIMARY_BTN = 'flex items-center gap-1.5 px-4 py-2 text-xs font-medium bg-[#DA7756] text-[#0D0C0B] rounded hover:bg-[#DA7756]/90 disabled:bg-[#2C2B28] disabled:text-[#6B6560] transition-colors cursor-pointer disabled:cursor-default';
 
-export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, onConfirm, initialArtistSlug, initialSuggestion }) {
+export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, onConfirm, onOpenAccounts, initialArtistSlug, initialSuggestion }) {
   const [step, setStep] = useState('artist');
   const [selectedArtist, setSelectedArtist] = useState(null);
   const [artistSearch, setArtistSearch] = useState('');
@@ -91,6 +94,9 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, on
   const [generateError, setGenerateError] = useState(null);
   const [confirming, setConfirming] = useState(false);
   const [confirmErrors, setConfirmErrors] = useState({});
+  // Where new posts send people: a smart link by default (null = still loading)
+  const [smartLinks, setSmartLinks] = useState(null);
+  const [destination, setDestination] = useState('');
 
   // Plan step state
   const [totalBudget, setTotalBudgetRaw] = useState(1000);
@@ -251,6 +257,14 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, on
       ));
       const posts = Object.fromEntries(feeds);
       const next = generateAssistedPlan(selectedArtist, answers, posts);
+      fetchSmartLinks()
+        .then(({ links = [] }) => {
+          setSmartLinks(links);
+          // Default to the artist's own link (newest first from the API)
+          const own = links.find(l => l.artistSlug === selectedArtist.slug);
+          if (own) setDestination(own.url);
+        })
+        .catch(() => setSmartLinks([]));
       setPlan(next);
       setPlanCampaigns(next.campaigns);
       setPlanPosts(posts);
@@ -278,6 +292,13 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, on
     return { ...c, postIndex, directive: { ...c.directive, creative: boostCreative(options[postIndex], platform, plan.goal) } };
   });
 
+  const setPlanMode = (platform, mode) => updatePlanCampaign(platform, c => ({ ...c, mode }));
+  const setPlanDraft = (platform, patch) => updatePlanCampaign(platform, c => ({ ...c, draft: { ...c.draft, ...patch } }));
+  const handleLinkCreated = (link) => {
+    setSmartLinks(prev => [link, ...(prev || [])]);
+    setDestination(link.url);
+  };
+
   const removePlanCampaign = (platform) => {
     setPlanCampaigns(prev => prev.filter(c => c.platform !== platform));
     setConfirmErrors(prev => ({ ...prev, [platform]: undefined }));
@@ -287,12 +308,12 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, on
   // created); everything that passes is submitted for approval. If some fail, the
   // user can save those as drafts instead.
   const handleConfirm = async ({ saveFailedAsDrafts = false } = {}) => {
-    if (!planCampaigns.length) return;
+    if (!planCampaigns.length || planCampaigns.some(c => campaignIssue(c, destination))) return;
     setConfirming(true);
     const errors = {};
     const ready = [];
     for (const c of planCampaigns) {
-      const d = { ...c.directive };
+      const d = { ...(await finalizeCampaign(c, destination, selectedArtist)) };
       if (isMetaDirective(d)) {
         try {
           const ok = await checkMetaLaunch(d);
@@ -429,6 +450,8 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, on
     setPlanPosts({});
     setGenerateError(null);
     setConfirmErrors({});
+    setSmartLinks(null);
+    setDestination('');
     onClose();
   };
 
@@ -536,15 +559,22 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, on
             )}
             {step === 'confirm' && plan && (
               <motion.div key="confirm" {...slide}>
-                <StepConfirm
+                <GuidedConfirm
                   plan={plan}
                   artist={selectedArtist}
                   campaigns={planCampaigns}
                   posts={planPosts}
                   errors={confirmErrors}
+                  smartLinks={smartLinks}
+                  destination={destination}
+                  onDestination={setDestination}
+                  onLinkCreated={handleLinkCreated}
                   onBudget={setPlanBudget}
                   onSwap={swapPlanPost}
                   onRemove={removePlanCampaign}
+                  onMode={setPlanMode}
+                  onDraft={setPlanDraft}
+                  onOpenAccounts={onOpenAccounts}
                 />
               </motion.div>
             )}
@@ -612,7 +642,7 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, on
                     Save flagged as drafts
                   </button>
                 )}
-                <button onClick={() => handleConfirm()} disabled={confirming || !planCampaigns.length || planCampaigns.some(c => !(c.directive.budget?.amount > 0))} className={PRIMARY_BTN}>
+                <button onClick={() => handleConfirm()} disabled={confirming || !planCampaigns.length || planCampaigns.some(c => !(c.directive.budget?.amount > 0) || campaignIssue(c, destination))} className={PRIMARY_BTN}>
                   {confirming ? (
                     <><Loader2 size={12} className="animate-spin" />Checking…</>
                   ) : (
@@ -1029,129 +1059,6 @@ function StepQuestion({ question, answers, setAnswer, index, total }) {
           onChange={e => setAnswer(question.key, e.target.value)}
           className="bg-[#0D0C0B] border border-[#2C2B28] rounded px-3 py-2 text-xs text-[#F5F0E8] font-mono outline-none focus:border-[#DA7756]/50 [color-scheme:dark]"
         />
-      )}
-    </div>
-  );
-}
-
-// ─── Assisted: review and confirm everything Prelude set up ───
-
-const shortDate = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-
-function StepConfirm({ plan, artist, campaigns, posts, errors, onBudget, onSwap, onRemove }) {
-  const total = campaigns.reduce((sum, c) => sum + (c.directive.budget?.amount || 0), 0);
-  const { schedule, audience } = plan;
-
-  return (
-    <div className="space-y-3">
-      {/* Summary */}
-      <div className="bg-[#0D0C0B] border border-[#2C2B28] rounded-lg p-4" style={{ borderLeftWidth: 3, borderLeftColor: '#DA7756' }}>
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-xs font-medium text-[#F5F0E8]">{plan.title}</p>
-            <p className="text-[10px] text-[#9B9590] mt-0.5">{artist?.name}</p>
-          </div>
-          <div className="text-right shrink-0">
-            <p className="text-sm font-mono text-[#F5F0E8]">{formatDollar(total)}</p>
-            <p className="text-[9px] font-mono text-[#6B6560]">total budget</p>
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-[10px] font-mono text-[#9B9590]">
-          <span className="inline-flex items-center gap-1"><Calendar size={10} />{shortDate(schedule.startDate)} – {shortDate(schedule.endDate)} · {plan.days} days</span>
-          <span className="inline-flex items-center gap-1"><MapPin size={10} />{audience.locations.join(', ')}</span>
-          <span className="inline-flex items-center gap-1"><Users size={10} />Ages {audience.ageRange[0]}–{audience.ageRange[1]}</span>
-        </div>
-        {plan.releaseNote && <p className="text-[10px] text-[#9B9590] mt-2">{plan.releaseNote}</p>}
-        {plan.notes.map(n => (
-          <p key={n} className="flex items-start gap-1.5 text-[10px] text-[#D4A574] mt-2">
-            <Info size={10} className="mt-0.5 shrink-0" />{n}
-          </p>
-        ))}
-      </div>
-
-      {campaigns.length === 0 && (
-        <div className="bg-[#0D0C0B] border border-[#2C2B28] rounded-lg p-6 text-center">
-          <p className="text-xs text-[#F5F0E8] mb-1">Nothing to promote yet</p>
-          <p className="text-[10px] text-[#6B6560]">No posts were found for {artist?.name || 'this artist'} on the selected platforms. Go back and choose other platforms, or use “Set it up myself” to upload creative.</p>
-        </div>
-      )}
-
-      {/* One card per campaign */}
-      {campaigns.map(c => {
-        const d = c.directive;
-        const options = posts[c.platform] || [];
-        const post = options[c.postIndex];
-        const color = PLATFORM_COLOR_MAP[c.platform] || '#9B9590';
-        const amount = d.budget?.amount || 0;
-        const error = errors[c.platform];
-        return (
-          <div key={c.platform} className={`bg-[#0D0C0B] border rounded-lg p-3 ${error ? 'border-[#C75F4F]/40' : 'border-[#2C2B28]'}`}>
-            <div className="flex items-center gap-2 mb-2.5">
-              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
-              <span className="text-[11px] font-medium text-[#F5F0E8]">{PLATFORM_LABELS[c.platform]}</span>
-              <span className="text-[9px] font-mono text-[#6B6560]">
-                Boost post · {OBJECTIVE_LABELS[d.objective] || d.objective} · {d.creative?.callToAction || 'Learn More'}
-              </span>
-              <button
-                onClick={() => onRemove(c.platform)}
-                className="ml-auto p-1 text-[#6B6560] hover:text-[#C75F4F] transition-colors cursor-pointer"
-                title={`Remove ${PLATFORM_LABELS[c.platform]}`}
-              >
-                <Trash2 size={11} />
-              </button>
-            </div>
-            <div className="flex items-center gap-3">
-              {post?.thumbnailUrl ? (
-                <img src={post.thumbnailUrl} alt="" className="w-14 h-14 rounded object-cover shrink-0" />
-              ) : (
-                <div className="w-14 h-14 rounded bg-[#2C2B28] flex items-center justify-center shrink-0">
-                  <Music size={14} className="text-[#6B6560]" />
-                </div>
-              )}
-              <div className="flex-1 min-w-0">
-                <p className="text-[11px] text-[#F5F0E8] line-clamp-2">{post?.title || 'Untitled post'}</p>
-                <div className="flex items-center gap-3 mt-1 text-[9px] font-mono text-[#6B6560]">
-                  {post?.views > 0 && <span className="inline-flex items-center gap-1"><Eye size={9} />{formatNumber(post.views)}</span>}
-                  <span className="inline-flex items-center gap-1"><Heart size={9} />{formatNumber(postEngagement(post))}</span>
-                  {options.length > 1 && (
-                    <button onClick={() => onSwap(c.platform)} className="inline-flex items-center gap-1 text-[#DA7756] hover:text-[#F5F0E8] transition-colors cursor-pointer">
-                      <Shuffle size={9} />Use another post ({c.postIndex + 1}/{options.length})
-                    </button>
-                  )}
-                </div>
-              </div>
-              <div className="shrink-0 text-right">
-                <div className="flex items-center gap-0.5 bg-[#171614] border border-[#2C2B28] focus-within:border-[#DA7756]/50 rounded px-2 py-1">
-                  <span className="text-[10px] text-[#6B6560]">$</span>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={amount ? amount.toLocaleString('en-US') : ''}
-                    onChange={e => onBudget(c.platform, Number(e.target.value.replace(/[^0-9]/g, '')) || 0)}
-                    className="bg-transparent text-xs text-[#F5F0E8] outline-none font-mono w-16 text-right"
-                  />
-                </div>
-                <p className="text-[9px] font-mono text-[#6B6560] mt-1">{total > 0 ? Math.round((amount / total) * 100) : 0}% · lifetime</p>
-              </div>
-            </div>
-            {c.platform === 'tiktok' && amount > 0 && amount < PLATFORM_CONSTRAINTS.tiktok.minBudget && (
-              <p className="flex items-center gap-1 text-[9px] text-[#D4A574] mt-2">
-                <AlertTriangle size={9} />TikTok requires at least {formatDollar(PLATFORM_CONSTRAINTS.tiktok.minBudget)} per campaign.
-              </p>
-            )}
-            {error && (
-              <p className="flex items-start gap-1 text-[10px] text-[#C75F4F] mt-2">
-                <AlertTriangle size={10} className="mt-0.5 shrink-0" />{error}
-              </p>
-            )}
-          </div>
-        );
-      })}
-
-      {campaigns.length > 0 && (
-        <p className="text-[10px] text-[#6B6560]">
-          Confirming submits {campaigns.length === 1 ? 'this campaign' : `these ${campaigns.length} campaigns`} for approval. Nothing goes live or spends until you launch it from Campaigns.
-        </p>
       )}
     </div>
   );

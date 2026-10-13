@@ -178,13 +178,58 @@ export function boostCreative(post, platform, goal) {
   return creative;
 }
 
+/** Empty "new post" fields for a campaign; filled in on the confirm screen. */
+export function newPostDraft(artist) {
+  return { headline: artist?.name ? `New music from ${artist.name}` : '', images: [], runAsIgUserId: null, videoFile: null };
+}
+
+/** What still blocks a campaign from being confirmed, or null. */
+export function campaignIssue(c, destination) {
+  if (c.mode !== 'new') return null;
+  if (c.platform === 'meta') {
+    if (!c.draft.runAsIgUserId) return 'Choose the Instagram account the ad runs as.';
+    if (!c.draft.images.length) return 'Add at least one image.';
+  } else if (!c.draft.videoFile) {
+    return 'Add a video.';
+  }
+  if (!destination) return 'Choose where the ad sends people.';
+  return null;
+}
+
+function readAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+/** The directive to save for a confirmed campaign: boosts as planned, new posts built from their fields. */
+export async function finalizeCampaign(c, destination, artist) {
+  if (c.mode !== 'new') return c.directive;
+  const { headline, images, runAsIgUserId, videoFile } = c.draft;
+  const callToAction = c.directive.creative?.callToAction || 'Learn More';
+  const creative = c.platform === 'meta'
+    ? {
+        type: 'image', assetUrl: null, headline, description: '', callToAction, trackUrl: destination,
+        postId: null, postSource: null, igUserId: runAsIgUserId, pageId: null,
+        images, imageUrl: images[0] || artist?.imageUrl || null,
+      }
+    : {
+        type: 'video', headline, description: '', callToAction, trackUrl: destination, postId: null,
+        videoFile: videoFile ? await readAsDataUrl(videoFile) : undefined,
+      };
+  return { ...c.directive, creative };
+}
+
 /**
  * Build complete, ready-to-confirm campaigns from the wizard answers.
  *
  * `posts` maps each ads platform to the artist's posts there, best first.
  * Rules, in order:
  * - Each campaign boosts the artist's best-performing post on its platform; a
- *   platform with no posts to boost is left out.
+ *   platform with no posts to boost starts as a new post the user fills in.
  * - The remaining platforms are split with the same objective + audience-size
  *   weighting the manual allocator recommends.
  * - TikTok is left out when its share falls under TikTok's $500 campaign minimum.
@@ -199,8 +244,7 @@ export function generateAssistedPlan(artist, answers, posts = {}, now = new Date
     .filter(p => CAMPAIGN_PLATFORMS.includes(p));
   const noPosts = platforms.filter(p => !posts[p]?.length);
   if (noPosts.length) {
-    notes.push(`${noPosts.map(p => PLATFORM_LABELS[p]).join(' and ')} left out: no posts found to promote.`);
-    platforms = platforms.filter(p => posts[p]?.length);
+    notes.push(`No ${noPosts.map(p => PLATFORM_LABELS[p]).join(' or ')} posts to boost, so ${noPosts.length > 1 ? 'those are' : 'that one is'} set up as a new post.`);
   }
 
   const metrics = artistMetrics(artist);
@@ -226,7 +270,8 @@ export function generateAssistedPlan(artist, answers, posts = {}, now = new Date
 
   const campaigns = allocation.allocations.map(alloc => {
     const platform = alloc.platform;
-    const post = posts[platform][0];
+    const post = posts[platform]?.[0];
+    const mode = post ? 'boost' : 'new';
     const directive = generateDirective({
       artistSlug: artist?.slug,
       artistName: artist?.name,
@@ -237,18 +282,19 @@ export function generateAssistedPlan(artist, answers, posts = {}, now = new Date
       budget: { amount: alloc.amount, currency: 'USD', period: 'lifetime' },
       schedule,
       audience,
-      creative: boostCreative(post, platform, goal),
-      rationale: `${goalLabel}: boosts ${artist?.name || 'the artist'}'s best-performing ${PLATFORM_LABELS[platform]} post. ${alloc.reason}`,
+      creative: post ? boostCreative(post, platform, goal) : { callToAction: CTA_BY_GOAL[goal] || 'Learn More' },
+      rationale: `${goalLabel}: ${post ? `boosts ${artist?.name || 'the artist'}'s best-performing ${PLATFORM_LABELS[platform]} post` : `a new ${PLATFORM_LABELS[platform]} post`}. ${alloc.reason}`,
     });
     // generateDirective ids are time-based; keep them unique within one plan
     directive.id = `${directive.id}-${platform}`;
-    return { platform, directive, postIndex: 0 };
+    return { platform, directive, postIndex: 0, mode, draft: newPostDraft(artist) };
   });
 
   return {
     title: `${PROMOTING_TITLES[answers.promoting] || 'Campaign'}: ${goalLabel}`,
     goal,
     goalLabel,
+    answers,
     budget,
     days,
     schedule,

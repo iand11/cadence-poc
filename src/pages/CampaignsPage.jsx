@@ -472,6 +472,7 @@ export default function CampaignsPage() {
         onCustom={handleWizardCustom}
         onLaunch={handleWizardLaunch}
         onConfirm={handleWizardConfirm}
+        onOpenAccounts={openAccounts}
         connectedPlatforms={connectedPlatforms}
         initialArtistSlug={wizardArtistSlug}
         initialSuggestion={wizardSuggestion}
