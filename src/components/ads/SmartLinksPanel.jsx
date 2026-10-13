@@ -287,7 +287,7 @@ function NewLinkForm({ pixels, spotifyLogin, onCreated, onCancel }) {
   return (
     <div className="p-4 rounded border border-[#2C2B28] bg-[#0D0C0B] space-y-3 mb-4">
       <div>
-        <label className={labelCls}>Release link (Spotify, Apple Music, YouTube…)</label>
+        <label className={labelCls}>Release link (Spotify, Apple Music, Deezer, YouTube)</label>
         <input value={sourceUrl} onChange={e => setSourceUrl(e.target.value)} placeholder="https://open.spotify.com/track/..." className={`${inputCls} font-mono`} />
         <p className="text-[9px] text-[#6B6560] mt-1">
           Prelude finds the release on every service.{' '}

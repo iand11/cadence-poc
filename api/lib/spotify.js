@@ -1,4 +1,4 @@
-// Minimal Spotify Web API client (client-credentials flow) for artist lookup.
+// Minimal Spotify Web API client (client-credentials flow) for artist and release lookup.
 // Needs SPOTIFY_CLIENT_ID + SPOTIFY_CLIENT_SECRET. The app token is cached
 // per process until shortly before it expires.
 
@@ -34,7 +34,7 @@ async function getToken() {
   return cached.token;
 }
 
-async function spotifyGet(path) {
+export async function spotifyGet(path) {
   const doFetch = async () => fetch(`${API}${path}`, {
     headers: { Authorization: `Bearer ${await getToken()}` },
   });

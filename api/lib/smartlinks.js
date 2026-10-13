@@ -5,14 +5,13 @@
 // by a shared event id) so ads can be measured and optimized on streaming clicks.
 //
 // Env:
-//   ODESLI_API_URL       — optional; link lookup API base (default song.link's public API)
+//   ODESLI_API_KEY       — optional; look links up through song.link/Odesli (see link-lookup.js)
 //   SMART_LINK_BASE_URL  — optional; public origin for links (default: the request's origin)
 //   META_TEST_EVENT_CODE — optional; sends Conversions API events to Events Manager's Test Events
 import crypto from 'node:crypto';
 import { query, queryOne } from './db.js';
 import { graph, loadConnection } from './meta.js';
-
-const ODESLI = process.env.ODESLI_API_URL || 'https://api.song.link/v1-alpha.1';
+import { lookupRelease } from './link-lookup.js';
 
 // Display order, labels and colors for the landing page and reports
 export const SERVICES = {
@@ -75,23 +74,10 @@ export function cleanLinks(links) {
   return Object.keys(SERVICES).filter(s => byService.has(s)).map(service => ({ service, url: byService.get(service) }));
 }
 
-/** Look up a release on every service from one URL (Spotify, Apple Music, YouTube, …). */
+/** Look up a release on every service from one URL (Spotify, Apple Music, Deezer, YouTube). */
 export async function resolveLinks(sourceUrl) {
-  const res = await fetch(`${ODESLI}/links?url=${encodeURIComponent(sourceUrl)}&userCountry=US`);
-  if (!res.ok) {
-    throw Object.assign(new Error(res.status === 404
-      ? "Couldn't find that release. Check the link, or add the service links yourself."
-      : `Link lookup failed (${res.status}). Add the service links yourself.`), { status: 400 });
-  }
-  const body = await res.json();
-  const entity = body.entitiesByUniqueId?.[body.entityUniqueId] || {};
-  const links = Object.entries(body.linksByPlatform || {}).map(([service, v]) => ({ service, url: v.url }));
-  return {
-    title: entity.title || null,
-    artistName: entity.artistName || null,
-    imageUrl: entity.thumbnailUrl || null,
-    links: cleanLinks(links),
-  };
+  const found = await lookupRelease(sourceUrl);
+  return { ...found, links: cleanLinks(found.links) };
 }
 
 export function makeSlug(title) {

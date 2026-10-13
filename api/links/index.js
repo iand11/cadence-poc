@@ -188,7 +188,7 @@ export default async function handler(req, res) {
         return res.status(200).json({ listeners: listeners.length, plays, errors: failed.map(f => f.sync_error) });
       }
       if (!isHttpUrl(body.sourceUrl) && !body.links?.length) {
-        throw bad('Paste a Spotify, Apple Music or YouTube link to the release.');
+        throw bad('Paste a Spotify, Apple Music, Deezer or YouTube link to the release.');
       }
       let found = { title: null, artistName: null, imageUrl: null, links: [] };
       if (body.links?.length) found.links = cleanLinks(body.links);
