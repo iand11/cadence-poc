@@ -17,6 +17,7 @@
     "db:rebuild-artist-playlists": "node scripts/rebuild-artist-playlists.js",
     "spotify:sync": "node scripts/sync-spotify-plays.js",
     "meta:review-calls": "node scripts/meta-review-calls.js",
+    "meta:ig-only-test": "node scripts/meta-ig-only-test.js",
     "lint": "eslint .",
     "preview": "vite preview"
   },
