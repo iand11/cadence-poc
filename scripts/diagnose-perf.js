@@ -5,7 +5,8 @@
 //   npm run db:diagnose -- --apply-indexes  also build any missing artist /
 //                                           playlist indexes with CREATE INDEX CONCURRENTLY
 //                                           (does not block crawler writes) and
-//                                           refresh the stored artist facets
+//                                           refresh the stored artist facets, and
+//                                           build the artist → playlist rollup if missing
 //
 // Reports table sizes, which of the indexes the API depends on exist (and
 // whether any are left invalid by an interrupted build), queries currently
@@ -100,6 +101,22 @@ try {
     console.log(`${((Date.now() - t) / 1000).toFixed(1)}s`);
   }
 
+  // Artist → playlist rollup (api/lib/artist-playlists.js) — the followed
+  // playlists list reads it once built.
+  const [rollup] = (await q(`SELECT to_regclass('catalog_facets') IS NOT NULL AS ok`))[0].ok
+    ? await q(`SELECT data, refreshed_at FROM catalog_facets WHERE key = 'artist_playlists'`)
+    : [];
+  console.log(`\n== Artist playlist rollup ==\n  ${rollup ? `built ${rollup.refreshed_at.toISOString()} (${rollup.data.rows} rows at build; kept current by triggers)` : 'MISSING'}`);
+  if (APPLY && !rollup) {
+    const { rebuildArtistPlaylists } = await import('../api/lib/artist-playlists.js');
+    const t = Date.now();
+    process.stdout.write('  building (reads every playlist entry; crawler writes wait) … ');
+    const rows = await rebuildArtistPlaylists();
+    console.log(`${((Date.now() - t) / 1000).toFixed(1)}s, ${rows} rows`);
+  } else if (!rollup) {
+    console.log('  → re-run with --apply-indexes (or npm run db:rebuild-artist-playlists) to build it');
+  }
+
   // Largest followed-artist set, the worst case a user sees.
   const [roster] = await q(
     `SELECT t.user_id, array_agg(a.slug) AS slugs FROM tracked_artists t JOIN artists a ON a.id = t.artist_id
@@ -111,6 +128,7 @@ try {
   console.log(`\n== API handlers, timed against the DB (${roster?.slugs?.length || 0} followed artists) ==`);
   const cases = [
     ['artists list', 'artists/index.js', '/api/artists?sort=rank&order=asc&page=1&perPage=25'],
+    ['artists by listeners', 'artists/index.js', '/api/artists?sort=listeners&order=desc&page=1&perPage=20'],
     ['artists facets', 'artists/facets.js', '/api/artists/facets'],
     ['followed artists', 'artists/index.js', `/api/artists?slugs=${slugs}&perPage=200`],
     ['playlists (all)', 'playlists/index.js', '/api/playlists?sort=followers&page=1&perPage=25'],

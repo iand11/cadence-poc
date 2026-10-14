@@ -16,6 +16,7 @@ import { query } from '../lib/db.js';
 import { PLAYLIST_COLUMNS, playlistRowToUI, intParam, list } from '../lib/playlist-shape.js';
 import { artistIdArrayType, artistIdsForSlugs } from '../lib/artist-ids.js';
 import { cached } from '../lib/cache.js';
+import { rollupReady } from '../lib/artist-playlists.js';
 
 const SORTS = {
   followers: 'followers DESC NULLS LAST, name',
@@ -52,19 +53,51 @@ export default async function handler(req, res) {
       const ids = await artistIdsForSlugs(slugs);
       if (!ids.length) return send(res, { playlists: [], total: 0, page, perPage });
       params.push(ids);
-      const idsParam = `$${params.length}::${await artistIdArrayType()}`;
-      // Roster counts per playlist, found through the artist_ids GIN index.
-      base = `
-        WITH r AS (
-          SELECT e.playlist_id, count(DISTINCT e.id) AS roster_tracks, count(DISTINCT x.aid) AS roster_artists
-          FROM playlist_entries e
-          CROSS JOIN LATERAL unnest(e.artist_ids) AS x(aid)
-          WHERE e.removed_at IS NULL AND e.artist_ids && ${idsParam} AND x.aid = ANY(${idsParam})
-          GROUP BY e.playlist_id
-        )
-        SELECT ${PLAYLIST_COLUMNS}, r.roster_tracks, r.roster_artists
-        FROM playlists p JOIN r ON r.playlist_id = p.id
-        WHERE ${where.join(' AND ')}`;
+      if (sort === SORTS.roster && !p.get('q') && !list(p, 'platformIds').length && await rollupReady()) {
+        // Roster counts per playlist from the artist → playlist rollup
+        // (api/lib/artist-playlists.js), which also carries the playlist
+        // columns these filters and this sort need, so the page is picked and
+        // counted from an index range per followed artist and only the page's
+        // playlists are read. An entry featuring two followed artists counts
+        // once for each.
+        const scoped = `
+          SELECT r.playlist_id, sum(r.tracks)::int AS roster_tracks, count(*)::int AS roster_artists,
+                 max(r.followers) AS followers
+          FROM artist_playlists_current r
+          WHERE r.artist_id = ANY($${params.length}::bigint[]) AND ${where.map((w) => w.replace(/\bp\./g, 'r.')).join(' AND ')}
+          GROUP BY r.playlist_id`;
+        const order = 'roster_tracks DESC NULLS LAST, followers DESC NULLS LAST';
+        const rows = await query(
+          `WITH pg AS (
+             SELECT g.*, count(*) OVER ()::int AS total_count FROM (${scoped}) g
+             ORDER BY ${order} LIMIT ${perPage} OFFSET ${(page - 1) * perPage}
+           )
+           SELECT ${PLAYLIST_COLUMNS}, pg.roster_tracks, pg.roster_artists, pg.total_count
+           FROM pg JOIN playlists p ON p.id = pg.playlist_id
+           ORDER BY ${order.replace(/\b(roster_tracks|followers)\b/g, 'pg.$1')}`,
+          params
+        );
+        const total = rows.length
+          ? rows[0].total_count
+          : page > 1
+            ? (await query(`SELECT count(*)::int AS n FROM (${scoped}) g`, params))[0].n
+            : 0;
+        return send(res, { playlists: rows.map(playlistRowToUI), total, page, perPage });
+      } else {
+        const idsParam = `$${params.length}::${await artistIdArrayType()}`;
+        // Roster counts per playlist, found through the artist_ids GIN index.
+        base = `
+          WITH r AS (
+            SELECT e.playlist_id, count(DISTINCT e.id) AS roster_tracks, count(DISTINCT x.aid) AS roster_artists
+            FROM playlist_entries e
+            CROSS JOIN LATERAL unnest(e.artist_ids) AS x(aid)
+            WHERE e.removed_at IS NULL AND e.artist_ids && ${idsParam} AND x.aid = ANY(${idsParam})
+            GROUP BY e.playlist_id
+          )
+          SELECT ${PLAYLIST_COLUMNS}, r.roster_tracks, r.roster_artists
+          FROM playlists p JOIN r ON r.playlist_id = p.id
+          WHERE ${where.join(' AND ')}`;
+      }
     } else {
       // Catalog-wide (1M+ playlists): read just this page in index order and
       // count separately, cached — a window count would scan and sort every

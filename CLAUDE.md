@@ -106,6 +106,11 @@ anything that sorts or aggregates the whole catalog per request is too slow. Lis
 indexes for the page and count separately (cached); `/api/artists/facets` reads the stored
 `catalog_facets` row (refreshed by cron `/api/cron/refresh-facets` / `npm run db:refresh-facets`);
 "similar playlists" is a separate time-boxed request (`/api/playlists/:id?part=similar`).
+Followed-artist playlist lists (`/api/playlists?slugs=…&sort=roster`) read `artist_playlists_current`
+(artist → playlist rollup with track counts and copied playlist sort/filter columns), kept current by
+triggers on `playlist_entries` / `playlists` and built with `npm run db:rebuild-artist-playlists`
+(`api/lib/artist-playlists.js`); until built, the handler falls back to the GIN query. The unfiltered
+`/api/artists` total comes from the stored facets, not a per-request count.
 `npm run db:diagnose [-- --apply-indexes]` checks indexes and times every handler against the DB.
 
 ### Data Modules (`src/data/`)

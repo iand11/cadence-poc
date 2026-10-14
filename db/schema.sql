@@ -656,3 +656,24 @@ CREATE TABLE IF NOT EXISTS catalog_facets (
   data         jsonb NOT NULL,
   refreshed_at timestamptz NOT NULL DEFAULT now()
 );
+
+-- ---------------------------------------------------------------------------
+-- Artist → playlist rollup: one row per artist per playlist they're currently
+-- on, with the number of current entries featuring them. The followed-artist
+-- playlist list reads it instead of scanning playlist_entries. Kept current by
+-- triggers on playlist_entries / playlists and built with
+-- `npm run db:rebuild-artist-playlists`; both live in api/lib/artist-playlists.js
+-- (the trigger needs the crawler's table, so it is installed with the build).
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS artist_playlists_current (
+  artist_id    bigint  NOT NULL,
+  playlist_id  bigint  NOT NULL,
+  tracks       integer NOT NULL,
+  -- copies of the playlist's sort / filter columns
+  followers    bigint,
+  active       boolean,
+  platform     text,
+  type         text,
+  is_editorial boolean,
+  PRIMARY KEY (artist_id, playlist_id)
+);
