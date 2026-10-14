@@ -1,5 +1,17 @@
-// /api/connect/meta — connect a user's Meta business (Facebook Login for Business).
+// /api/connect/meta — connect artists' Meta assets for Instagram ads.
 //
+// Partner access (default, see api/lib/meta-partner.js) — the artist shares their Page and
+// optionally their ad account with Prelude's business; no Meta login:
+//   GET                      → { mode: 'partner', configured, businessId, connected, selection, … }
+//   GET ?assets=1            → + picks up approvals, then { pages, adAccounts, adAccountRequests,
+//                              instagramAccounts }
+//   POST { action: 'add_page', page }             → request access to a Page (URL or id)
+//   POST { action: 'add_ad_account', adAccountId } → request access to an ad account
+//   POST { action: 'remove', pageId | adAccountId } → forget it and withdraw Prelude's access
+//   POST { action: 'assign', … }                   → same as below
+//   DELETE                   → forget everything this user shared
+//
+// Facebook Login for Business (META_FACEBOOK_LOGIN=on):
 //   GET                      → connection status { configured, connected, expiresAt, selection, ... }
 //   GET ?assets=1            → + { adAccounts, instagramAccounts } the connection can use
 //   GET ?code=…&state=…      → OAuth callback from Meta (browser redirect, no bearer token);
@@ -15,8 +27,13 @@ import {
   metaConfigured, signState, verifyState, graph, graphList, getUid, loadConnection,
   saveConnection, saveSelection, deleteConnection, readBody, sendError, actId, GRAPH_VERSION,
   listInstagramAccounts, managedConfigured, grantPreludeAccess, revokePreludeAccess, isAdmin, MANAGED_ACCOUNT_NAME,
+  loginEnabled, preludeAccount,
 } from '../lib/meta.js';
 import { prepayEnabled } from '../lib/stripe.js';
+import {
+  partnerConfigured, preludeBusiness, addPartnerPage, addPartnerAdAccount, syncPartnerAssets, partnerAssets,
+  savePartnerSelection, grantManagedPartner, revokeManagedPartner, removePartnerAsset,
+} from '../lib/meta-partner.js';
 
 function redirectUri(req) {
   if (process.env.META_REDIRECT_URI) return process.env.META_REDIRECT_URI;
@@ -96,6 +113,7 @@ async function listAssets(token) {
 function shapeStatus(conn, uid) {
   // Shown with or without a connection: managed ads still need the artist's Instagram shared
   const common = {
+    mode: 'login',
     configured: metaConfigured(),
     managedAvailable: managedConfigured(),
     managedPrepay: prepayEnabled(),
@@ -115,10 +133,125 @@ function shapeStatus(conn, uid) {
   };
 }
 
+// ── Partner access ──────────────────────────────────────────────────────────
+
+/**
+ * Same assign semantics as Facebook Login, against the user's shared assets: an Instagram
+ * account runs ads in a shared ad account, in Prelude's (managed), or nowhere (null).
+ */
+async function partnerAssign(uid, body) {
+  const assets = await partnerAssets(uid);
+  const ig = assets.instagramAccounts.find(a => a.igUserId === String(body.igUserId));
+  if (!ig) throw Object.assign(new Error("That Instagram account isn't shared with Prelude yet."), { status: 400 });
+
+  const accountMap = { ...(assets.selection.accountMap || {}) };
+  const wasManaged = !!accountMap[ig.igUserId]?.managed;
+  if (body.adAccountId === 'prelude') {
+    if (!managedConfigured()) return { status: 400, error: 'Prelude-managed ads are not set up on the server yet.' };
+    if (body.consent !== true) return { status: 400, error: 'Confirm that Prelude may run ads for this account.' };
+    if (!wasManaged) await grantManagedPartner(ig, preludeAccount().act);
+    accountMap[ig.igUserId] = {
+      managed: true, adAccountName: MANAGED_ACCOUNT_NAME, username: ig.username, grantedAt: new Date().toISOString(),
+    };
+  } else if (body.adAccountId) {
+    const account = assets.adAccounts.find(a => a.id === actId(body.adAccountId));
+    if (!account || account.status !== 'active') return { status: 400, error: "That ad account isn't shared with Prelude yet." };
+    if (!account.active) return { status: 400, error: `${account.name} can't run ads right now (check its status in Meta).` };
+    accountMap[ig.igUserId] = { adAccountId: account.id, adAccountName: account.name, currency: account.currency, username: ig.username };
+  } else {
+    delete accountMap[ig.igUserId];
+  }
+  if (wasManaged && !accountMap[ig.igUserId]?.managed) await revokeManagedPartner(ig, preludeAccount().act);
+  const selection = { ...assets.selection, accountMap };
+  await savePartnerSelection(uid, selection);
+  return { status: 200, selection };
+}
+
+/** Drop accountMap entries that point at a removed Page's Instagram account or a removed ad account. */
+async function forgetInSelection(uid, { igUserId, adAccountId }) {
+  const { selection } = await partnerAssets(uid);
+  const accountMap = { ...(selection.accountMap || {}) };
+  for (const [ig, entry] of Object.entries(accountMap)) {
+    if ((igUserId && ig === igUserId) || (adAccountId && entry.adAccountId === adAccountId)) {
+      if (entry.managed && managedConfigured()) {
+        await revokeManagedPartner({ igUserId: ig, username: entry.username }, preludeAccount().act);
+      }
+      delete accountMap[ig];
+    }
+  }
+  await savePartnerSelection(uid, { ...selection, accountMap });
+}
+
+async function partnerHandler(req, res, uid, params) {
+  const common = {
+    mode: 'partner',
+    configured: partnerConfigured(),
+    businessId: process.env.META_PRELUDE_BUSINESS_ID || null,
+    managedAvailable: managedConfigured(),
+    managedPrepay: prepayEnabled(),
+    isAdmin: isAdmin(uid),
+  };
+
+  if (req.method === 'GET') {
+    if (!common.configured) return res.status(200).json({ ...common, connected: false });
+    if (params.get('assets')) await syncPartnerAssets(uid);
+    const assets = await partnerAssets(uid);
+    const connected = assets.instagramAccounts.length > 0;
+    const out = { ...common, connected, selection: assets.selection, pending: assets.pages.some(p => p.status !== 'active') };
+    return res.status(200).json(params.get('assets') ? { ...out, ...assets } : out);
+  }
+
+  if (req.method === 'POST') {
+    preludeBusiness(); // 409 not_configured when partner access isn't set up
+    const body = await readBody(req);
+    if (body.action === 'add_page') {
+      const page = await addPartnerPage(uid, body.page);
+      return res.status(200).json({ ok: true, page: { pageId: page.page_id, status: page.status, error: page.last_error || null } });
+    }
+    if (body.action === 'add_ad_account') {
+      const row = await addPartnerAdAccount(uid, body.adAccountId);
+      return res.status(200).json({ ok: true, adAccount: { id: row.ad_account_id, status: row.status, error: row.last_error || null } });
+    }
+    if (body.action === 'remove') {
+      const removed = await removePartnerAsset(uid, { pageId: body.pageId, adAccountId: body.adAccountId });
+      if (!removed) return res.status(404).json({ error: 'Not found' });
+      await forgetInSelection(uid, { igUserId: removed.ig_user_id || null, adAccountId: removed.ad_account_id || null });
+      return res.status(200).json({ ok: true });
+    }
+    if (body.action === 'assign') {
+      const { status, error, selection } = await partnerAssign(uid, body);
+      return status === 200 ? res.status(200).json({ ok: true, selection }) : res.status(status).json({ error });
+    }
+    return res.status(400).json({ error: "action must be 'add_page', 'add_ad_account', 'remove' or 'assign'" });
+  }
+
+  if (req.method === 'DELETE') {
+    preludeBusiness();
+    const assets = await partnerAssets(uid);
+    for (const p of assets.pages) {
+      const removed = await removePartnerAsset(uid, { pageId: p.pageId });
+      if (removed) await forgetInSelection(uid, { igUserId: removed.ig_user_id || null });
+    }
+    for (const a of assets.adAccountRequests) await removePartnerAsset(uid, { adAccountId: a.id });
+    await savePartnerSelection(uid, {});
+    return res.status(200).json({ ok: true });
+  }
+
+  res.statusCode = 405;
+  return res.end();
+}
+
 export default async function handler(req, res) {
   const params = new URL(req.url, 'http://localhost').searchParams;
 
   try {
+    if (!loginEnabled()) {
+      if (req.method === 'GET' && (params.has('code') || params.has('error'))) {
+        return redirect(res, '/app/campaigns?meta=error&reason=' + encodeURIComponent('Facebook Login is switched off. Add the artist\'s Page in Ad Accounts instead.'));
+      }
+      return await partnerHandler(req, res, await getUid(req), params);
+    }
+
     if (req.method === 'GET' && (params.has('code') || params.has('error'))) {
       return await handleCallback(req, res, params);
     }

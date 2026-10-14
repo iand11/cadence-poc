@@ -1,12 +1,18 @@
 // Meta (Facebook / Instagram) Marketing API helpers shared by api/connect/meta.js
 // and the api/campaign/* execution endpoints.
 //
-// Model: each Prelude user connects their own Meta business with Facebook Login
-// for Business. Ads run in *their* ad account (Meta bills their card); Prelude
-// charges its own fee separately. The access token is stored encrypted in
-// ad_platform_connections and never reaches the browser.
+// Two ways an artist's assets reach Prelude, chosen by META_FACEBOOK_LOGIN:
+//   • Partner access (default): the artist shares their Page / Instagram / ad account with
+//     Prelude's business and Prelude's system user does every call (api/lib/meta-partner.js).
+//     No Meta login and no App Review.
+//   • Facebook Login for Business (META_FACEBOOK_LOGIN=on): each Prelude user connects their
+//     own Meta business; the access token is stored encrypted in ad_platform_connections and
+//     never reaches the browser.
+// Either way ads run in the artist's ad account (Meta bills their card), or in Prelude's for
+// managed ads, and loadConnection() returns the same { token, selection } shape.
 //
 // Env:
+//   META_FACEBOOK_LOGIN            — on/true/1 to use Facebook Login instead of partner access
 //   META_APP_ID, META_APP_SECRET   — the Meta app
 //   META_LOGIN_CONFIG_ID           — Facebook Login for Business configuration
 //                                    (defines the permissions + token type; use a
@@ -25,6 +31,7 @@
 import crypto from 'node:crypto';
 import { query, queryOne } from './db.js';
 import { verifyAuth } from './auth.js';
+import { loadPartnerConnection, partnerConfigured, partnerInstagramAccounts } from './meta-partner.js';
 
 export const GRAPH_VERSION = process.env.META_GRAPH_VERSION || 'v24.0';
 const GRAPH = process.env.META_GRAPH_URL || `https://graph.facebook.com/${GRAPH_VERSION}`;
@@ -33,6 +40,16 @@ const STATE_TTL_MS = 10 * 60 * 1000;
 export function metaConfigured() {
   return !!(process.env.META_APP_ID && process.env.META_APP_SECRET && process.env.META_LOGIN_CONFIG_ID);
 }
+
+/** Facebook Login for Business is switched on; otherwise artists connect through partner access. */
+export function loginEnabled() {
+  return /^(1|true|on|yes)$/i.test(String(process.env.META_FACEBOOK_LOGIN || '').trim());
+}
+
+export const metaMode = () => (loginEnabled() ? 'login' : 'partner');
+
+/** The current mode has what it needs on the server. */
+export const metaReady = () => (loginEnabled() ? metaConfigured() : partnerConfigured());
 
 function secretKey() {
   const raw = process.env.AD_TOKEN_KEY || process.env.APP_SESSION_SECRET;
@@ -186,7 +203,12 @@ function ensureTable() {
   return tableReady;
 }
 
+/** The user's Meta connection in the current mode: { token, selection, … } or null. */
 export async function loadConnection(uid) {
+  return loginEnabled() ? loadLoginConnection(uid) : loadPartnerConnection(uid);
+}
+
+export async function loadLoginConnection(uid) {
   await ensureTable();
   const row = await queryOne(
     `SELECT * FROM ad_platform_connections WHERE user_id = $1 AND platform = 'meta'`,
@@ -203,11 +225,17 @@ export function needs(code, message, extra = {}) {
 
 /** Like loadConnection, but throws a 409 the client can act on when not ready. */
 export async function requireConnection(uid) {
-  if (!metaConfigured()) {
-    throw needs('not_configured', 'Meta is not configured on the server (META_APP_ID, META_APP_SECRET, META_LOGIN_CONFIG_ID).');
+  if (!metaReady()) {
+    throw needs('not_configured', loginEnabled()
+      ? 'Meta is not configured on the server (META_APP_ID, META_APP_SECRET, META_LOGIN_CONFIG_ID).'
+      : 'Meta partner access is not configured on the server (META_APP_SECRET, META_PRELUDE_BUSINESS_ID, META_PRELUDE_TOKEN).');
   }
   const conn = await loadConnection(uid);
-  if (!conn) throw needs('not_connected', 'Connect your Meta account in Ad Accounts first.', { reconnect: true });
+  if (!conn) {
+    throw needs('not_connected', loginEnabled()
+      ? 'Connect your Meta account in Ad Accounts first.'
+      : "Add the artist's Facebook Page in Ad Accounts first.", { reconnect: true });
+  }
   if (conn.expires_at && new Date(conn.expires_at) <= new Date()) {
     throw needs('not_connected', 'Your Meta connection expired. Reconnect in Ad Accounts.', { reconnect: true });
   }
@@ -245,6 +273,11 @@ export async function listInstagramAccounts(token) {
     }));
 }
 
+/** The Instagram accounts a connection (either mode) can run ads as. */
+export async function instagramAccountsFor(conn) {
+  return conn.mode === 'partner' ? partnerInstagramAccounts(conn.pages) : listInstagramAccounts(conn.token);
+}
+
 /** Instagram shortcode from a post URL (instagram.com/p/<code>/, /reel/<code>/, /tv/<code>/). */
 export function shortcodeFrom(url) {
   return String(url || '').match(/instagram\.com\/(?:[^/]+\/)?(?:p|reel|reels|tv)\/([A-Za-z0-9_-]+)/)?.[1] || null;
@@ -256,8 +289,9 @@ export function shortcodeFrom(url) {
  * shortcode against each account's recent media.
  * @returns {Promise<{mediaId, account, eligibility} | null>}
  */
-export async function findInstagramPost(token, { permalink, postId }) {
-  const accounts = await listInstagramAccounts(token);
+export async function findInstagramPost(conn, { permalink, postId }) {
+  const { token } = conn;
+  const accounts = await instagramAccountsFor(conn);
   const code = shortcodeFrom(permalink);
   for (const account of accounts) {
     const media = await graphList(`${account.igUserId}/media`, token, { fields: 'id,shortcode,permalink' }, 3);

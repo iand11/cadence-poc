@@ -42,9 +42,9 @@ export function PrivacyPolicy() {
           <li>Your sign-in details (name and email address).</li>
           <li>What you set up in Prelude: followed artists, groups, reports, campaigns, smart links, and images or videos you upload for ads.</li>
           <li>
-            If you connect Meta (Facebook and Instagram): an access token and the IDs of the Pages, Instagram accounts and ad
-            accounts you choose to share. We use them only to create, run, pause and report on the ads you set up in Prelude.
-            Tokens are encrypted and never sent to your browser.
+            If you connect Meta (Facebook and Instagram): the IDs of the Pages, Instagram accounts and ad accounts you share
+            with Prelude, and, if you connect with Facebook Login, an access token. We use them only to create, run, pause and
+            report on the ads you set up in Prelude. Tokens are encrypted and never sent to your browser.
           </li>
           <li>
             If you let Prelude run ads for an Instagram account: Prelude's business is given advertiser access to that Page and
