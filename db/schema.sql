@@ -57,6 +57,10 @@ CREATE TABLE IF NOT EXISTS artists (
   updated_at           timestamptz NOT NULL DEFAULT now()
 );
 
+-- Profile URLs per service from the ingest: { "spotify": [url], "itunes": [url, …], "instagram": [url], … }.
+-- Smart links read the streaming ones for artist-page links.
+ALTER TABLE artists ADD COLUMN IF NOT EXISTS social_urls jsonb;
+
 CREATE INDEX IF NOT EXISTS artists_name_trgm_idx  ON artists USING gin (name gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS artists_genre_idx      ON artists (primary_genre);
 CREATE INDEX IF NOT EXISTS artists_country_idx    ON artists (country);

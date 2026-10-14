@@ -17,6 +17,7 @@ import {
   ensureTables, resolveLinks, cleanLinks, makeSlug, linkUrl, statsFor, isHttpUrl,
 } from '../lib/smartlinks.js';
 import { spotifyLoginConfigured } from '../lib/spotify-fans.js';
+import { artistPageLinks } from '../lib/link-lookup.js';
 import { ensureSyncTables, listeningStats, releaseFilter, syncListener } from '../lib/spotify-sync.js';
 
 /** Plays by this link's fans (null when it has never captured a fan). */
@@ -187,8 +188,21 @@ export default async function handler(req, res) {
           [listeners.map(l => l.spotify_user_id)]) : [];
         return res.status(200).json({ listeners: listeners.length, plays, errors: failed.map(f => f.sync_error) });
       }
+      // A followed artist's own streaming pages, from the catalog (no outside lookup)
+      if (body.action === 'artist') {
+        const artist = await queryOne('SELECT name, image_url, spotify_url, social_urls FROM artists WHERE slug = $1', [body.artistSlug]);
+        if (!artist) throw bad('Artist not found.', 404);
+        const links = cleanLinks(artistPageLinks(artist.social_urls));
+        if (!links.length && artist.spotify_url) links.push(...cleanLinks([{ service: 'spotify', url: artist.spotify_url }]));
+        return res.status(200).json({ kind: 'artist', title: null, artistName: artist.name, imageUrl: artist.image_url, links });
+      }
+      // Look a release up without creating anything, so the user can check the links first
+      if (body.action === 'lookup') {
+        if (!isHttpUrl(body.sourceUrl)) throw bad('Paste a Spotify, Apple Music, Deezer or YouTube link to the release or artist.');
+        return res.status(200).json(await resolveLinks(body.sourceUrl));
+      }
       if (!isHttpUrl(body.sourceUrl) && !body.links?.length) {
-        throw bad('Paste a Spotify, Apple Music or YouTube link to the release.');
+        throw bad('Paste a Spotify, Apple Music, Deezer or YouTube link to the release or artist.');
       }
       let found = { title: null, artistName: null, imageUrl: null, links: [] };
       if (body.links?.length) found.links = cleanLinks(body.links);

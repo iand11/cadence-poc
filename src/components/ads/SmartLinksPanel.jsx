@@ -1,15 +1,16 @@
 import { useState, useEffect, useRef } from 'react';
-import { Link2, Plus, Copy, Check, ExternalLink, Trash2, Loader2, AlertTriangle, MousePointerClick, Eye, Download, Users, RefreshCw, X } from 'lucide-react';
+import { Link2, Plus, Copy, Check, ExternalLink, Trash2, Loader2, AlertTriangle, MousePointerClick, Eye, Download, Users, RefreshCw, X, Search } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { useAsync } from '../../hooks/useAsync';
 import { useFollowedArtists } from '../../context/FollowedArtistsContext';
 import { useDirectives } from '../../hooks/useDirectives';
 import {
-  fetchSmartLinks, fetchSmartLink, fetchPixels, createSmartLink, updateSmartLink, linkTitle, deleteSmartLink, fetchLinkFans, fetchFanPlays, syncLinkFans,
+  fetchSmartLinks, fetchSmartLink, fetchPixels, createSmartLink, lookupSmartLinks, artistPageSmartLinks, linksList, linksMap, foundSummary, updateSmartLink, linkTitle, deleteSmartLink, fetchLinkFans, fetchFanPlays, syncLinkFans,
   SERVICE_LABELS, SERVICE_COLORS,
 } from '../../data/smartLinks';
 import { AXIS_STYLE, TOOLTIP_STYLE } from '../../utils/chartTheme';
 import DspIcon from './DspIcon';
+import ServiceLinksEditor from './ServiceLinksEditor';
 import { formatNumber } from '../../utils/formatters';
 
 const inputCls = 'w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none';
@@ -251,15 +252,58 @@ function FansSection({ link, version, listening, onSynced }) {
 
 function NewLinkForm({ pixels, spotifyLogin, onCreated, onCancel }) {
   const { followedArtists } = useFollowedArtists();
+  const [mode, setMode] = useState('release'); // 'release' (paste a URL) | 'artist' (a followed artist's pages)
   const [sourceUrl, setSourceUrl] = useState('');
   const [title, setTitle] = useState('');
   const [artistSlug, setArtistSlug] = useState('');
   const [pixelId, setPixelId] = useState(null);
   const [fanCapture, setFanCapture] = useState(false);
-  const [manual, setManual] = useState(false);
-  const [manualLinks, setManualLinks] = useState({});
+  const [release, setRelease] = useState(null); // what the lookup found: { title, artistName, imageUrl }
+  const [links, setLinks] = useState(null); // { service: url } once looked up or entered by hand
+  const [found, setFound] = useState(null); // services the lookup found
+  const [finding, setFinding] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  const chosen = links ? linksList(links) : [];
+
+  const find = async () => {
+    setFinding(true);
+    setError(null);
+    try {
+      const r = await lookupSmartLinks(sourceUrl.trim());
+      setRelease(r);
+      setLinks(linksMap(r.links));
+      setFound(new Set(r.links.map(l => l.service)));
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setFinding(false);
+    }
+  };
+
+  const reset = () => { setLinks(null); setFound(null); setRelease(null); setError(null); };
+
+  // Artist page: the artist's own streaming profiles from the catalog
+  const loadArtist = async (slug) => {
+    setArtistSlug(slug);
+    reset();
+    if (!slug) return;
+    setFinding(true);
+    try {
+      const r = await artistPageSmartLinks(slug);
+      setRelease(r);
+      setLinks(linksMap(r.links));
+      setFound(new Set(r.links.map(l => l.service)));
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setFinding(false);
+    }
+  };
+
+  const switchMode = (m) => { if (m !== mode) { setMode(m); setSourceUrl(''); reset(); if (m === 'artist' && artistSlug) loadArtist(artistSlug); } };
+
+  const addYourself = () => { setLinks(l => l || { spotify: '', appleMusic: '', youtubeMusic: '' }); setError(null); };
 
   const submit = async () => {
     setBusy(true);
@@ -267,14 +311,14 @@ function NewLinkForm({ pixels, spotifyLogin, onCreated, onCancel }) {
     const artist = (followedArtists || []).find(a => a.slug === artistSlug);
     try {
       const { link } = await createSmartLink({
-        sourceUrl: sourceUrl || null,
-        title: title || null,
+        sourceUrl: mode === 'release' ? sourceUrl.trim() || null : null,
+        title: title || release?.title || null,
         artistSlug: artistSlug || null,
-        artistName: artist?.name || null,
-        imageUrl: manual ? artist?.imageUrl || null : null,
+        artistName: artist?.name || release?.artistName || null,
+        imageUrl: release?.imageUrl || artist?.imageUrl || null,
         pixelId,
         fanCapture,
-        links: manual ? Object.entries(manualLinks).filter(([, url]) => url).map(([service, url]) => ({ service, url })) : undefined,
+        links: chosen,
       });
       onCreated(link);
     } catch (e) {
@@ -286,43 +330,82 @@ function NewLinkForm({ pixels, spotifyLogin, onCreated, onCancel }) {
 
   return (
     <div className="p-4 rounded border border-[#2C2B28] bg-[#0D0C0B] space-y-3 mb-4">
-      <div>
-        <label className={labelCls}>Release link (Spotify, Apple Music, YouTube…)</label>
-        <input value={sourceUrl} onChange={e => setSourceUrl(e.target.value)} placeholder="https://open.spotify.com/track/..." className={`${inputCls} font-mono`} />
-        <p className="text-[9px] text-[#6B6560] mt-1">
-          Prelude finds the release on every service.{' '}
-          <button onClick={() => setManual(m => !m)} className="text-[#DA7756] hover:underline cursor-pointer">
-            {manual ? 'Find links automatically' : 'Add service links yourself'}
-          </button>
-        </p>
+      <div className="flex gap-1">
+        {[['release', 'Song or album'], ['artist', 'Artist page']].map(([m, label]) => (
+          <button
+            key={m}
+            onClick={() => switchMode(m)}
+            className={`text-[10px] font-medium rounded px-3 py-1.5 border cursor-pointer ${mode === m ? 'border-[#DA7756]/60 bg-[#DA7756]/10 text-[#F5F0E8]' : 'border-[#2C2B28] text-[#9B9590] hover:text-[#F5F0E8]'}`}
+          >{label}</button>
+        ))}
       </div>
-      {manual && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-          {Object.entries(SERVICE_LABELS).map(([service, label]) => (
-            <div key={service}>
-              <label className={`${labelCls} flex items-center gap-1`}><DspIcon service={service} size={10} />{label}</label>
-              <input
-                value={manualLinks[service] || ''}
-                onChange={e => setManualLinks(m => ({ ...m, [service]: e.target.value }))}
-                placeholder="https://..."
-                className={`${inputCls} font-mono`}
-              />
-            </div>
-          ))}
+      {mode === 'artist' ? (
+        <div>
+          <label className={labelCls}>Artist</label>
+          <div className="flex items-center gap-2">
+            <select value={artistSlug} onChange={e => loadArtist(e.target.value)} className={inputCls}>
+              <option value="">Choose an artist you follow…</option>
+              {(followedArtists || []).map(a => <option key={a.slug} value={a.slug}>{a.name}</option>)}
+            </select>
+            {finding && <Loader2 size={12} className="animate-spin text-[#DA7756] shrink-0" />}
+          </div>
+          {!links && !finding && (
+            <p className="text-[9px] text-[#6B6560] mt-1">Their Spotify, Apple Music, YouTube and other streaming profiles are filled in from Prelude's artist data, and you check them before creating.</p>
+          )}
+        </div>
+      ) : (
+      <div>
+        <label className={labelCls}>Song, album or artist link (Spotify, Apple Music, Deezer, YouTube)</label>
+        <div className="flex gap-2">
+          <input
+            value={sourceUrl}
+            onChange={e => { setSourceUrl(e.target.value); if (found) { setLinks(null); setFound(null); setRelease(null); } }}
+            onKeyDown={e => { if (e.key === 'Enter' && sourceUrl.trim() && !finding) find(); }}
+            placeholder="https://open.spotify.com/track/..."
+            className={`${inputCls} font-mono`}
+          />
+          <button
+            onClick={find}
+            disabled={finding || !sourceUrl.trim()}
+            className="flex items-center gap-1.5 text-[10px] font-medium text-[#DA7756] border border-[#DA7756]/40 hover:bg-[#DA7756]/10 disabled:opacity-40 rounded px-3 cursor-pointer shrink-0"
+          >
+            {finding ? <Loader2 size={10} className="animate-spin" /> : <Search size={10} />}
+            {finding ? 'Finding…' : 'Find links'}
+          </button>
+        </div>
+        {!links && (
+          <p className="text-[9px] text-[#6B6560] mt-1">
+            Prelude finds the song, album or artist page on Spotify, Apple Music and Deezer, and you check the links before creating.{' '}
+            <button onClick={addYourself} className="text-[#DA7756] hover:underline cursor-pointer">Add service links yourself</button>
+          </p>
+        )}
+      </div>
+      )}
+      {links && (
+        <div className="rounded border border-[#2C2B28] p-3">
+          <p className={labelCls}>
+            {!found ? 'Service links'
+              : found.size ? foundSummary(release, found.size)
+              : mode === 'artist' ? 'No streaming profiles on file for this artist. Add the links yourself.'
+              : 'No services found. Add the links yourself.'}
+          </p>
+          <ServiceLinksEditor links={links} found={found} onChange={setLinks} />
         </div>
       )}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div>
-          <label className={labelCls}>Title {manual ? '(optional)' : '(optional, defaults to the release title)'}</label>
-          <input value={title} onChange={e => setTitle(e.target.value)} placeholder="EMBERS" className={inputCls} />
+          <label className={labelCls}>Title (optional{release?.title ? ', defaults to the release title' : ''})</label>
+          <input value={title} onChange={e => setTitle(e.target.value)} placeholder={release?.title || (mode === 'artist' ? release?.artistName || 'Artist name' : 'EMBERS')} className={inputCls} />
         </div>
-        <div>
-          <label className={labelCls}>Artist</label>
-          <select value={artistSlug} onChange={e => setArtistSlug(e.target.value)} className={inputCls}>
-            <option value="">Choose an artist you follow…</option>
-            {(followedArtists || []).map(a => <option key={a.slug} value={a.slug}>{a.name}</option>)}
-          </select>
-        </div>
+        {mode === 'release' && (
+          <div>
+            <label className={labelCls}>Artist</label>
+            <select value={artistSlug} onChange={e => setArtistSlug(e.target.value)} className={inputCls}>
+              <option value="">Choose an artist you follow…</option>
+              {(followedArtists || []).map(a => <option key={a.slug} value={a.slug}>{a.name}</option>)}
+            </select>
+          </div>
+        )}
       </div>
       <div>
         <label className={labelCls}>Meta Pixel (sends streaming clicks to Meta)</label>
@@ -330,17 +413,20 @@ function NewLinkForm({ pixels, spotifyLogin, onCreated, onCancel }) {
       </div>
       <FanCaptureToggle checked={fanCapture} onChange={setFanCapture} spotifyLogin={spotifyLogin} />
       {error && (
-        <p className="flex items-start gap-1 text-[10px] text-[#C75F4F]"><AlertTriangle size={10} className="mt-0.5 shrink-0" />{error}</p>
+        <p className="flex items-start gap-1 text-[10px] text-[#C75F4F]">
+          <AlertTriangle size={10} className="mt-0.5 shrink-0" />
+          <span>{error}{!links && <> <button onClick={addYourself} className="text-[#DA7756] hover:underline cursor-pointer">Add links yourself</button></>}</span>
+        </p>
       )}
       <div className="flex items-center justify-end gap-2">
         <button onClick={onCancel} className="text-[10px] font-mono text-[#6B6560] hover:text-[#F5F0E8] px-3 py-1.5 cursor-pointer">Cancel</button>
         <button
           onClick={submit}
-          disabled={busy || (!sourceUrl && !manual)}
+          disabled={busy || !chosen.length}
           className="flex items-center gap-1.5 text-[10px] font-medium text-[#0D0C0B] bg-[#DA7756] hover:bg-[#DA7756]/90 disabled:opacity-40 rounded px-3 py-1.5 cursor-pointer"
         >
           {busy ? <Loader2 size={10} className="animate-spin" /> : <Plus size={10} />}
-          {busy ? 'Finding links…' : 'Create link'}
+          {busy ? 'Creating…' : chosen.length ? `Create link (${chosen.length} service${chosen.length === 1 ? '' : 's'})` : 'Create link'}
         </button>
       </div>
     </div>

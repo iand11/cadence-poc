@@ -135,6 +135,7 @@ export function releaseFilter(link) {
   const item = spotifyItem((link?.links || []).find(l => l.service === 'spotify')?.url);
   if (!item) return 'false';
   if (item.type === 'album') return `p.album_id = ${sqlText(item.id)}`;
+  if (item.type === 'artist') return `p.artist_ids && ARRAY[${sqlText(item.id)}]::text[]`;
   const byId = `p.track_id = ${sqlText(item.id)}`;
   const name = link.spotify_track_name || link.title || '';
   const artists = (link.spotify_artist_ids || []).filter(id => SPOTIFY_ID.test(id));

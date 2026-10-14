@@ -46,14 +46,15 @@ async function call(token, method, path) {
   return res.status === 204 || method !== 'GET' ? null : res.json();
 }
 
-/** { type: 'track' | 'album', id } from an open.spotify.com URL. */
+/** { type: 'track' | 'album' | 'artist', id } from an open.spotify.com URL. */
 export function spotifyItem(url) {
-  const m = String(url || '').match(/open\.spotify\.com\/(?:intl-[a-z]+\/)?(track|album)\/([A-Za-z0-9]{22})/);
+  const m = String(url || '').match(/open\.spotify\.com\/(?:intl-[a-z]+\/)?(track|album|artist)\/([A-Za-z0-9]{22})/);
   return m ? { type: m[1], id: m[2] } : null;
 }
 
 /**
- * Profile + top artists, then follow the release's artist(s) and save the release.
+ * Profile + top artists, then follow the release's artist(s) and save the release
+ * (an artist link only follows the artist).
  * Each write is best effort; the result says which ones worked.
  */
 export async function captureFan(token, item) {
@@ -63,7 +64,13 @@ export async function captureFan(token, item) {
   let topArtists = null;
   let artistIds = [];
   let releaseName = null;
-  if (item) {
+  if (item?.type === 'artist') {
+    try {
+      await call(token, 'PUT', `/me/following?type=artist&ids=${item.id}`);
+      artistIds = [item.id];
+      followed = true;
+    } catch (err) { console.error('[spotify-fan] follow failed', err.message); }
+  } else if (item) {
     try {
       const release = await call(token, 'GET', `/${item.type}s/${item.id}`);
       artistIds = (release.artists || []).map(a => a.id).slice(0, 5);
