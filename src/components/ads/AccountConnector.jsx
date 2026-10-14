@@ -4,7 +4,7 @@ import { X, CheckCircle, Link2, Loader2, AlertTriangle, AtSign } from 'lucide-re
 import { PLATFORM_LABELS, PLATFORM_CONSTRAINTS } from '../../data/directives';
 import { PLATFORM_COLORS } from '../../constants/colors';
 import { useMetaConnection } from '../../hooks/useMetaConnection';
-import { startMetaConnect, assignMetaAdAccount, disconnectMeta } from '../../data/metaAds';
+import { startMetaConnect, assignMetaAdAccount, disconnectMeta, PRELUDE_AD_ACCOUNT } from '../../data/metaAds';
 
 // Meta is real; the rest are still simulated in the demo.
 const SIMULATED_KEYS = ['tiktok', 'youtube'];
@@ -103,7 +103,8 @@ function MetaAccountCard() {
               </p>
               <div className="space-y-1.5">
                 {connection.instagramAccounts.map(ig => {
-                  const assigned = accountMap[ig.igUserId]?.adAccountId || '';
+                  const entry = accountMap[ig.igUserId];
+                  const assigned = entry?.managed ? PRELUDE_AD_ACCOUNT : entry?.adAccountId || '';
                   return (
                     <div key={ig.igUserId} className="flex items-center gap-2">
                       <span className="flex items-center gap-1 text-[10px] text-[#F5F0E8] w-32 shrink-0 truncate" title={ig.pageName}>
@@ -122,6 +123,9 @@ function MetaAccountCard() {
                         }`}
                       >
                         <option value="">Not assigned (can't run ads)</option>
+                        {(connection.managedAvailable || assigned === PRELUDE_AD_ACCOUNT) && (
+                          <option value={PRELUDE_AD_ACCOUNT}>Prelude's ad account (no ad account needed)</option>
+                        )}
                         {adAccounts.map(a => (
                           <option key={a.id} value={a.id} disabled={!a.active}>
                             {a.name} ({a.currency}){a.business ? ` · ${a.business}` : ''}{a.active ? '' : ' · inactive'}
@@ -132,9 +136,15 @@ function MetaAccountCard() {
                   );
                 })}
               </div>
+              {Object.values(accountMap).some(a => a.managed) && (
+                <p className="text-[9px] text-[#6B6560] mt-1.5">
+                  Prelude's ad account runs new posts only, as the artist's Instagram account. {connection.managedPrepay ? 'The budget plus Prelude\'s fee is paid by card before the ad goes live.' : 'Prelude reviews each ad before it goes live.'}
+                </p>
+              )}
               {adAccounts.length === 0 && (
                 <p className="text-[10px] text-[#D4A574] mt-1.5">
-                  No ad accounts shared. Use "Add or change accounts" and include the ad accounts you run campaigns from.
+                  No ad accounts shared. Use "Add or change accounts" and include the ad accounts you run campaigns from
+                  {connection.managedAvailable ? ", or choose Prelude's ad account for artists without one." : '.'}
                 </p>
               )}
             </div>

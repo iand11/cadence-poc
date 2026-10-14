@@ -6,13 +6,16 @@
 //                              stores the token and redirects back to /app/campaigns
 //   POST { action: 'start' } → { url } of the Meta login dialog
 //   POST { action: 'assign', igUserId, adAccountId } → set which ad account that
-//                            Instagram account's boosts run in (adAccountId null = unassign)
+//                            Instagram account's boosts run in (adAccountId null = unassign;
+//                            'prelude' = Prelude-managed: new ads run in Prelude's ad account
+//                            and Prelude is granted access to advertise as that account)
 //   DELETE                   → forget the connection
 import {
   metaConfigured, signState, verifyState, graph, graphList, getUid, loadConnection,
   saveConnection, saveSelection, deleteConnection, readBody, sendError, actId, GRAPH_VERSION,
-  listInstagramAccounts,
+  listInstagramAccounts, managedConfigured, grantPreludeAccess, isAdmin, MANAGED_ACCOUNT_NAME,
 } from '../lib/meta.js';
+import { prepayEnabled } from '../lib/stripe.js';
 
 function redirectUri(req) {
   if (process.env.META_REDIRECT_URI) return process.env.META_REDIRECT_URI;
@@ -89,11 +92,18 @@ async function listAssets(token) {
   };
 }
 
-function shapeStatus(conn) {
-  if (!conn) return { configured: metaConfigured(), connected: false };
+function shapeStatus(conn, uid) {
+  // Shown with or without a connection: managed ads still need the artist's Instagram shared
+  const common = {
+    configured: metaConfigured(),
+    managedAvailable: managedConfigured(),
+    managedPrepay: prepayEnabled(),
+    isAdmin: isAdmin(uid),
+  };
+  if (!conn) return { ...common, connected: false };
   const expired = !!(conn.expires_at && new Date(conn.expires_at) <= new Date());
   return {
-    configured: metaConfigured(),
+    ...common,
     connected: !expired,
     expired,
     tokenType: conn.token_type,
@@ -116,7 +126,7 @@ export default async function handler(req, res) {
 
     if (req.method === 'GET') {
       const conn = await loadConnection(uid);
-      const status = shapeStatus(conn);
+      const status = shapeStatus(conn, uid);
       if (params.get('assets') && status.connected) Object.assign(status, await listAssets(conn.token));
       return res.status(200).json(status);
     }
@@ -146,7 +156,11 @@ export default async function handler(req, res) {
         if (!ig) return res.status(400).json({ error: 'That Instagram account is not shared with Prelude.' });
 
         const accountMap = { ...(conn.selection.accountMap || {}) };
-        if (body.adAccountId) {
+        if (body.adAccountId === 'prelude') {
+          if (!managedConfigured()) return res.status(400).json({ error: 'Prelude-managed ads are not set up on the server yet.' });
+          await grantPreludeAccess(conn.token, ig);
+          accountMap[ig.igUserId] = { managed: true, adAccountName: MANAGED_ACCOUNT_NAME, username: ig.username };
+        } else if (body.adAccountId) {
           const account = adAccounts.find(a => a.id === actId(body.adAccountId));
           if (!account) return res.status(400).json({ error: 'That ad account is not available to this connection.' });
           if (!account.active) return res.status(400).json({ error: `${account.name} can't run ads right now (check its status in Meta).` });

@@ -483,6 +483,35 @@ CREATE TABLE IF NOT EXISTS ad_platform_connections (
 );
 
 -- ---------------------------------------------------------------------------
+-- Prelude-managed Meta campaigns — new ads run in Prelude's own ad account for
+-- artists without one (api/campaign/meta-launch.js). Ties each campaign to the
+-- Prelude user who launched it, and tracks how it may go live: Stripe prepay
+-- (MANAGED_ADS_PREPAY=stripe) or admin review. Also created lazily by api/lib/meta.js.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS meta_managed_campaigns (
+  campaign_id       text PRIMARY KEY,          -- Meta campaign id
+  user_id           text NOT NULL,
+  directive_id      text,
+  artist_name       text,
+  ig_user_id        text NOT NULL,
+  ig_username       text,
+  budget            numeric NOT NULL,          -- per day or lifetime, account currency
+  budget_period     text NOT NULL,             -- daily | lifetime
+  start_date        date,
+  end_date          date,
+  review_status     text NOT NULL DEFAULT 'draft', -- draft | payment | requested | approved | declined
+  stripe_session_id text,
+  paid_cents        integer,
+  paid_at           timestamptz,
+  requested_at      timestamptz,
+  reviewed_by       text,                      -- admin uid, or 'stripe' when paid
+  reviewed_at       timestamptz,
+  created_at        timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS meta_managed_campaigns_review_idx
+  ON meta_managed_campaigns (requested_at) WHERE review_status = 'requested';
+
+-- ---------------------------------------------------------------------------
 -- Smart links — Prelude's own landing page per release with a button per
 -- streaming service (api/l.js), and the views/clicks it records (api/go.js).
 -- `campaign` on an event is the Prelude campaign (directive id) the visitor

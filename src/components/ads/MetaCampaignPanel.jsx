@@ -86,7 +86,12 @@ export default function MetaCampaignPanel({ directive, updateDirective }) {
     setBusy(true);
     setError(null);
     try {
-      await setMetaCampaignStatus(campaignId, status);
+      const result = await setMetaCampaignStatus(campaignId, status);
+      // Prelude-managed with prepay: pay in Stripe Checkout, which returns here and goes live
+      if (result.checkoutUrl) {
+        window.location.assign(result.checkoutUrl);
+        return;
+      }
       setConfirming(false);
       await sync();
     } catch (e) {
@@ -97,6 +102,11 @@ export default function MetaCampaignPanel({ directive, updateDirective }) {
   };
 
   const isLive = live?.status === 'ACTIVE';
+  // Prelude-managed (Prelude's ad account): paid up front, or reviewed by Prelude
+  const managed = !!live?.managed;
+  const mustPay = managed && live.prepay && !live.paid;
+  const awaitingReview = managed && !live.prepay && live.review === 'requested';
+  const goLiveLabel = mustPay ? 'Pay and go live' : managed && !live.paid && !live.prepay ? 'Request go-live' : 'Go live';
   const ins = live?.insights;
   const budget = directive.budget || {};
 
@@ -109,7 +119,9 @@ export default function MetaCampaignPanel({ directive, updateDirective }) {
           </p>
           <p className="text-[9px] font-mono text-[#6B6560] mt-0.5">
             {loading && !live ? 'Syncing…' : live ? `Status: ${live.effectiveStatus}` : 'Status unavailable'}
-            {directive.adAccountId ? ` · ${directive.adAccountId}` : ''}
+            {managed ? " · Prelude's ad account" : directive.adAccountId ? ` · ${directive.adAccountId}` : ''}
+            {managed && live.paid ? ` · paid ${formatDollar(live.paid.cents / 100)}` : ''}
+            {managed && live.review === 'declined' ? ' · declined by Prelude' : ''}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -125,13 +137,15 @@ export default function MetaCampaignPanel({ directive, updateDirective }) {
               {busy ? <Loader2 size={10} className="animate-spin" /> : <Pause size={10} />}
               Pause
             </button>
+          ) : awaitingReview ? (
+            <span className="text-[10px] font-mono text-[#D4A574]">Waiting for Prelude review</span>
           ) : !confirming && (
             <button
               onClick={() => setConfirming(true)}
               className="flex items-center gap-1.5 text-[10px] font-medium text-[#0D0C0B] bg-[#7BAF73] hover:bg-[#7BAF73]/90 rounded px-3 py-1.5 cursor-pointer"
             >
               <Rocket size={10} />
-              Go live
+              {goLiveLabel}
             </button>
           ))}
         </div>
@@ -139,11 +153,23 @@ export default function MetaCampaignPanel({ directive, updateDirective }) {
 
       {confirming && (
         <div className="p-3 rounded border border-[#D4A574]/30 bg-[#D4A574]/10">
+          {mustPay && live.quote ? (
+            <p className="text-[11px] text-[#F5F0E8]">
+              Pay <span className="font-mono">{formatDollar(live.quote.totalCents / 100)}</span> (ad budget{' '}
+              <span className="font-mono">{formatDollar(live.quote.budgetCents / 100)}</span> + Prelude fee{' '}
+              <span className="font-mono">{formatDollar(live.quote.feeCents / 100)}</span>) by card. The ad goes live once the payment clears.
+            </p>
+          ) : managed && !live.paid && !live.prepay ? (
+            <p className="text-[11px] text-[#F5F0E8]">
+              This ad runs in Prelude's ad account. Prelude reviews it and turns it on; you'll see the status change here.
+            </p>
+          ) : (
           <p className="text-[11px] text-[#F5F0E8]">
             Start spending up to <span className="font-mono">{formatDollar(budget.amount || 0)}</span>
             {budget.period === 'daily' ? ' per day' : ' over the campaign'}
-            {directive.schedule?.endDate ? ` until ${directive.schedule.endDate}` : ''}? Meta bills the connected ad account.
+            {directive.schedule?.endDate ? ` until ${directive.schedule.endDate}` : ''}? {managed ? 'It spends the budget you already paid.' : 'Meta bills the connected ad account.'}
           </p>
+          )}
           <div className="flex items-center gap-2 mt-2">
             <button
               onClick={() => changeStatus('ACTIVE')}
@@ -151,7 +177,7 @@ export default function MetaCampaignPanel({ directive, updateDirective }) {
               className="flex items-center gap-1.5 text-[10px] font-medium text-[#0D0C0B] bg-[#7BAF73] hover:bg-[#7BAF73]/90 rounded px-3 py-1.5 cursor-pointer"
             >
               {busy ? <Loader2 size={10} className="animate-spin" /> : <Rocket size={10} />}
-              Confirm and go live
+              {mustPay ? 'Continue to payment' : managed && !live.paid && !live.prepay ? 'Send for review' : 'Confirm and go live'}
             </button>
             <button onClick={() => setConfirming(false)} className="text-[10px] font-mono text-[#6B6560] hover:text-[#F5F0E8] cursor-pointer">
               Cancel

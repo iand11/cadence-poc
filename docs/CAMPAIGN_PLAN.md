@@ -217,8 +217,8 @@ budget** — that's why it's phase 5, not phase 1.
 | 1 | Real Meta OAuth connect; "coming soon" for the rest. **Code done; needs the Meta app + login config** | 0 (dev mode ok) |
 | 2 | Execute pipeline: directive → paused Meta campaign (boost-post creative); go-live confirm; error surfacing. **Code done** | 1 |
 | 3 | Real metrics + status sync in CampaignDetail (lifetime totals + status sync done; daily charts, "Simulated" badges, import-from-Meta left) | 2 |
-| 3b | Prelude per-boost fee + subscription billing (Stripe) | 2 |
-| 6 | Prelude-managed boosting (partner access + Prelude's ad account) for artists without an ad account | 2 |
+| 3b | Prelude per-boost fee + subscription billing (Stripe). Prepay for managed ads done; fee on own-account ads and subscription left | 2 |
+| 6 | Prelude-managed ads (agency access + Prelude's ad account) for artists without an ad account. **Code done for new posts** (Stripe prepay or admin review; see CLAUDE.md); boosts not managed | 2 |
 | 4 | Image-upload creative (new assets, not just boosts) | 2 |
 | 5 | TikTok: connect + execute + metrics (Spark Ads mirror the boost-post model) | TikTok approval |
 

@@ -30,7 +30,12 @@ export async function startMetaConnect() {
   window.location.assign(url);
 }
 
-/** Set the ad account an Instagram account's boosts run in (null to unassign). */
+/**
+ * Set the ad account an Instagram account's boosts run in (null to unassign).
+ * `PRELUDE_AD_ACCOUNT` runs its new ads in Prelude's ad account (managed, for artists without one).
+ */
+export const PRELUDE_AD_ACCOUNT = 'prelude';
+
 export const assignMetaAdAccount = (igUserId, adAccountId) =>
   request('/api/connect/meta', { method: 'POST', body: { action: 'assign', igUserId, adAccountId } });
 
@@ -58,9 +63,15 @@ export const launchMetaCampaign = (directive) =>
 export const fetchMetaCampaign = (id) =>
   request(`/api/campaign/meta-campaign?id=${encodeURIComponent(id)}`);
 
-/** status: 'ACTIVE' (go live) | 'PAUSED' */
+/**
+ * status: 'ACTIVE' (go live) | 'PAUSED' | 'DECLINED' (admin, managed only).
+ * For a managed campaign the owner gets { review: 'requested' } or { checkoutUrl, quote } back.
+ */
 export const setMetaCampaignStatus = (id, status) =>
   request('/api/campaign/meta-campaign', { method: 'POST', body: { id, status } });
+
+/** Admins: managed campaigns waiting for go-live review. */
+export const fetchManagedReviews = () => request('/api/campaign/meta-campaign?review=1');
 
 /** Upload an ad image ({ dataUrl, width, height }). Returns { id, url }. */
 export const uploadAdImage = (image) => request('/api/ad-images', { method: 'POST', body: image });
