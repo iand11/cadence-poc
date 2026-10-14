@@ -142,6 +142,25 @@ function MetaAccountCard() {
         </p>
       )}
 
+      {connection && !connected && (
+        <div className="p-3 rounded border border-[#2C2B28] bg-[#171614] space-y-1.5">
+          <p className="text-[11px] text-[#F5F0E8] font-medium">Two ways to run Instagram ads</p>
+          <p className="text-[10px] text-[#9B9590]">
+            With a Meta ad account: connect it with the artist's Instagram account and Facebook Page, and ads run (and bill) there.
+          </p>
+          <p className="text-[10px] text-[#9B9590]">
+            No ad account? Connect just the artist's Instagram account and Facebook Page, then choose "Let Prelude run ads" for it.
+            New posts run from Prelude's ad account as the artist
+            {connection.managedPrepay ? ", and the budget plus Prelude's fee is paid by card before each ad goes live." : ', and Prelude reviews each ad before it goes live.'}
+          </p>
+          {!connection.managedAvailable && (
+            <p className="text-[9px] font-mono text-[#D4A574]">
+              Prelude-run ads aren't set up on the server yet (META_PRELUDE_AD_ACCOUNT_ID, META_PRELUDE_BUSINESS_ID, META_PRELUDE_TOKEN).
+            </p>
+          )}
+        </div>
+      )}
+
       {connected && (
         <>
           {!connection.instagramAccounts ? (
