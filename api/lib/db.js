@@ -76,3 +76,25 @@ export async function queryWithTimeout(text, params, ms) {
     client.release();
   }
 }
+
+// Run fn(run) on one dedicated connection inside a transaction, where
+// run(text, params) resolves to rows. statementTimeoutMs = 0 disables the
+// statement timeout for the transaction (long maintenance work).
+export async function withTransaction(fn, { statementTimeoutMs } = {}) {
+  await ensureSchema();
+  const client = await getPool().connect();
+  try {
+    await client.query('BEGIN');
+    if (statementTimeoutMs != null) {
+      await client.query(`SET LOCAL statement_timeout = ${Number(statementTimeoutMs) | 0}`);
+    }
+    const result = await fn(async (text, params) => (await client.query(text, params)).rows);
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+}
