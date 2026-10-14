@@ -19,6 +19,7 @@ import {
 import { spotifyLoginConfigured } from '../lib/spotify-fans.js';
 import { artistPageLinks } from '../lib/link-lookup.js';
 import { ensureSyncTables, listeningStats, releaseFilter, syncListener } from '../lib/spotify-sync.js';
+import { linkAudience } from '../lib/link-audience.js';
 
 /** Plays by this link's fans (null when it has never captured a fan). */
 async function linkListening(row) {
@@ -141,6 +142,12 @@ export default async function handler(req, res) {
           link: linkRow,
         }) : null;
         return res.status(200).json({ ...stats, listening });
+      }
+
+      // Who visits a link: places, devices, sources, hours and recent visits
+      if (params.get('audience')) {
+        const row = await ownedLink(uid, params.get('audience'));
+        return res.status(200).json(await linkAudience(row.slug));
       }
 
       if (params.get('slug')) {
