@@ -222,7 +222,9 @@ export async function addPartnerPage(uid, input) {
   } else {
     await graph('POST', `${businessId}/client_pages`, token, { page_id: pageId, permitted_tasks: PAGE_TASKS })
       .then(() => setError('meta_partner_pages', 'page_id', pageId, null))
-      .catch(err => setError('meta_partner_pages', 'page_id', pageId, `Meta didn't send the request (${err.message}). The Page owner can share it instead: Business settings → Partners → add business ID ${businessId}.`));
+      .catch(err => setError('meta_partner_pages', 'page_id', pageId, /global id .* not allowed/i.test(err.message)
+        ? `Meta says ${pageId} isn't a Page ID (it's usually a personal profile or a Page's profile link). Remove it and add the Page ID from Meta Business Suite → Settings → Business assets → Pages, or the owner can share the Page: Business settings → Partners → add business ID ${businessId}.`
+        : `Meta didn't send the request (${err.message}). The Page owner can share it instead: Business settings → Partners → add business ID ${businessId}.`));
   }
   return queryOne('SELECT * FROM meta_partner_pages WHERE page_id = $1', [pageId]);
 }
