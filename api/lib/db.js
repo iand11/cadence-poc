@@ -55,3 +55,24 @@ export async function exec(text, params) {
   await ensureSchema();
   await getPool().query(text, params);
 }
+
+// Run one query with a statement timeout. Resolves to null instead of throwing
+// when the timeout cancels it, so optional extras (e.g. "similar playlists")
+// can be skipped rather than holding up or failing the whole request.
+export async function queryWithTimeout(text, params, ms) {
+  await ensureSchema();
+  const client = await getPool().connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(`SET LOCAL statement_timeout = ${Number(ms) | 0}`);
+    const res = await client.query(text, params);
+    await client.query('COMMIT');
+    return res.rows;
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    if (err.code === '57014') return null; // query_canceled
+    throw err;
+  } finally {
+    client.release();
+  }
+}

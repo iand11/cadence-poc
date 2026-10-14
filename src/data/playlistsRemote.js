@@ -24,12 +24,22 @@ export function fetchPlaylists(opts = {}) {
   return getJson(`/api/playlists?${qs(opts)}`, { ttl: TTL });
 }
 
-/** One playlist: tracks, followerHistory, changes, similar (+ roster flags when slugs given). */
+/** One playlist: tracks, followerHistory, changes (+ roster flags when slugs given). */
 export async function fetchPlaylist(id, { slugs, days } = {}) {
   try {
     return await getJson(`/api/playlists/${encodeURIComponent(id)}?${qs({ slugs, days })}`, { ttl: TTL });
   } catch {
     return null;
+  }
+}
+
+/** Playlists sharing the most artists with this one (loaded after the profile). */
+export async function fetchSimilarPlaylists(id) {
+  try {
+    const { similar } = await getJson(`/api/playlists/${encodeURIComponent(id)}?part=similar`, { ttl: TTL });
+    return similar;
+  } catch {
+    return [];
   }
 }
 
