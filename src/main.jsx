@@ -32,6 +32,7 @@ import CampaignsPage from './pages/CampaignsPage';
 import CampaignDetail from './pages/CampaignDetail';
 import LinksPage from './pages/LinksPage';
 import AccountSettings from './pages/AccountSettings';
+import { PrivacyPolicy, DataDeletion } from './pages/LegalPages';
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -45,6 +46,8 @@ createRoot(document.getElementById('root')).render(
         <Route path="/" element={<Landing />} />
         <Route path="/pitch" element={<Pitch />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/privacy" element={<PrivacyPolicy />} />
+        <Route path="/data-deletion" element={<DataDeletion />} />
         <Route element={<ProtectedRoute />}>
         <Route path="app" element={<App />}>
           <Route index element={<Navigate to="dashboard" replace />} />

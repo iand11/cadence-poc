@@ -7,8 +7,9 @@ import { Lock } from 'lucide-react';
    /api/auth (server-side) and a signed HttpOnly cookie is set on success, so the
    password never ships in the client bundle.
 
-   The /pitch route is exempt here — it has its own independent investor gate. */
-const EXEMPT_PREFIXES = ['/pitch'];
+   The /pitch route is exempt here — it has its own independent investor gate.
+   /privacy and /data-deletion are public: Meta must be able to open them. */
+const EXEMPT_PREFIXES = ['/pitch', '/privacy', '/data-deletion'];
 
 function GateFrame({ children }) {
   return (
