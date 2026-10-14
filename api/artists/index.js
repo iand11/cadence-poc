@@ -16,6 +16,7 @@
 import { query } from '../lib/db.js';
 import { artistRowToSummary } from '../lib/artist-shape.js';
 import { cached } from '../lib/cache.js';
+import { loadFacets } from '../lib/facets.js';
 
 const SORTS = {
   rank: 'sc.rank ASC NULLS LAST',
@@ -86,11 +87,15 @@ export default async function handler(req, res) {
   const pageSql = `LIMIT ${perPage} OFFSET ${offset}`;
 
   try {
-    // Totals barely move between pages / requests — cache them briefly.
-    const countPromise = cached(countKey, 60_000, () => query(
-      `SELECT count(*)::bigint AS n FROM artists a ${statsFilter ? statsJoin : ''} ${whereSql}`,
-      params
-    ));
+    // The unfiltered total is the stored catalog total (counting 500k+
+    // artists per request reads the whole table). Filtered totals barely move
+    // between pages / requests — cache them.
+    const countPromise = where.length
+      ? cached(countKey, 10 * 60_000, () => query(
+        `SELECT count(*)::bigint AS n FROM artists a ${statsFilter ? statsJoin : ''} ${whereSql}`,
+        params
+      ))
+      : loadFacets().then((f) => [{ n: f.stats.total }]);
 
     // 1. Pick this page's ids by walking an index in sort order, so a page
     //    reads ~perPage rows instead of sorting the whole catalog (which, on a
@@ -116,8 +121,13 @@ export default async function handler(req, res) {
       // in the default direction (as before) and the index's reverse when flipped.
       const tieDir = flipped === orderBy ? 'ASC' : 'DESC';
       const keyed = [...where, `${sortKey} IS NOT NULL`].join(' AND ');
+      // Without artist filters the join to artists is redundant (artist_id is
+      // a foreign key), so the page is read from the stats index alone.
+      const keyedFrom = where.some((w) => /\ba\./.test(w))
+        ? 'artist_stats_current sc JOIN artists a ON a.id = sc.artist_id'
+        : 'artist_stats_current sc';
       ids = (await query(
-        `SELECT sc.artist_id AS id FROM artist_stats_current sc JOIN artists a ON a.id = sc.artist_id
+        `SELECT sc.artist_id AS id FROM ${keyedFrom}
          WHERE ${keyed}
          ORDER BY ${sortKey} ${dir}, sc.artist_id ${tieDir} ${pageSql}`,
         params
@@ -128,7 +138,7 @@ export default async function handler(req, res) {
         const keyedTotal = ids.length
           ? offset + ids.length
           : Number((await cached(`${countKey}:${sortKey}`, 60_000, () => query(
-            `SELECT count(*)::bigint AS n FROM artist_stats_current sc JOIN artists a ON a.id = sc.artist_id WHERE ${keyed}`,
+            `SELECT count(*)::bigint AS n FROM ${keyedFrom} WHERE ${keyed}`,
             params
           )))[0].n);
         const rest = await query(
