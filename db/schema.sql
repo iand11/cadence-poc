@@ -519,6 +519,40 @@ CREATE TABLE IF NOT EXISTS smart_link_events (
 CREATE INDEX IF NOT EXISTS smart_link_events_slug_idx ON smart_link_events (slug, created_at);
 CREATE INDEX IF NOT EXISTS smart_link_events_campaign_idx ON smart_link_events (campaign) WHERE campaign IS NOT NULL;
 
+-- Visitor detail per event (api/lib/visitor.js). Headers and URL on every event;
+-- visitor_id, _fbp/_fbc and the browser's own signals (client) only where tracking is
+-- allowed (outside the EU/EEA/UK/CH, or after the visitor accepts the consent bar).
+ALTER TABLE smart_link_events
+  ADD COLUMN IF NOT EXISTS event_id text,          -- view: page view id; click: Meta event id
+  ADD COLUMN IF NOT EXISTS view_id text,           -- click: the view it came from
+  ADD COLUMN IF NOT EXISTS visitor_id text,        -- first-party cookie pl_vid (1 year)
+  ADD COLUMN IF NOT EXISTS consent text,           -- not_required | unknown | granted | denied
+  ADD COLUMN IF NOT EXISTS gpc boolean,            -- Global Privacy Control opt-out
+  ADD COLUMN IF NOT EXISTS ip text,
+  ADD COLUMN IF NOT EXISTS user_agent text,
+  ADD COLUMN IF NOT EXISTS os text,
+  ADD COLUMN IF NOT EXISTS os_version text,
+  ADD COLUMN IF NOT EXISTS browser text,
+  ADD COLUMN IF NOT EXISTS browser_version text,
+  ADD COLUMN IF NOT EXISTS device_model text,      -- iPhone15,3 / Pixel 8 / … when the UA or client hints say
+  ADD COLUMN IF NOT EXISTS in_app text,            -- instagram | facebook | tiktok | … in-app browser
+  ADD COLUMN IF NOT EXISTS language text,          -- first Accept-Language tag
+  ADD COLUMN IF NOT EXISTS region text,            -- Vercel IP geolocation
+  ADD COLUMN IF NOT EXISTS city text,
+  ADD COLUMN IF NOT EXISTS postal_code text,
+  ADD COLUMN IF NOT EXISTS latitude double precision,
+  ADD COLUMN IF NOT EXISTS longitude double precision,
+  ADD COLUMN IF NOT EXISTS timezone text,
+  ADD COLUMN IF NOT EXISTS referrer_host text,
+  ADD COLUMN IF NOT EXISTS utm jsonb,              -- { utm_source, utm_medium, … }
+  ADD COLUMN IF NOT EXISTS click_ids jsonb,        -- { fbclid, gclid, ttclid, … }
+  ADD COLUMN IF NOT EXISTS fbp text,               -- Meta cookies
+  ADD COLUMN IF NOT EXISTS fbc text,
+  ADD COLUMN IF NOT EXISTS ms_on_page integer,     -- click: time on the landing page first
+  ADD COLUMN IF NOT EXISTS client jsonb;           -- view: screen, viewport, timezone, languages, connection, …
+CREATE INDEX IF NOT EXISTS smart_link_events_visitor_idx ON smart_link_events (visitor_id, created_at) WHERE visitor_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS smart_link_events_event_id_idx ON smart_link_events (event_id) WHERE event_id IS NOT NULL;
+
 -- Spotify fan capture: when a link has fan_capture on, its Spotify button opens a
 -- consent page; fans who continue log in with Spotify, follow the artist, save the
 -- release, and are stored here (one row per link per Spotify user). Prelude does not
@@ -541,6 +575,7 @@ CREATE TABLE IF NOT EXISTS smart_link_fans (
   updated_at       timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (slug, spotify_user_id)
 );
+ALTER TABLE smart_link_fans ADD COLUMN IF NOT EXISTS visitor_id text;   -- ties the fan to their anonymous visits
 CREATE INDEX IF NOT EXISTS smart_link_fans_campaign_idx ON smart_link_fans (campaign) WHERE campaign IS NOT NULL;
 
 -- Fan listening history. Fans who continue with Spotify grant

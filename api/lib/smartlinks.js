@@ -12,6 +12,11 @@ import crypto from 'node:crypto';
 import { query, queryOne } from './db.js';
 import { graph, loadConnection } from './meta.js';
 import { lookupRelease } from './link-lookup.js';
+import {
+  cookies, clientIp, geo, parseUserAgent, language, trackingParams, consentState, mayTrack, gpc, visitorId,
+} from './visitor.js';
+
+export { cookies };
 
 // Display order, labels and colors for the landing page and reports
 export const SERVICES = {
@@ -25,6 +30,23 @@ export const SERVICES = {
   soundcloud: { label: 'SoundCloud', color: '#FF5500' },
   pandora: { label: 'Pandora', color: '#3668FF' },
 };
+
+// Visitor detail on each event (kept in sync with db/schema.sql)
+const EVENT_COLUMNS_SQL = `ALTER TABLE smart_link_events
+  ADD COLUMN IF NOT EXISTS event_id text, ADD COLUMN IF NOT EXISTS view_id text,
+  ADD COLUMN IF NOT EXISTS visitor_id text, ADD COLUMN IF NOT EXISTS consent text,
+  ADD COLUMN IF NOT EXISTS gpc boolean, ADD COLUMN IF NOT EXISTS ip text,
+  ADD COLUMN IF NOT EXISTS user_agent text, ADD COLUMN IF NOT EXISTS os text,
+  ADD COLUMN IF NOT EXISTS os_version text, ADD COLUMN IF NOT EXISTS browser text,
+  ADD COLUMN IF NOT EXISTS browser_version text, ADD COLUMN IF NOT EXISTS device_model text,
+  ADD COLUMN IF NOT EXISTS in_app text, ADD COLUMN IF NOT EXISTS language text,
+  ADD COLUMN IF NOT EXISTS region text, ADD COLUMN IF NOT EXISTS city text,
+  ADD COLUMN IF NOT EXISTS postal_code text, ADD COLUMN IF NOT EXISTS latitude double precision,
+  ADD COLUMN IF NOT EXISTS longitude double precision, ADD COLUMN IF NOT EXISTS timezone text,
+  ADD COLUMN IF NOT EXISTS referrer_host text, ADD COLUMN IF NOT EXISTS utm jsonb,
+  ADD COLUMN IF NOT EXISTS click_ids jsonb, ADD COLUMN IF NOT EXISTS fbp text,
+  ADD COLUMN IF NOT EXISTS fbc text, ADD COLUMN IF NOT EXISTS ms_on_page integer,
+  ADD COLUMN IF NOT EXISTS client jsonb`;
 
 let tablesReady;
 export function ensureTables() {
@@ -45,6 +67,9 @@ export function ensureTables() {
           from_ad boolean NOT NULL DEFAULT false, created_at timestamptz NOT NULL DEFAULT now()
         )`);
       await query('CREATE INDEX IF NOT EXISTS smart_link_events_slug_idx ON smart_link_events (slug, created_at)');
+      await query(EVENT_COLUMNS_SQL);
+      await query('CREATE INDEX IF NOT EXISTS smart_link_events_visitor_idx ON smart_link_events (visitor_id, created_at) WHERE visitor_id IS NOT NULL');
+      await query('CREATE INDEX IF NOT EXISTS smart_link_events_event_id_idx ON smart_link_events (event_id) WHERE event_id IS NOT NULL');
       await query('ALTER TABLE smart_links ADD COLUMN IF NOT EXISTS fan_capture boolean NOT NULL DEFAULT false');
       await query('ALTER TABLE smart_links ALTER COLUMN title DROP NOT NULL'); // title is optional
       await query(`
@@ -56,6 +81,8 @@ export function ensureTables() {
           created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(),
           PRIMARY KEY (slug, spotify_user_id)
         )`);
+      // Ties a captured fan to their anonymous visits (smart_link_events.visitor_id)
+      await query('ALTER TABLE smart_link_fans ADD COLUMN IF NOT EXISTS visitor_id text');
     })().catch((err) => { tablesReady = undefined; throw err; });
   }
   return tablesReady;
@@ -103,36 +130,71 @@ export async function getLink(slug) {
 const BOT_RE = /bot|crawl|spider|slurp|facebookexternalhit|facebookcatalog|meta-externalagent|preview|headless/i;
 export const isBot = (req) => BOT_RE.test(req.headers['user-agent'] || '');
 
-export function cookies(req) {
-  return Object.fromEntries((req.headers.cookie || '').split(/;\s*/).filter(Boolean).map(c => {
-    const i = c.indexOf('=');
-    return [c.slice(0, i), decodeURIComponent(c.slice(i + 1))];
-  }));
-}
-
 const sha256 = (v) => crypto.createHash('sha256').update(v).digest('hex');
 
-function clientIp(req) {
-  return String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket?.remoteAddress || null;
-}
+const hostOf = (u) => { try { return new URL(u).hostname || null; } catch { return null; } };
+const short = (v, n) => (v ? String(v).slice(0, n) : null);
+const jsonOrNull = (o) => (o && Object.keys(o).length ? JSON.stringify(o) : null);
 
-/** Record a view or click. Never throws — tracking must not break the redirect. */
-export async function recordEvent(req, slug, { kind, service = null, campaign = null, fromAd = false }) {
+/**
+ * Record a view or click with everything the request tells us about the visitor
+ * (see api/lib/visitor.js). `params` are the visit's query params (UTM tags, click
+ * ids, `v` = the landing page view it came from, `ms` = time on page before the
+ * click). Pass `res` so a new visitor gets their id cookie. Never throws —
+ * tracking must not break the page or the redirect.
+ */
+export async function recordEvent(req, slug, {
+  kind, service = null, campaign = null, fromAd = false, params = new URLSearchParams(), res = null, eventId = null,
+}) {
   if (isBot(req)) return;
-  const ua = req.headers['user-agent'] || '';
   try {
     await ensureTables();
+    const ua = parseUserAgent(req);
+    const g = geo(req);
+    const { utm, clickIds } = trackingParams(params);
+    const c = cookies(req);
+    const consent = consentState(req);
+    const tracking = mayTrack(req);
+    const ms = Number(params.get('ms'));
+    const referrer = short(req.headers.referer, 500);
     await query(
-      `INSERT INTO smart_link_events (slug, kind, service, campaign, country, device, referrer, from_ad)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [slug, kind, service, campaign ? String(campaign).slice(0, 100) : null,
-        req.headers['x-vercel-ip-country'] || null,
-        /mobile|android|iphone|ipad/i.test(ua) ? 'mobile' : 'desktop',
-        (req.headers.referer || '').slice(0, 300) || null,
-        fromAd]
+      `INSERT INTO smart_link_events (slug, kind, service, campaign, country, device, referrer, from_ad,
+         event_id, view_id, visitor_id, consent, gpc, ip, user_agent, os, os_version, browser, browser_version,
+         device_model, in_app, language, region, city, postal_code, latitude, longitude, timezone,
+         referrer_host, utm, click_ids, fbp, fbc, ms_on_page)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
+         $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34)`,
+      [slug, kind, service, short(campaign, 100), g.country, ua.device, referrer, fromAd,
+        short(eventId, 64), short(params.get('v'), 64), visitorId(req, res), consent, gpc(req), clientIp(req),
+        short(ua.userAgent, 500), ua.os, ua.osVersion, ua.browser, ua.browserVersion, short(ua.deviceModel, 100),
+        ua.inApp, short(language(req), 35), g.region, g.city, g.postalCode, g.latitude, g.longitude, g.timezone,
+        referrer ? hostOf(referrer) : null, jsonOrNull(utm), jsonOrNull(clickIds),
+        tracking ? short(c._fbp, 200) : null, tracking ? short(c._fbc, 300) : null,
+        Number.isFinite(ms) && ms > 0 ? Math.min(Math.round(ms), 2_147_000_000) : null]
     );
   } catch (err) {
     console.error('[smartlinks] record failed', err.message);
+  }
+}
+
+/**
+ * Attach the browser's own signals (screen, timezone, connection, … — see the
+ * page's beacon) and, after an EU/UK visitor answers the consent bar, their
+ * choice and visitor id to the page view they belong to.
+ */
+export async function recordClientInfo(req, slug, { viewId, client, consent, visitor }) {
+  if (!viewId || isBot(req)) return;
+  try {
+    await ensureTables();
+    await query(
+      `UPDATE smart_link_events SET client = COALESCE($3::jsonb, client),
+         consent = COALESCE($4, consent), visitor_id = COALESCE(visitor_id, $5),
+         fbp = COALESCE(fbp, $6), fbc = COALESCE(fbc, $7)
+       WHERE event_id = $1 AND slug = $2 AND kind = 'view' AND created_at > now() - interval '1 day'`,
+      [viewId, slug, client ? JSON.stringify(client) : null, consent || null, visitor || null,
+        visitor ? short(cookies(req)._fbp, 200) : null, visitor ? short(cookies(req)._fbc, 300) : null]);
+  } catch (err) {
+    console.error('[smartlinks] client info failed', err.message);
   }
 }
 
@@ -142,7 +204,8 @@ export async function recordEvent(req, slug, { kind, service = null, campaign = 
  * counts it once. Never throws.
  */
 export async function sendMetaEvent(req, link, { eventName, eventId, service, campaign, sourceUrl, fbclid, email, country }) {
-  if (!link.pixel_id || isBot(req)) return;
+  // Nothing goes to Meta without consent (EU/UK) or with a Global Privacy Control opt-out
+  if (!link.pixel_id || isBot(req) || !mayTrack(req) || gpc(req)) return;
   try {
     const conn = await loadConnection(link.user_id);
     if (!conn) return;
@@ -160,6 +223,7 @@ export async function sendMetaEvent(req, link, { eventName, eventId, service, ca
           client_user_agent: req.headers['user-agent'] || undefined,
           fbc,
           fbp: c._fbp || undefined,
+          external_id: c.pl_vid ? [sha256(c.pl_vid)] : undefined,
           // Hashed, as Meta requires; only present for fans who logged in with Spotify
           em: email ? [sha256(email.trim().toLowerCase())] : undefined,
           country: country ? [sha256(country.trim().toLowerCase())] : undefined,
