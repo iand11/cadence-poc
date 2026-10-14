@@ -95,8 +95,9 @@ try {
   if (APPLY) {
     const { refreshFacets } = await import('../api/lib/facets.js');
     const t = Date.now();
+    process.stdout.write('  refreshing (reads the whole catalog, can take a few minutes) … ');
     await refreshFacets();
-    console.log(`  refreshed now in ${((Date.now() - t) / 1000).toFixed(1)}s`);
+    console.log(`${((Date.now() - t) / 1000).toFixed(1)}s`);
   }
 
   // Largest followed-artist set, the worst case a user sees.
@@ -138,7 +139,11 @@ try {
     console.log(`  ${name.padEnd(24)} ${String(status).padEnd(4)} ${times.map((x) => `${x}ms`).join(' / ').padEnd(20)} ${(size / 1024).toFixed(0)} KB`);
   }
   console.log('\n(first number includes connection setup; second is warm)\n');
+} catch (err) {
+  // Without this the process.exit below would swallow the error.
+  console.error(`\ndiagnose failed: ${err.message}${err.code ? ` (code ${err.code})` : ''}`);
+  process.exitCode = 1;
 } finally {
   await pool.end();
-  process.exit(0);
+  process.exit(process.exitCode ?? 0);
 }

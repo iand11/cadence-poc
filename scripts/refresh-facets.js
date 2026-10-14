@@ -8,7 +8,11 @@ try {
   const t = Date.now();
   const { stats } = await refreshFacets();
   console.log(`Facets refreshed in ${((Date.now() - t) / 1000).toFixed(1)}s:`, stats);
+} catch (err) {
+  // Without this the process.exit below would swallow the error.
+  console.error(`\nrefresh-facets failed: ${err.message}${err.code ? ` (code ${err.code})` : ''}`);
+  process.exitCode = 1;
 } finally {
   await pool.end();
-  process.exit(0);
+  process.exit(process.exitCode ?? 0);
 }
