@@ -3,27 +3,31 @@
 // a cold 500k-artist database), so they are stored in catalog_facets and
 // refreshed off the request path: daily cron /api/cron/refresh-facets and
 // `npm run db:refresh-facets`.
-import { query, queryWithTimeout } from './db.js';
+import { query, withTransaction } from './db.js';
 import { cached } from './cache.js';
 
 export async function computeFacets(run = query) {
   // Each aggregate is written so it can be answered from an index
   // (genre / country / label / stage indexes, the stats paging indexes).
-  const [genres, countries, labels, stages, [counts], [stats]] = await Promise.all([
-    run(`SELECT primary_genre AS value, count(*)::int AS count FROM artists
+  // Run one at a time: on a single connection (refreshFacets) they can't run
+  // in parallel, and on the shared pool they'd take every connection at once.
+  const results = [];
+  for (const step of [
+    () => run(`SELECT primary_genre AS value, count(*)::int AS count FROM artists
            WHERE primary_genre IS NOT NULL GROUP BY 1 ORDER BY 2 DESC LIMIT 40`),
-    run(`SELECT country AS value, count(*)::int AS count FROM artists
+    () => run(`SELECT country AS value, count(*)::int AS count FROM artists
            WHERE country IS NOT NULL GROUP BY 1 ORDER BY 2 DESC`),
-    run(`SELECT record_label AS value, count(*)::int AS count FROM artists
+    () => run(`SELECT record_label AS value, count(*)::int AS count FROM artists
            WHERE record_label IS NOT NULL GROUP BY 1 ORDER BY 2 DESC LIMIT 40`),
-    run(`SELECT career_stage AS value, count(*)::int AS count FROM artists
+    () => run(`SELECT career_stage AS value, count(*)::int AS count FROM artists
            WHERE career_stage IS NOT NULL GROUP BY 1 ORDER BY 2 DESC`),
-    run('SELECT count(*)::bigint AS total FROM artists'),
-    run(`SELECT
+    () => run('SELECT count(*)::bigint AS total FROM artists'),
+    () => run(`SELECT
              (SELECT COALESCE(sum(sp_monthly_listeners), 0) FROM artist_stats_current WHERE sp_monthly_listeners IS NOT NULL)::bigint AS total_listeners,
              (SELECT COALESCE(sum(sp_followers), 0) FROM artist_stats_current WHERE sp_followers IS NOT NULL)::bigint AS total_followers,
              (SELECT COALESCE(avg(score), 0) FROM artist_stats_current WHERE score IS NOT NULL)::float AS avg_score`),
-  ]);
+  ]) results.push(await step());
+  const [genres, countries, labels, stages, [counts], [stats]] = results;
   return {
     genres,
     countries,
@@ -38,10 +42,10 @@ export async function computeFacets(run = query) {
   };
 }
 
-// The refresh runs off the request path, so it lifts any role-level
-// statement_timeout (on a cold database these aggregates can take minutes).
+// The refresh runs off the request path on one connection, with any
+// role-level statement_timeout lifted (cold, these can take minutes).
 export async function refreshFacets() {
-  const data = await computeFacets((text, params) => queryWithTimeout(text, params, 0));
+  const data = await withTransaction((run) => computeFacets(run), { statementTimeoutMs: 0 });
   await query(
     `INSERT INTO catalog_facets (key, data, refreshed_at) VALUES ('artists', $1, now())
      ON CONFLICT (key) DO UPDATE SET data = EXCLUDED.data, refreshed_at = now()`,
