@@ -15,6 +15,9 @@ export const fetchCampaignLinkStats = (campaignId) =>
 /** Spotify fans a link captured: { fans: [{ name, email, country, product, followed, saved, topArtists, campaign, fromAd, createdAt }] } */
 export const fetchLinkFans = (slug) => request(`/api/links?fans=${encodeURIComponent(slug)}`);
 
+/** Who visits a link: { totals, countries, cities, sources, apps, devices, os, models, languages, byHour, recent } */
+export const fetchLinkAudience = (slug) => request(`/api/links?audience=${encodeURIComponent(slug)}`);
+
 /** Pull the latest Spotify plays for a link's fans now (normally a daily job). */
 export const fetchFanPlays = (slug, fan) => request(`/api/links?plays=${encodeURIComponent(slug)}&fan=${encodeURIComponent(fan)}`);
 export const syncLinkFans = (slug) => request('/api/links', { method: 'POST', body: { action: 'sync', slug } });
