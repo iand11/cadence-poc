@@ -8,8 +8,13 @@
 // the Conversions API, so Meta counts each click once.
 // ?preview=1 (the Links page preview) renders the same page without recording a
 // view, loading the Pixel or following the buttons.
+// POST /l/:slug — the page's beacon: browser signals (screen, timezone, connection, …)
+// and the visitor's answer to the consent bar, attached to the view (api/lib/visitor.js).
 import crypto from 'node:crypto';
-import { getLink, recordEvent, SERVICES } from './lib/smartlinks.js';
+import { getLink, recordEvent, recordClientInfo, SERVICES } from './lib/smartlinks.js';
+import {
+  carryParams, consentState, consentRequired, gpc, visitorId, cleanClientInfo, ACCEPT_CH, CONSENT_COOKIE,
+} from './lib/visitor.js';
 import { spotifyLoginConfigured } from './lib/spotify-fans.js';
 import { dspIconSvg } from './lib/dsp-icons.js';
 
@@ -17,12 +22,15 @@ import { dspIconSvg } from './lib/dsp-icons.js';
 const cssUrl = (u) => esc(String(u).replace(/['"()\\\s]/g, c => `%${c.charCodeAt(0).toString(16).padStart(2, '0')}`));
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
+// Defines loadPixel(); the page calls it right away, or after an EU/UK visitor allows it
 function pixelSnippet(pixelId, viewEventId) {
-  if (!pixelId) return '';
+  if (!pixelId) return '<script>function loadPixel(){}</script>';
   return `<script>
+function loadPixel(){
 !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
 fbq('init', ${JSON.stringify(String(pixelId))});
 fbq('track', 'PageView', {}, { eventID: ${JSON.stringify(viewEventId)} });
+}
 </script>`;
 }
 
@@ -52,14 +60,16 @@ const LANDING_STYLE = `
   .logo span{font-size:18px;font-weight:600;letter-spacing:-.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .play{flex:none;width:104px;text-align:center;font-size:14px;color:#333;border:1px solid #D4D4D4;border-radius:4px;padding:8px 0}
   .row:hover .play{border-color:#111;color:#111}
+  .consent{position:fixed;left:12px;right:12px;bottom:12px;z-index:5;max-width:420px;margin:0 auto;background:#171614;color:#F5F0E8;border:1px solid #2C2B28;border-radius:10px;padding:14px 14px 12px;font-size:13px;line-height:1.5;box-shadow:0 10px 30px rgba(0,0,0,.5)}
+  .consent div{display:flex;gap:8px;margin-top:10px}.consent button{flex:1;padding:9px 0;border-radius:999px;font-size:13px;font-weight:600;cursor:pointer;border:1px solid #2C2B28;background:transparent;color:#F5F0E8}
+  .consent button.ok{background:#F5F0E8;color:#0D0C0B;border-color:#F5F0E8}
   footer{margin-top:22px;text-align:center;font-size:11px;color:rgba(255,255,255,.65)}
 `;
 // Brand color for each logo on the white rows (TIDAL's white mark becomes black)
 const iconColor = (service) => (service === 'tidal' ? '#000000' : SERVICES[service]?.color || '#DA7756');
 
 function consentPage({ link, params }) {
-  const carry = new URLSearchParams();
-  for (const k of ['c', 'fbclid', 'e']) if (params.get(k)) carry.set(k, params.get(k));
+  const carry = carryParams(params, ['e', 'v', 'ms']);
   const q = carry.size ? `&${carry}` : '';
   const artist = link.artist_name || 'the artist';
   const name = link.title || link.artist_name || 'this release';
@@ -92,9 +102,8 @@ const spotifyKind = (link) => {
   return m ? m[1] : 'song';
 };
 
-function page({ link, params, pixelId, preview }) {
-  const carry = new URLSearchParams();
-  for (const k of ['c', 'fbclid']) if (params.get(k)) carry.set(k, params.get(k));
+function page({ link, params, pixelId, preview, consent = 'not_required', sendGpc = false }) {
+  const carry = carryParams(params);
   const askFans = link.fan_capture && spotifyLoginConfigured();
   const buttons = (link.links || []).map(({ service }) => {
     const s = SERVICES[service] || { label: service };
@@ -129,13 +138,56 @@ ${buttons}
 </div>
 <footer>Powered by Prelude</footer>
 </main>
+${!preview && consent === 'unknown' ? `<div class="consent" id="consent">${esc(link.artist_name || 'This page')} uses cookies to measure visits and ads (including Meta).
+<div><button type="button" data-consent="denied">No thanks</button><button type="button" class="ok" data-consent="granted">Allow</button></div></div>` : ''}
 <script>
 var preview = ${preview ? 'true' : 'false'};
+var viewId = ${JSON.stringify(params.get('_view') || '')};
+var consent = ${JSON.stringify(consent)};
+var noMeta = ${sendGpc ? 'true' : 'false'};
+var started = Date.now();
+// Browser signals for the view: screen, timezone, connection, … (no fingerprint id is built from them)
+function clientInfo() {
+  var n = navigator, c = n.connection || {}, mm = function (q) { return !!(window.matchMedia && matchMedia(q).matches); };
+  return {
+    screenW: screen.width, screenH: screen.height, viewportW: innerWidth, viewportH: innerHeight,
+    dpr: window.devicePixelRatio, colorDepth: screen.colorDepth,
+    timezone: (window.Intl && Intl.DateTimeFormat().resolvedOptions().timeZone) || '', tzOffset: new Date().getTimezoneOffset(),
+    languages: n.languages ? Array.prototype.slice.call(n.languages) : [n.language], platform: n.platform || '',
+    cores: n.hardwareConcurrency, memory: n.deviceMemory, touchPoints: n.maxTouchPoints,
+    effectiveType: c.effectiveType || '', connectionType: c.type || '', downlink: c.downlink, rtt: c.rtt, saveData: !!c.saveData,
+    dark: mm('(prefers-color-scheme: dark)'), reducedMotion: mm('(prefers-reduced-motion: reduce)'),
+    standalone: mm('(display-mode: standalone)'), orientation: (screen.orientation && screen.orientation.type) || '',
+    cookies: n.cookieEnabled, doNotTrack: n.doNotTrack === '1', gpc: !!n.globalPrivacyControl,
+    referrer: document.referrer, msToBeacon: Date.now() - started
+  };
+}
+function beacon(body) {
+  body.view = viewId;
+  var data = JSON.stringify(body);
+  try { if (navigator.sendBeacon && navigator.sendBeacon(location.pathname, new Blob([data], { type: 'application/json' }))) return; } catch (e) {}
+  try { fetch(location.pathname, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: data, keepalive: true, credentials: 'same-origin' }); } catch (e) {}
+}
+function allowed() { return consent === 'not_required' || consent === 'granted'; }
+if (!preview && allowed()) { if (!noMeta) loadPixel(); beacon({ client: clientInfo() }); }
+var bar = document.getElementById('consent');
+if (bar) bar.addEventListener('click', function (ev) {
+  var choice = ev.target && ev.target.getAttribute('data-consent');
+  if (!choice) return;
+  consent = choice;
+  document.cookie = ${JSON.stringify(CONSENT_COOKIE)} + '=' + choice + '; Max-Age=31536000; Path=/; SameSite=Lax' + (location.protocol === 'https:' ? '; Secure' : '');
+  bar.remove();
+  // The server sets the visitor id cookie on this request when allowed
+  if (choice === 'granted') { if (!noMeta) loadPixel(); beacon({ consent: choice, client: clientInfo() }); }
+  else beacon({ consent: choice });
+});
 document.querySelectorAll('a.row').forEach(function (a) {
   a.addEventListener('click', function (ev) {
     if (preview) { ev.preventDefault(); return; }
     var id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()) + Math.random();
-    a.href += (a.href.indexOf('?') < 0 ? '?' : '&') + 'e=' + encodeURIComponent(id);
+    var u = new URL(a.href);
+    u.searchParams.set('e', id); u.searchParams.set('v', viewId); u.searchParams.set('ms', String(Date.now() - started));
+    a.href = u.toString();
     if (window.fbq) fbq('trackCustom', 'DSPClick', { service: a.dataset.service }, { eventID: id });
   });
 });
@@ -143,10 +195,43 @@ document.querySelectorAll('a.row').forEach(function (a) {
 </body></html>`;
 }
 
+async function readJson(req) {
+  if (req.body && typeof req.body === 'object') return req.body;
+  if (typeof req.body === 'string') { try { return JSON.parse(req.body); } catch { return {}; } }
+  let raw = '';
+  for await (const chunk of req) { raw += chunk; if (raw.length > 20_000) return {}; }
+  try { return JSON.parse(raw || '{}'); } catch { return {}; }
+}
+
+// The page's beacon: browser signals and the consent bar's answer for a view
+async function beaconHandler(req, res, link) {
+  const body = await readJson(req);
+  const choice = ['granted', 'denied'].includes(body.consent) ? body.consent : null;
+  // The answer arrives with this request's cookie set by the page; mint the visitor id now if allowed
+  if (choice && consentRequired(req)) {
+    req.headers.cookie = `${req.headers.cookie ? `${req.headers.cookie}; ` : ''}${CONSENT_COOKIE}=${choice}`;
+  }
+  const consent = consentState(req);
+  const allowed = consent === 'not_required' || consent === 'granted';
+  await recordClientInfo(req, link.slug, {
+    viewId: typeof body.view === 'string' ? body.view.slice(0, 64) : null,
+    client: allowed ? cleanClientInfo(body.client) : null,
+    consent: choice,
+    visitor: allowed ? visitorId(req, res) : null,
+  });
+  res.statusCode = 204;
+  res.setHeader('Cache-Control', 'no-store');
+  return res.end();
+}
+
 export default async function handler(req, res) {
   const params = new URL(req.url, 'http://localhost').searchParams;
   const slug = params.get('slug');
   const link = slug ? await getLink(slug).catch(() => null) : null;
+  if (req.method === 'POST') {
+    if (!link) { res.statusCode = 404; return res.end(); }
+    return beaconHandler(req, res, link);
+  }
   if (!link) {
     res.statusCode = 404;
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -156,11 +241,17 @@ export default async function handler(req, res) {
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.setHeader('Cache-Control', 'no-store');
   if (params.get('view') === 'spotify' && link.fan_capture) {
-    await recordEvent(req, link.slug, { kind: 'consent_view', service: 'spotify', campaign: params.get('c'), fromAd: params.has('fbclid') });
+    await recordEvent(req, link.slug, {
+      kind: 'consent_view', service: 'spotify', campaign: params.get('c'), fromAd: params.has('fbclid'), params, res,
+    });
     return res.end(consentPage({ link, params }));
   }
   if (params.get('preview') === '1') return res.end(page({ link, params, pixelId: null, preview: true }));
-  await recordEvent(req, link.slug, { kind: 'view', campaign: params.get('c'), fromAd: params.has('fbclid') });
-  params.set('_view', crypto.randomUUID());
-  return res.end(page({ link, params, pixelId: link.pixel_id }));
+  const viewId = crypto.randomUUID();
+  res.setHeader('Accept-CH', ACCEPT_CH);
+  await recordEvent(req, link.slug, {
+    kind: 'view', campaign: params.get('c'), fromAd: params.has('fbclid'), params, res, eventId: viewId,
+  });
+  params.set('_view', viewId);
+  return res.end(page({ link, params, pixelId: link.pixel_id, consent: consentState(req), sendGpc: gpc(req) }));
 }

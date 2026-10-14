@@ -117,6 +117,17 @@ the way feature.fm does, without depending on it.
   302s to the service, so tracking works without JavaScript. Views and clicks store the
   campaign (`?c=`), country (Vercel header), device, and whether the visitor came from a
   Meta ad (`fbclid`). Bots and link-preview crawlers are not counted.
+- **Visitor detail** (`api/lib/visitor.js`): each event also stores IP, user agent, OS and
+  version, browser, device model, in-app browser (Instagram, TikTok, …), language, Vercel
+  IP geo (region, city, postal code, lat/long, timezone), referrer host, UTM tags, ad click
+  ids (`fbclid`, `gclid`, `ttclid`, …), Meta's `_fbp`/`_fbc`, a first-party visitor id
+  (`pl_vid`, 1 year), and for clicks the view it came from and time on page. The page's
+  beacon (`POST /l/<slug>`) adds browser signals to the view (`client`: screen, viewport,
+  timezone, languages, connection, dark mode, …); no fingerprint id is derived. Visitors in
+  the EU/EEA, UK and Switzerland see a consent bar: until they allow it there is no visitor
+  cookie, Pixel, Conversions API event or browser beacon (header data is still recorded).
+  `Sec-GPC: 1` blocks Meta sharing. A captured Spotify fan's `visitor_id` links them to
+  their earlier anonymous visits.
 - When a new Meta ad's destination is a smart link (picked in the builder),
   `meta-launch` adds `?c=<directive id>` to it, so clicks are attributed per campaign.
   The campaign page shows link views, streaming clicks, click rate, cost per streaming

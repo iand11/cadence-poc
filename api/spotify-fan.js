@@ -15,6 +15,7 @@
 import { query } from './lib/db.js';
 import { signData, verifyData } from './lib/meta.js';
 import { getLink, recordEvent, sendMetaEvent, publicOrigin, ensureTables } from './lib/smartlinks.js';
+import { carryParams, visitorId } from './lib/visitor.js';
 import { spotifyLoginConfigured, authorizeUrl, exchangeCode, captureFan, spotifyItem } from './lib/spotify-fans.js';
 import { saveListener, syncListener, ensureSyncTables } from './lib/spotify-sync.js';
 
@@ -29,9 +30,15 @@ function redirect(res, location) {
 
 const spotifyUrl = (link) => link?.links?.find(l => l.service === 'spotify')?.url || null;
 
-async function finishClick(req, link, ctx, fan) {
+// The landing visit's UTM tags, click ids, view id and time on page, kept in the OAuth state
+const visitParams = (ctx) => new URLSearchParams(ctx.t || {});
+
+async function finishClick(req, res, link, ctx, fan) {
+  visitorId(req, res);
   await Promise.all([
-    recordEvent(req, link.slug, { kind: 'click', service: 'spotify', campaign: ctx.c, fromAd: !!ctx.fbclid }),
+    recordEvent(req, link.slug, {
+      kind: 'click', service: 'spotify', campaign: ctx.c, fromAd: !!ctx.fbclid, params: visitParams(ctx), res, eventId: ctx.e,
+    }),
     Promise.race([
       sendMetaEvent(req, link, {
         eventName: 'DSPClick', eventId: ctx.e, service: 'spotify', campaign: ctx.c, fbclid: ctx.fbclid,
@@ -60,18 +67,19 @@ export default async function handler(req, res) {
         await ensureSyncTables();
         await query(
           `INSERT INTO smart_link_fans (slug, spotify_user_id, display_name, email, country, product,
-             followed, saved, top_artists, campaign, from_ad)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+             followed, saved, top_artists, campaign, from_ad, visitor_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
            ON CONFLICT (slug, spotify_user_id) DO UPDATE SET
              display_name = EXCLUDED.display_name, email = EXCLUDED.email, country = EXCLUDED.country,
              product = EXCLUDED.product, followed = smart_link_fans.followed OR EXCLUDED.followed,
              saved = smart_link_fans.saved OR EXCLUDED.saved,
              top_artists = COALESCE(EXCLUDED.top_artists, smart_link_fans.top_artists),
              campaign = COALESCE(smart_link_fans.campaign, EXCLUDED.campaign),
-             from_ad = smart_link_fans.from_ad OR EXCLUDED.from_ad, updated_at = now()`,
+             from_ad = smart_link_fans.from_ad OR EXCLUDED.from_ad,
+             visitor_id = COALESCE(EXCLUDED.visitor_id, smart_link_fans.visitor_id), updated_at = now()`,
           [link.slug, fan.spotifyUserId, fan.displayName, fan.email, fan.country, fan.product,
             fan.followed, fan.saved, fan.topArtists ? JSON.stringify(fan.topArtists) : null,
-            ctx.c || null, !!ctx.fbclid]);
+            ctx.c || null, !!ctx.fbclid, visitorId(req, res)]);
         if (fan.artistIds.length && (!link.spotify_artist_ids?.length || !link.spotify_track_name)) {
           await query(
             `UPDATE smart_links SET spotify_artist_ids = COALESCE(NULLIF(spotify_artist_ids, '{}'), $2),
@@ -90,9 +98,11 @@ export default async function handler(req, res) {
         console.error('[spotify-fan] capture failed', err.message);
       }
     } else {
-      await recordEvent(req, link.slug, { kind: 'fan_declined', service: 'spotify', campaign: ctx.c, fromAd: !!ctx.fbclid });
+      await recordEvent(req, link.slug, {
+        kind: 'fan_declined', service: 'spotify', campaign: ctx.c, fromAd: !!ctx.fbclid, params: visitParams(ctx), res,
+      });
     }
-    await finishClick(req, link, ctx, fan);
+    await finishClick(req, res, link, ctx, fan);
     return redirect(res, target);
   }
 
@@ -100,14 +110,14 @@ export default async function handler(req, res) {
   const slug = params.get('slug');
   const link = slug ? await getLink(slug).catch(() => null) : null;
   if (!link) return redirect(res, '/');
-  const carry = new URLSearchParams();
-  for (const k of ['c', 'fbclid', 'e']) if (params.get(k)) carry.set(k, params.get(k));
+  const carry = carryParams(params, ['e', 'v', 'ms']);
   if (!link.fan_capture || !spotifyUrl(link) || !spotifyLoginConfigured()) {
     return redirect(res, `/go/${encodeURIComponent(link.slug)}/spotify${carry.size ? `?${carry}` : ''}`);
   }
   try {
     const state = signData({
       slug: link.slug, c: params.get('c') || null, fbclid: params.get('fbclid') || null, e: params.get('e') || null,
+      t: Object.fromEntries(carryParams(params, ['v', 'ms'])),
     }, 15 * 60 * 1000);
     return redirect(res, authorizeUrl(req, state));
   } catch (err) {
