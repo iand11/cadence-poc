@@ -65,6 +65,7 @@ CREATE INDEX IF NOT EXISTS artists_name_trgm_idx  ON artists USING gin (name gin
 CREATE INDEX IF NOT EXISTS artists_genre_idx      ON artists (primary_genre);
 CREATE INDEX IF NOT EXISTS artists_country_idx    ON artists (country);
 CREATE INDEX IF NOT EXISTS artists_stage_idx      ON artists (career_stage);
+CREATE INDEX IF NOT EXISTS artists_name_page_idx  ON artists (name, id);
 
 -- ---------------------------------------------------------------------------
 -- Latest metrics per artist (volatile — refreshed frequently)
@@ -91,6 +92,16 @@ CREATE INDEX IF NOT EXISTS stats_current_rank_idx      ON artist_stats_current (
 CREATE INDEX IF NOT EXISTS stats_current_listeners_idx ON artist_stats_current (sp_monthly_listeners DESC NULLS LAST);
 CREATE INDEX IF NOT EXISTS stats_current_followers_idx ON artist_stats_current (sp_followers DESC NULLS LAST);
 CREATE INDEX IF NOT EXISTS stats_current_score_idx     ON artist_stats_current (score DESC NULLS LAST);
+-- Paging indexes for GET /api/artists: (sort key, artist_id) in each sort's
+-- default direction, so a page walks the index instead of sorting the catalog.
+CREATE INDEX IF NOT EXISTS stats_current_rank_page_idx
+  ON artist_stats_current (rank ASC, artist_id ASC) WHERE rank IS NOT NULL;
+CREATE INDEX IF NOT EXISTS stats_current_listeners_page_idx
+  ON artist_stats_current (sp_monthly_listeners DESC, artist_id ASC) WHERE sp_monthly_listeners IS NOT NULL;
+CREATE INDEX IF NOT EXISTS stats_current_followers_page_idx
+  ON artist_stats_current (sp_followers DESC, artist_id ASC) WHERE sp_followers IS NOT NULL;
+CREATE INDEX IF NOT EXISTS stats_current_score_page_idx
+  ON artist_stats_current (score DESC, artist_id ASC) WHERE score IS NOT NULL;
 
 -- ---------------------------------------------------------------------------
 -- Albums (shared across artists via artist_albums)

@@ -77,38 +77,84 @@ export default async function handler(req, res) {
   const page = Math.max(Number(p.get('page')) || 1, 1);
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
-  // The count only needs the stats join when a listeners filter uses it.
-  const countJoin = where.some((w) => w.includes('sc.'))
-    ? 'LEFT JOIN artist_stats_current sc ON sc.artist_id = a.id'
-    : '';
+  const statsFilter = where.some((w) => w.includes('sc.'));
+  const statsJoin = 'LEFT JOIN artist_stats_current sc ON sc.artist_id = a.id';
+  const countKey = `artists:count:${whereSql}:${JSON.stringify(params)}`;
   const sortKey = flipped.split(' ')[0];
+  const dir = flipped.includes('DESC') ? 'DESC' : 'ASC';
+  const offset = (page - 1) * perPage;
+  const pageSql = `LIMIT ${perPage} OFFSET ${offset}`;
 
   try {
-    const [countRows, rows] = await Promise.all([
-      // Totals barely move between pages / requests — cache them briefly.
-      cached(`artists:count:${whereSql}:${JSON.stringify(params)}`, 60_000, () => query(
-        `SELECT count(*)::bigint AS n FROM artists a ${countJoin} ${whereSql}`,
+    // Totals barely move between pages / requests — cache them briefly.
+    const countPromise = cached(countKey, 60_000, () => query(
+      `SELECT count(*)::bigint AS n FROM artists a ${statsFilter ? statsJoin : ''} ${whereSql}`,
+      params
+    ));
+
+    // 1. Pick this page's ids by walking an index in sort order, so a page
+    //    reads ~perPage rows instead of sorting the whole catalog (which, on a
+    //    database whose tables don't fit in memory, means reading them all
+    //    from disk on every request).
+    let ids;
+    if (q || slugs?.length) {
+      // Name search / slug lists match few rows: filter first, then sort them.
+      ids = (await query(
+        `SELECT a.id FROM artists a ${statsJoin} ${whereSql}
+         ORDER BY ${flipped}, a.id ASC ${pageSql}`,
         params
-      )),
-      // Late materialization: sort + page over narrow (id, sort key) rows, then
-      // join the wide profile/stats columns for just this page.
-      query(
-        `WITH page AS (
-           SELECT a.id, ${sortKey} AS sort_key
-           FROM artists a
-           LEFT JOIN artist_stats_current sc ON sc.artist_id = a.id
-           ${whereSql}
-           ORDER BY ${flipped}, a.id ASC
-           LIMIT ${perPage} OFFSET ${(page - 1) * perPage}
-         )
-         SELECT a.*, sc.rank, sc.score, sc.stats, sc.as_of AS stats_as_of
-         FROM page
-         JOIN artists a ON a.id = page.id
-         LEFT JOIN artist_stats_current sc ON sc.artist_id = a.id
-         ORDER BY ${flipped.replace(sortKey, 'page.sort_key')}, a.id ASC`,
+      )).map((r) => r.id);
+    } else if (sortKey === 'a.name') {
+      ids = (await query(
+        `SELECT a.id FROM artists a ${statsFilter ? statsJoin : ''} ${whereSql}
+         ORDER BY a.name ${dir}, a.id ASC ${pageSql}`,
         params
-      ),
+      )).map((r) => r.id);
+    } else {
+      // Artists with a value for the sort key come first, in the order of the
+      // (key, artist_id) indexes in db/schema.sql; ties break on id ascending
+      // in the default direction (as before) and the index's reverse when flipped.
+      const tieDir = flipped === orderBy ? 'ASC' : 'DESC';
+      const keyed = [...where, `${sortKey} IS NOT NULL`].join(' AND ');
+      ids = (await query(
+        `SELECT sc.artist_id AS id FROM artist_stats_current sc JOIN artists a ON a.id = sc.artist_id
+         WHERE ${keyed}
+         ORDER BY ${sortKey} ${dir}, sc.artist_id ${tieDir} ${pageSql}`,
+        params
+      )).map((r) => r.id);
+      // Past the end of those: artists with no value (or no stats row) by id,
+      // matching the old NULLS LAST, id ASC order.
+      if (ids.length < perPage) {
+        const keyedTotal = ids.length
+          ? offset + ids.length
+          : Number((await cached(`${countKey}:${sortKey}`, 60_000, () => query(
+            `SELECT count(*)::bigint AS n FROM artist_stats_current sc JOIN artists a ON a.id = sc.artist_id WHERE ${keyed}`,
+            params
+          )))[0].n);
+        const rest = await query(
+          `SELECT a.id FROM artists a ${statsJoin}
+           WHERE ${[...where, `${sortKey} IS NULL`].join(' AND ')}
+           ORDER BY a.id ASC LIMIT ${perPage - ids.length} OFFSET ${Math.max(0, offset - keyedTotal)}`,
+          params
+        );
+        ids = ids.concat(rest.map((r) => r.id));
+      }
+    }
+
+    // 2. Wide profile + stats columns for just this page.
+    const [countRows, wide] = await Promise.all([
+      countPromise,
+      ids.length
+        ? query(
+          `SELECT a.*, sc.rank, sc.score, sc.stats, sc.as_of AS stats_as_of
+           FROM artists a ${statsJoin}
+           WHERE a.id = ANY($1::bigint[])`,
+          [ids]
+        )
+        : [],
     ]);
+    const byId = new Map(wide.map((r) => [String(r.id), r]));
+    const rows = ids.map((id) => byId.get(String(id))).filter(Boolean);
     res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=600');
     return res.status(200).json({
       artists: rows.map(artistRowToSummary),
