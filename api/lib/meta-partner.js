@@ -205,6 +205,14 @@ async function activateAdAccount(row) {
 const setError = (table, key, id, message) =>
   query(`UPDATE ${table} SET last_error = $2 WHERE ${key} = $1`, [id, message == null ? null : String(message).slice(0, 500)]);
 
+/** Readable reason a client_pages / client_ad_accounts request failed, plus the owner-side fallback. */
+function requestError(err, id, owner) {
+  const share = `The ${owner} can share it with Prelude instead: Business settings → Partners → Add → business ID ${process.env.META_PRELUDE_BUSINESS_ID}, then press "Check for approvals".`;
+  if (/\(#3\)|capability/i.test(err.message)) return `Meta only lets Prelude send access requests once its app is approved. ${share}`;
+  if (/global id .* not allowed/i.test(err.message)) return `Meta says ${id} isn't a Page ID (usually a personal profile or a Page's profile link). Remove it and add the Page ID from Meta Business Suite → Settings → Business assets → Pages. ${share}`;
+  return `Meta didn't send the request (${err.message}). ${share}`;
+}
+
 /** Claim a Page for this user and ask its owner to share it with Prelude's business. */
 export async function addPartnerPage(uid, input) {
   const { businessId, token } = preludeBusiness();
@@ -222,9 +230,7 @@ export async function addPartnerPage(uid, input) {
   } else {
     await graph('POST', `${businessId}/client_pages`, token, { page_id: pageId, permitted_tasks: PAGE_TASKS })
       .then(() => setError('meta_partner_pages', 'page_id', pageId, null))
-      .catch(err => setError('meta_partner_pages', 'page_id', pageId, /global id .* not allowed/i.test(err.message)
-        ? `Meta says ${pageId} isn't a Page ID (it's usually a personal profile or a Page's profile link). Remove it and add the Page ID from Meta Business Suite → Settings → Business assets → Pages, or the owner can share the Page: Business settings → Partners → add business ID ${businessId}.`
-        : `Meta didn't send the request (${err.message}). The Page owner can share it instead: Business settings → Partners → add business ID ${businessId}.`));
+      .catch(err => setError('meta_partner_pages', 'page_id', pageId, requestError(err, pageId, 'Page owner')));
   }
   return queryOne('SELECT * FROM meta_partner_pages WHERE page_id = $1', [pageId]);
 }
@@ -250,7 +256,7 @@ export async function addPartnerAdAccount(uid, input) {
   } else {
     await graph('POST', `${businessId}/client_ad_accounts`, token, { adaccount_id: act, permitted_tasks: AD_ACCOUNT_TASKS })
       .then(() => setError('meta_partner_ad_accounts', 'ad_account_id', act, null))
-      .catch(err => setError('meta_partner_ad_accounts', 'ad_account_id', act, `Meta didn't send the request (${err.message}). The owner can share it instead: Business settings → Partners → add business ID ${businessId}.`));
+      .catch(err => setError('meta_partner_ad_accounts', 'ad_account_id', act, requestError(err, act, 'owner')));
   }
   return queryOne('SELECT * FROM meta_partner_ad_accounts WHERE ad_account_id = $1', [act]);
 }
