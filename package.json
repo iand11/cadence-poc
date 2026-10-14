@@ -16,6 +16,7 @@
     "db:refresh-facets": "node scripts/refresh-facets.js",
     "db:rebuild-artist-playlists": "node scripts/rebuild-artist-playlists.js",
     "spotify:sync": "node scripts/sync-spotify-plays.js",
+    "meta:review-calls": "node scripts/meta-review-calls.js",
     "lint": "eslint .",
     "preview": "vite preview"
   },
