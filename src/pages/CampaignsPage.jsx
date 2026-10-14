@@ -8,6 +8,7 @@ import CampaignWizard from '../components/ads/CampaignWizard';
 import CampaignDashboard from '../components/ads/CampaignDashboard';
 import ContentFeed from '../components/ads/ContentFeed';
 import AccountConnector from '../components/ads/AccountConnector';
+import ManagedReviewPanel from '../components/ads/ManagedReviewPanel';
 import { useMetaConnection } from '../hooks/useMetaConnection';
 import { launchMetaCampaign, isMetaDirective, ACCOUNT_FIX_CODES } from '../data/metaAds';
 import { useDirectives } from '../hooks/useDirectives';
@@ -409,6 +410,9 @@ export default function CampaignsPage() {
           </AnimatePresence>
         </div>
       </div>
+
+      {/* Prelude admins approve managed ads when Stripe prepay is off */}
+      {metaConnection?.isAdmin && !metaConnection.managedPrepay && <ManagedReviewPanel />}
 
       {/* Dashboard view */}
       {tab === 'dashboard' ? (

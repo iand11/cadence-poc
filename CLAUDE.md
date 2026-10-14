@@ -90,7 +90,16 @@ Meta as `DSPClick` (Pixel + Conversions API). With fan capture on, the Spotify b
 (`/l/:slug/spotify`); "Continue with Spotify" (`api/spotify-fan.js`) logs the fan in, follows
 the artist, saves the release and stores them in `smart_link_fans`. Their encrypted refresh token (`spotify_listeners`) lets `api/lib/spotify-sync.js` pull recently-played history into `spotify_plays` (daily cron `/api/cron/spotify-plays` with `CRON_SECRET`, "Sync plays" button, `npm run spotify:sync`), shown as streams per fan, link and campaign. Env: `META_APP_ID`, `META_APP_SECRET`, `META_LOGIN_CONFIG_ID`,
 `AD_TOKEN_KEY` (`META_GRAPH_URL` points at a mock Graph API for local testing). Without
-them, Meta campaigns are blocked, not simulated. Details in
+them, Meta campaigns are blocked, not simulated. Prelude-managed ads (artists without an ad account): in Ad Accounts an
+Instagram account can be assigned "Prelude's ad account" (`accountMap[ig].managed`); that grants Prelude's
+business agency access to the artist's Page and authorizes Prelude's ad account on their IG account
+(`grantPreludeAccess` in `api/lib/meta.js`, artist's token). New posts (not boosts) then launch in
+Prelude's ad account with Prelude's system-user token, recorded per user in `meta_managed_campaigns`.
+Go-live: with `MANAGED_ADS_PREPAY=stripe` the owner pays budget + fee (`MANAGED_ADS_FEE_PERCENT`, default 10)
+in Stripe Checkout (`api/lib/stripe.js`), and the webhook `/api/stripe/webhook` (or the next status GET)
+turns it on; otherwise a Prelude admin (`PRELUDE_ADMIN_UIDS`) approves it in `ManagedReviewPanel`.
+Env: `META_PRELUDE_AD_ACCOUNT_ID`, `META_PRELUDE_BUSINESS_ID`, `META_PRELUDE_TOKEN`, `STRIPE_SECRET_KEY`,
+`STRIPE_WEBHOOK_SECRET`. Details in
 docs/CAMPAIGN_PLAN.md.
 
 Request caching: client GETs go through `src/data/http.js` (`getJson(url, { ttl })` —

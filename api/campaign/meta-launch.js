@@ -17,14 +17,18 @@
 //         video_processing (Meta hasn't finished the video yet; retrying reuses the upload)
 //
 // The ad account is the one the user assigned to that Instagram account in Ad Accounts,
-// so each artist's ads run (and bill) in that artist's ad account. Campaign → Ad Set →
+// so each artist's ads run (and bill) in that artist's ad account. An Instagram account
+// assigned to Prelude's ad account (managed: artists without one) runs new ads there with
+// Prelude's token; boosts stay in the artist's own ad account. Managed campaigns are
+// recorded in meta_managed_campaigns and only go live after Prelude approves them. Campaign → Ad Set →
 // Ad Creative → Ad are all created paused; nothing spends until the user goes live
 // through /api/campaign/meta-campaign. If any step fails, what was created is deleted.
 import {
   graph, graphUpload, getUid, requireConnection, readBody, sendError, needs, adAccountFor, findInstagramPost,
-  listInstagramAccounts,
+  listInstagramAccounts, isManaged, preludeAccount, saveManagedCampaign, MANAGED_ACCOUNT_NAME,
 } from '../lib/meta.js';
 import { adImageId, getAdImage } from '../lib/ad-images.js';
+import { prepayEnabled } from '../lib/stripe.js';
 import { adVideoId, getAdVideo, getAdVideoInfo, setMetaVideoId } from '../lib/ad-videos.js';
 
 // Server-side ceiling per campaign (account currency, major units)
@@ -195,6 +199,7 @@ export default async function handler(req, res) {
 
   const created = {};
   let conn;
+  let token; // the token that owns the ad account (the user's, or Prelude's when managed)
   try {
     const uid = await getUid(req);
     conn = await requireConnection(uid);
@@ -209,23 +214,35 @@ export default async function handler(req, res) {
     const endDate = directive.schedule?.endDate;
     if (!daily && !endDate) throw bad('A lifetime budget needs an end date.');
 
-    const token = conn.token;
+    // 1. The Instagram account it runs as (+ the post for a boost), seen through the user's token
+    const { account, mediaId } = await resolveIdentity(conn.token, directive, uid);
 
-    // 1. The Instagram account it runs as (+ the post for a boost)
-    const { account, mediaId } = await resolveIdentity(token, directive, uid);
-
-    // 2. The ad account assigned to that Instagram account
-    const act = adAccountFor(conn.selection, account.igUserId);
+    // 2. The ad account assigned to that Instagram account (or Prelude's, when managed)
+    const managed = isManaged(conn.selection, account.igUserId);
+    let act;
+    if (managed) {
+      if (isBoost) {
+        throw needs('managed_boost', `Prelude's ad account runs new posts only. Create a new post for @${account.username}, or assign their own ad account to boost.`);
+      }
+      if (prepayEnabled() && daily && !endDate) {
+        throw bad('Add an end date: ads in Prelude\'s ad account are paid up front, so the total budget has to be known.');
+      }
+      ({ act, token } = preludeAccount());
+    } else {
+      act = adAccountFor(conn.selection, account.igUserId);
+      token = conn.token;
+    }
     if (!act) {
-      throw needs('no_ad_account', `Choose which ad account @${account.username}'s ads run in (Ad Accounts).`, { igUsername: account.username });
+      throw needs('no_ad_account', `Choose which ad account @${account.username}'s ads run in, or let Prelude run them (Ad Accounts).`, { igUsername: account.username });
     }
 
     if (check) {
       return res.status(200).json({
         ready: true,
+        managed,
         igUsername: account.username,
         adAccountId: act,
-        adAccountName: conn.selection.accountMap[account.igUserId].adAccountName || null,
+        adAccountName: managed ? MANAGED_ACCOUNT_NAME : conn.selection.accountMap[account.igUserId].adAccountName || null,
       });
     }
     const igUserId = account.igUserId;
@@ -318,7 +335,17 @@ export default async function handler(req, res) {
       status: 'PAUSED',
     });
 
+    if (managed) {
+      await saveManagedCampaign({
+        campaignId: campaign.id, userId: uid, directiveId: directive.id || null,
+        artistName: directive.artistName || directive.artistSlug || null,
+        igUserId, igUsername: account.username || null,
+        budget: amount, period: daily ? 'daily' : 'lifetime', startDate: startDate || null, endDate,
+      });
+    }
+
     return res.status(200).json({
+      managed,
       platformCampaignId: campaign.id,
       platformAdSetId: adSet.id,
       platformAdId: ad.id,
@@ -328,11 +355,11 @@ export default async function handler(req, res) {
     });
   } catch (err) {
     // Roll back partial work so a failed launch never leaves objects in the ad account.
-    if (conn && created.campaignId) {
-      await graph('DELETE', created.campaignId, conn.token).catch(() => {});
+    if (token && created.campaignId) {
+      await graph('DELETE', created.campaignId, token).catch(() => {});
     }
-    if (conn && created.creativeId) {
-      await graph('DELETE', created.creativeId, conn.token).catch(() => {});
+    if (token && created.creativeId) {
+      await graph('DELETE', created.creativeId, token).catch(() => {});
     }
     return sendError(res, err);
   }

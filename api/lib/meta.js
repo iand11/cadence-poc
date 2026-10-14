@@ -15,6 +15,13 @@
 //   META_GRAPH_VERSION             — optional; defaults to GRAPH_VERSION below
 //   META_GRAPH_URL                 — optional Graph API base override (local mock for testing)
 //   AD_TOKEN_KEY                   — secret used to encrypt stored tokens
+//
+// Prelude-managed ads (artists without their own ad account): new ads run in Prelude's
+// ad account, as the artist's Instagram account, and Meta bills Prelude. Optional:
+//   META_PRELUDE_AD_ACCOUNT_ID     — Prelude's ad account (act_… or the number)
+//   META_PRELUDE_BUSINESS_ID       — the business portfolio that owns it
+//   META_PRELUDE_TOKEN             — a system-user token of that business with ads_management
+//   PRELUDE_ADMIN_UIDS             — comma-separated Prelude user ids who approve go-live
 import crypto from 'node:crypto';
 import { query, queryOne } from './db.js';
 import { verifyAuth } from './auth.js';
@@ -312,6 +319,158 @@ export function sendError(res, err) {
     reconnect: !!err.reconnect,
     meta: err.meta,
   });
+}
+
+// ── Prelude-managed ads ─────────────────────────────────────────────────────
+// accountMap[igUserId] = { managed: true, adAccountName, username } routes that Instagram
+// account's new ads to Prelude's ad account. Managed entries carry no adAccountId, so
+// assignedAdAccounts() never grants a user access to Prelude's account; each managed
+// campaign is tied to the user who launched it in meta_managed_campaigns instead.
+
+export const MANAGED_ACCOUNT_NAME = 'Prelude (managed)';
+
+export function managedConfigured() {
+  return !!(process.env.META_PRELUDE_AD_ACCOUNT_ID && process.env.META_PRELUDE_BUSINESS_ID && process.env.META_PRELUDE_TOKEN);
+}
+
+/** Prelude's own ad account and token, or a 409 when managed ads aren't set up. */
+export function preludeAccount() {
+  if (!managedConfigured()) {
+    throw needs('managed_not_configured', 'Prelude-managed ads are not set up on the server yet.');
+  }
+  return {
+    act: actId(process.env.META_PRELUDE_AD_ACCOUNT_ID),
+    businessId: process.env.META_PRELUDE_BUSINESS_ID,
+    token: process.env.META_PRELUDE_TOKEN,
+  };
+}
+
+export const isManaged = (selection, igUserId) => !!selection?.accountMap?.[igUserId]?.managed;
+
+export function isAdmin(uid) {
+  const ids = String(process.env.PRELUDE_ADMIN_UIDS || '').split(',').map(s => s.trim()).filter(Boolean);
+  return !!uid && uid !== 'anonymous' && ids.includes(uid);
+}
+
+/**
+ * Let Prelude advertise as an artist's Instagram account, using the artist's own token:
+ * Prelude's business becomes an agency on their Page, and Prelude's ad account is
+ * authorized to use their Instagram account. Prelude's system user is then given the
+ * Page in Prelude's business. Throws a 409 with the manual steps if Meta refuses.
+ */
+export async function grantPreludeAccess(userToken, ig) {
+  const { act, businessId, token } = preludeAccount();
+  try {
+    await graph('POST', `${ig.pageId}/agencies`, userToken, { business: businessId, permitted_tasks: ['ADVERTISE', 'ANALYZE'] });
+    await graph('POST', `${ig.igUserId}/authorized_adaccounts`, userToken, { business: businessId, account_id: act.replace(/^act_/, '') });
+  } catch (err) {
+    throw needs('managed_access', `Meta didn't let Prelude advertise as @${ig.username} (${err.message}). In Meta Business Suite, open Settings → Partners, add Prelude's business ID ${businessId} as a partner, and give it access to the ${ig.pageName} Page and @${ig.username}. Then choose Prelude's ad account again.`);
+  }
+  // Prelude's side: its system user needs the Page assigned to build ads with it.
+  const me = await graph('GET', 'me', token, { fields: 'id' }).catch(() => null);
+  if (me?.id) {
+    await graph('POST', `${ig.pageId}/assigned_users`, token, { user: me.id, tasks: ['ADVERTISE', 'ANALYZE'], business: businessId })
+      .catch(err => console.warn('[meta] assigning page to Prelude system user failed', err.message));
+  }
+}
+
+/** Undo grantPreludeAccess when the artist stops managed ads. Best effort: Meta may already have removed it. */
+export async function revokePreludeAccess(userToken, ig) {
+  if (!managedConfigured()) return;
+  const { act, businessId } = preludeAccount();
+  await graph('DELETE', `${ig.igUserId}/authorized_adaccounts`, userToken, { business: businessId, account_id: act.replace(/^act_/, '') })
+    .catch(err => console.warn('[meta] removing Prelude ad account from Instagram failed', err.message));
+  await graph('DELETE', `${ig.pageId}/agencies`, userToken, { business: businessId })
+    .catch(err => console.warn('[meta] removing Prelude agency from Page failed', err.message));
+}
+
+// Created lazily too (mirrors db/schema.sql).
+let managedReady;
+function ensureManagedTable() {
+  if (!managedReady) {
+    managedReady = query(`
+      CREATE TABLE IF NOT EXISTS meta_managed_campaigns (
+        campaign_id   text PRIMARY KEY,
+        user_id       text NOT NULL,
+        directive_id  text,
+        artist_name   text,
+        ig_user_id    text NOT NULL,
+        ig_username   text,
+        budget        numeric NOT NULL,
+        budget_period text NOT NULL,
+        start_date    date,
+        end_date      date,
+        review_status text NOT NULL DEFAULT 'draft',
+        stripe_session_id text,
+        paid_cents    integer,
+        paid_at       timestamptz,
+        requested_at  timestamptz,
+        reviewed_by   text,
+        reviewed_at   timestamptz,
+        created_at    timestamptz NOT NULL DEFAULT now()
+      )
+    `).catch((err) => { managedReady = undefined; throw err; });
+  }
+  return managedReady;
+}
+
+export async function saveManagedCampaign(row) {
+  await ensureManagedTable();
+  await query(
+    `INSERT INTO meta_managed_campaigns
+       (campaign_id, user_id, directive_id, artist_name, ig_user_id, ig_username, budget, budget_period, start_date, end_date)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+    [row.campaignId, row.userId, row.directiveId, row.artistName, row.igUserId, row.igUsername, row.budget, row.period, row.startDate || null, row.endDate || null]
+  );
+}
+
+export async function getManagedCampaign(campaignId) {
+  await ensureManagedTable();
+  return queryOne(`SELECT * FROM meta_managed_campaigns WHERE campaign_id = $1`, [String(campaignId)]);
+}
+
+/** review_status: draft → requested (admin review) or payment (Stripe checkout open) → approved | declined. */
+export async function setManagedReview(campaignId, reviewStatus, reviewer = null) {
+  await query(
+    `UPDATE meta_managed_campaigns SET review_status = $2,
+       requested_at = CASE WHEN $2 = 'requested' THEN now() ELSE requested_at END,
+       reviewed_by = CASE WHEN $2 IN ('approved', 'declined') THEN $3 ELSE reviewed_by END,
+       reviewed_at = CASE WHEN $2 IN ('approved', 'declined') THEN now() ELSE reviewed_at END
+     WHERE campaign_id = $1`,
+    [String(campaignId), reviewStatus, reviewer]
+  );
+}
+
+export async function setManagedCheckout(campaignId, sessionId) {
+  await query(`UPDATE meta_managed_campaigns SET stripe_session_id = $2, review_status = 'payment' WHERE campaign_id = $1`, [String(campaignId), sessionId]);
+}
+
+/** Record the payment once; true only for the call that recorded it (so one caller goes live). */
+export async function markManagedPaid(campaignId, sessionId, cents) {
+  const rows = await query(
+    `UPDATE meta_managed_campaigns SET paid_at = now(), paid_cents = $3, stripe_session_id = $2,
+       review_status = 'approved', reviewed_by = 'stripe', reviewed_at = now()
+     WHERE campaign_id = $1 AND paid_at IS NULL RETURNING campaign_id`,
+    [String(campaignId), sessionId, cents]
+  );
+  return rows.length > 0;
+}
+
+/** Turn on a paused campaign: its ad sets and ads were created paused too, and all three must be active. */
+export async function activateCampaign(id, token) {
+  const [adSets, ads] = await Promise.all([
+    graphList(`${id}/adsets`, token, { fields: 'id' }),
+    graphList(`${id}/ads`, token, { fields: 'id' }),
+  ]);
+  for (const obj of [...adSets, ...ads]) {
+    await graph('POST', obj.id, token, { status: 'ACTIVE' });
+  }
+  await graph('POST', id, token, { status: 'ACTIVE' });
+}
+
+export async function listManagedReviews() {
+  await ensureManagedTable();
+  return query(`SELECT * FROM meta_managed_campaigns WHERE review_status = 'requested' ORDER BY requested_at`);
 }
 
 /** `act_123` form, from either `123` or `act_123`. */

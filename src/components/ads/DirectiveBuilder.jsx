@@ -117,6 +117,19 @@ export function MetaRunAsPicker({ value, onChange, onOpenAccounts }) {
           ))}
         </select>
       )}
+      {value && accounts && !accountMap[value] && (
+        <p className="text-[10px] text-[#D4A574] mt-1">
+          This account has no ad account.{' '}
+          {onOpenAccounts && (
+            <button
+              onClick={() => onOpenAccounts('Choose an ad account for this Instagram account, or let Prelude run its ads.')}
+              className="text-[#DA7756] hover:underline cursor-pointer"
+            >
+              Choose one or let Prelude run its ads
+            </button>
+          )}
+        </p>
+      )}
     </div>
   );
 }
