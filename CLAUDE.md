@@ -101,6 +101,12 @@ results (facets, artist totals, slug → id). Playlist endpoints resolve slugs t
 (`api/lib/artist-ids.js`) and filter with `e.artist_ids && $ids` so the GIN index in
 `db/schema.sql` is used — never join `artists ON a.id = ANY(e.artist_ids)` to scope by
 artist (it unnests every entry row). `/api/playlists/placements?limit=0` returns only the summary.
+Scale (Oct 2026): ~590k artists, ~1.1M playlists, ~9M playlist entries; the stats table is ~3 GB, so
+anything that sorts or aggregates the whole catalog per request is too slow. List endpoints walk
+indexes for the page and count separately (cached); `/api/artists/facets` reads the stored
+`catalog_facets` row (refreshed by cron `/api/cron/refresh-facets` / `npm run db:refresh-facets`);
+"similar playlists" is a separate time-boxed request (`/api/playlists/:id?part=similar`).
+`npm run db:diagnose [-- --apply-indexes]` checks indexes and times every handler against the DB.
 
 ### Data Modules (`src/data/`)
 

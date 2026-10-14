@@ -66,6 +66,7 @@ CREATE INDEX IF NOT EXISTS artists_genre_idx      ON artists (primary_genre);
 CREATE INDEX IF NOT EXISTS artists_country_idx    ON artists (country);
 CREATE INDEX IF NOT EXISTS artists_stage_idx      ON artists (career_stage);
 CREATE INDEX IF NOT EXISTS artists_name_page_idx  ON artists (name, id);
+CREATE INDEX IF NOT EXISTS artists_label_idx      ON artists (record_label);
 
 -- ---------------------------------------------------------------------------
 -- Latest metrics per artist (volatile — refreshed frequently)
@@ -628,9 +629,30 @@ BEGIN
   IF to_regclass('public.playlists') IS NOT NULL THEN
     CREATE INDEX IF NOT EXISTS playlists_active_followers_idx
       ON playlists (followers DESC NULLS LAST) WHERE active;
+    -- Catalog-wide list: other sorts, name search, and filtered counts.
+    CREATE INDEX IF NOT EXISTS playlists_active_changed_idx
+      ON playlists (last_changed_at DESC NULLS LAST) WHERE active;
+    CREATE INDEX IF NOT EXISTS playlists_active_name_idx
+      ON playlists (name) WHERE active;
+    CREATE INDEX IF NOT EXISTS playlists_name_trgm_idx
+      ON playlists USING gin (name gin_trgm_ops);
+    CREATE INDEX IF NOT EXISTS playlists_active_platform_type_idx
+      ON playlists (platform, type) WHERE active;
   END IF;
   IF to_regclass('public.playlist_snapshots') IS NOT NULL THEN
     CREATE INDEX IF NOT EXISTS playlist_snapshots_playlist_day_idx
       ON playlist_snapshots (playlist_id, captured_on);
   END IF;
 END $$;
+
+-- ---------------------------------------------------------------------------
+-- Precomputed catalog facets (GET /api/artists/facets). Counting genres /
+-- countries / labels and summing listeners reads the whole catalog, far too
+-- slow per request at 500k+ artists; refreshed by the daily cron
+-- /api/cron/refresh-facets (and `npm run db:refresh-facets`).
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS catalog_facets (
+  key          text PRIMARY KEY,
+  data         jsonb NOT NULL,
+  refreshed_at timestamptz NOT NULL DEFAULT now()
+);

@@ -6,7 +6,7 @@ import CollapsibleSection from '../components/profile/CollapsibleSection';
 import ChartCard from '../components/shared/ChartCard';
 import KpiCard from '../components/shared/KpiCard';
 import { PlatformBadge, TypeBadge, FollowerHistoryChart } from '../components/playlists/PlaylistBits';
-import { fetchPlaylist, fmtDate } from '../data/playlistsRemote';
+import { fetchPlaylist, fetchSimilarPlaylists, fmtDate } from '../data/playlistsRemote';
 import { useAsync } from '../hooks/useAsync';
 import { useFollowedArtists } from '../hooks/useFollowedArtists';
 import { formatNumber } from '../utils/formatters';
@@ -52,6 +52,7 @@ export default function PlaylistProfile() {
   const { followedArtists } = useFollowedArtists();
   const slugs = useMemo(() => followedArtists.map((a) => a.slug), [followedArtists]);
   const { data: profile, loading } = useAsync(() => fetchPlaylist(id, { slugs }), [id, slugs.join(',')]);
+  const { data: similar = [] } = useAsync(() => fetchSimilarPlaylists(id), [id]);
   const [rosterOnly, setRosterOnly] = useState(false);
 
   if (loading && !profile) {
@@ -169,11 +170,11 @@ export default function PlaylistProfile() {
         </div>
       </CollapsibleSection>
 
-      {profile.similar.length > 0 && (
+      {similar.length > 0 && (
         <CollapsibleSection title="Similar Playlists" icon={Disc3}>
           <ChartCard title="Playlists sharing the most artists">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-2">
-              {profile.similar.map((pl) => (
+              {similar.map((pl) => (
                 <Link key={pl.id} to={`/app/playlist/${pl.id}`}
                   className="group block p-3 rounded border border-[#2C2B28] hover:border-[#DA7756]/30 transition-colors">
                   <div className="flex items-center gap-2 mb-2">

@@ -25,10 +25,17 @@
     {
       "path": "/api/cron/spotify-plays",
       "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/refresh-facets",
+      "schedule": "30 6 * * *"
     }
   ],
   "functions": {
     "api/campaign/meta-launch.js": {
+      "maxDuration": 60
+    },
+    "api/cron/refresh-facets.js": {
       "maxDuration": 60
     }
   }

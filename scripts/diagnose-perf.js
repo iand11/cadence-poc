@@ -4,7 +4,8 @@
 //   npm run db:diagnose                     report only (read-only)
 //   npm run db:diagnose -- --apply-indexes  also build any missing artist /
 //                                           playlist indexes with CREATE INDEX CONCURRENTLY
-//                                           (does not block crawler writes)
+//                                           (does not block crawler writes) and
+//                                           refresh the stored artist facets
 //
 // Reports table sizes, which of the indexes the API depends on exist (and
 // whether any are left invalid by an interrupted build), queries currently
@@ -22,12 +23,17 @@ const INDEXES = [
   ['artist_stats_current', 'stats_current_followers_page_idx', '(sp_followers DESC, artist_id ASC) WHERE sp_followers IS NOT NULL'],
   ['artist_stats_current', 'stats_current_score_page_idx', '(score DESC, artist_id ASC) WHERE score IS NOT NULL'],
   ['artists', 'artists_name_page_idx', '(name, id)'],
+  ['artists', 'artists_label_idx', '(record_label)'],
   ['playlist_entries', 'playlist_entries_artist_ids_idx', 'USING gin (artist_ids)'],
   ['playlist_entries', 'playlist_entries_current_idx', '(playlist_id, position) WHERE removed_at IS NULL'],
   ['playlist_entries', 'playlist_entries_first_seen_idx', '(playlist_id, first_seen_at)'],
   ['playlist_entries', 'playlist_entries_removed_idx', '(playlist_id, removed_at) WHERE removed_at IS NOT NULL'],
   ['playlist_entries', 'playlist_entries_track_idx', '(track_id)'],
   ['playlists', 'playlists_active_followers_idx', '(followers DESC NULLS LAST) WHERE active'],
+  ['playlists', 'playlists_active_changed_idx', '(last_changed_at DESC NULLS LAST) WHERE active'],
+  ['playlists', 'playlists_active_name_idx', '(name) WHERE active'],
+  ['playlists', 'playlists_name_trgm_idx', 'USING gin (name gin_trgm_ops)'],
+  ['playlists', 'playlists_active_platform_type_idx', '(platform, type) WHERE active'],
   ['playlist_snapshots', 'playlist_snapshots_playlist_day_idx', '(playlist_id, captured_on)'],
 ];
 const TABLES = ['artists', 'artist_stats_current', 'playlists', 'playlist_entries', 'playlist_snapshots', 'tracked_artists'];
@@ -77,6 +83,22 @@ try {
     console.log('\n  → re-run with --apply-indexes to build the missing indexes without blocking writes');
   }
 
+  // Stored facets (catalog_facets) — the artists page reads these.
+  if (APPLY) {
+    await q(`CREATE TABLE IF NOT EXISTS catalog_facets (
+               key text PRIMARY KEY, data jsonb NOT NULL, refreshed_at timestamptz NOT NULL DEFAULT now())`);
+  }
+  const [facets] = (await q(`SELECT to_regclass('catalog_facets') IS NOT NULL AS ok`))[0].ok
+    ? await q(`SELECT refreshed_at FROM catalog_facets WHERE key = 'artists'`)
+    : [];
+  console.log(`\n== Stored facets ==\n  ${facets ? `refreshed ${facets.refreshed_at.toISOString()}` : 'MISSING'}`);
+  if (APPLY) {
+    const { refreshFacets } = await import('../api/lib/facets.js');
+    const t = Date.now();
+    await refreshFacets();
+    console.log(`  refreshed now in ${((Date.now() - t) / 1000).toFixed(1)}s`);
+  }
+
   // Largest followed-artist set, the worst case a user sees.
   const [roster] = await q(
     `SELECT t.user_id, array_agg(a.slug) AS slugs FROM tracked_artists t JOIN artists a ON a.id = t.artist_id
@@ -94,7 +116,9 @@ try {
     ['playlists (followed)', 'playlists/index.js', `/api/playlists?slugs=${slugs}&sort=roster&page=1&perPage=25`],
     ['placements summary', 'playlists/placements.js', `/api/playlists/placements?slugs=${slugs}&limit=0`],
     ['placements one artist', 'playlists/placements.js', `/api/playlists/placements?slugs=${one}&limit=200`],
+    ['playlists (all, search)', 'playlists/index.js', '/api/playlists?q=summer&sort=followers&page=1&perPage=25'],
     ['playlist detail', 'playlists/[id].js', `/api/playlists/${pl?.id}?slugs=${slugs}`],
+    ['playlist similar', 'playlists/[id].js', `/api/playlists/${pl?.id}?part=similar`],
   ];
   for (const [name, file, url] of cases) {
     if (url.includes('slugs=&') || url.endsWith('slugs=') || url.includes('undefined')) { console.log(`  ${name.padEnd(24)} skipped (no data)`); continue; }

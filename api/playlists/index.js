@@ -15,6 +15,7 @@
 import { query } from '../lib/db.js';
 import { PLAYLIST_COLUMNS, playlistRowToUI, intParam, list } from '../lib/playlist-shape.js';
 import { artistIdArrayType, artistIdsForSlugs } from '../lib/artist-ids.js';
+import { cached } from '../lib/cache.js';
 
 const SORTS = {
   followers: 'followers DESC NULLS LAST, name',
@@ -42,7 +43,8 @@ export default async function handler(req, res) {
   const slugs = list(p, 'slugs');
   const perPage = intParam(p.get('perPage'), 50, 1, 200);
   const page = intParam(p.get('page'), 1, 1, 100000);
-  const sort = SORTS[p.get('sort')] || (slugs.length ? SORTS.roster : SORTS.followers);
+  const sort = (!slugs.length && p.get('sort') === 'roster' ? null : SORTS[p.get('sort')])
+    || (slugs.length ? SORTS.roster : SORTS.followers);
 
   try {
     let base;
@@ -64,10 +66,24 @@ export default async function handler(req, res) {
         FROM playlists p JOIN r ON r.playlist_id = p.id
         WHERE ${where.join(' AND ')}`;
     } else {
-      base = `SELECT ${PLAYLIST_COLUMNS} FROM playlists p WHERE ${where.join(' AND ')}`;
+      // Catalog-wide (1M+ playlists): read just this page in index order and
+      // count separately, cached — a window count would scan and sort every
+      // active playlist on each request.
+      const whereSql = where.join(' AND ');
+      const [rows, count] = await Promise.all([
+        query(
+          `SELECT ${PLAYLIST_COLUMNS} FROM playlists p WHERE ${whereSql}
+           ORDER BY ${sort.replace(/\b(followers|name|last_changed_at)\b/g, 'p.$1')}
+           LIMIT ${perPage} OFFSET ${(page - 1) * perPage}`,
+          params
+        ),
+        cached(`playlists:count:${whereSql}:${JSON.stringify(params)}`, 10 * 60_000,
+          () => query(`SELECT count(*)::int AS n FROM playlists p WHERE ${whereSql}`, params)),
+      ]);
+      return send(res, { playlists: rows.map(playlistRowToUI), total: count[0].n, page, perPage });
     }
-    // One pass returns the page and the total; only an out-of-range page
-    // (no rows to carry the total) needs a separate count.
+    // Roster scope is small: one pass returns the page and the total; only an
+    // out-of-range page (no rows to carry the total) needs a separate count.
     const rows = await query(
       `SELECT x.*, count(*) OVER ()::int AS total_count FROM (${base}) x
        ORDER BY ${sort} LIMIT ${perPage} OFFSET ${(page - 1) * perPage}`,

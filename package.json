@@ -13,6 +13,7 @@
     "db:refresh-stats": "node scripts/refresh-stats.js",
     "db:worker": "node scripts/process-refresh-queue.js",
     "db:diagnose": "node scripts/diagnose-perf.js",
+    "db:refresh-facets": "node scripts/refresh-facets.js",
     "spotify:sync": "node scripts/sync-spotify-plays.js",
     "lint": "eslint .",
     "preview": "vite preview"
