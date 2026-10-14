@@ -7,13 +7,14 @@
 //   POST { action: 'start' } → { url } of the Meta login dialog
 //   POST { action: 'assign', igUserId, adAccountId } → set which ad account that
 //                            Instagram account's boosts run in (adAccountId null = unassign;
-//                            'prelude' = Prelude-managed: new ads run in Prelude's ad account
-//                            and Prelude is granted access to advertise as that account)
+//                            'prelude' + consent: true = Prelude-managed: new ads run in Prelude's
+//                            ad account and Prelude is granted access to advertise as that account;
+//                            unassigning a managed account withdraws that access)
 //   DELETE                   → forget the connection
 import {
   metaConfigured, signState, verifyState, graph, graphList, getUid, loadConnection,
   saveConnection, saveSelection, deleteConnection, readBody, sendError, actId, GRAPH_VERSION,
-  listInstagramAccounts, managedConfigured, grantPreludeAccess, isAdmin, MANAGED_ACCOUNT_NAME,
+  listInstagramAccounts, managedConfigured, grantPreludeAccess, revokePreludeAccess, isAdmin, MANAGED_ACCOUNT_NAME,
 } from '../lib/meta.js';
 import { prepayEnabled } from '../lib/stripe.js';
 
@@ -156,10 +157,14 @@ export default async function handler(req, res) {
         if (!ig) return res.status(400).json({ error: 'That Instagram account is not shared with Prelude.' });
 
         const accountMap = { ...(conn.selection.accountMap || {}) };
+        const wasManaged = !!accountMap[ig.igUserId]?.managed;
         if (body.adAccountId === 'prelude') {
           if (!managedConfigured()) return res.status(400).json({ error: 'Prelude-managed ads are not set up on the server yet.' });
+          if (body.consent !== true) return res.status(400).json({ error: 'Confirm that Prelude may run ads for this account.' });
           await grantPreludeAccess(conn.token, ig);
-          accountMap[ig.igUserId] = { managed: true, adAccountName: MANAGED_ACCOUNT_NAME, username: ig.username };
+          accountMap[ig.igUserId] = {
+            managed: true, adAccountName: MANAGED_ACCOUNT_NAME, username: ig.username, grantedAt: new Date().toISOString(),
+          };
         } else if (body.adAccountId) {
           const account = adAccounts.find(a => a.id === actId(body.adAccountId));
           if (!account) return res.status(400).json({ error: 'That ad account is not available to this connection.' });
@@ -168,6 +173,8 @@ export default async function handler(req, res) {
         } else {
           delete accountMap[ig.igUserId];
         }
+        // Stopping Prelude-managed ads also withdraws Prelude's access on Meta
+        if (wasManaged && !accountMap[ig.igUserId]?.managed) await revokePreludeAccess(conn.token, ig);
         const selection = { ...conn.selection, accountMap };
         await saveSelection(uid, selection);
         return res.status(200).json({ ok: true, selection });

@@ -374,6 +374,16 @@ export async function grantPreludeAccess(userToken, ig) {
   }
 }
 
+/** Undo grantPreludeAccess when the artist stops managed ads. Best effort: Meta may already have removed it. */
+export async function revokePreludeAccess(userToken, ig) {
+  if (!managedConfigured()) return;
+  const { act, businessId } = preludeAccount();
+  await graph('DELETE', `${ig.igUserId}/authorized_adaccounts`, userToken, { business: businessId, account_id: act.replace(/^act_/, '') })
+    .catch(err => console.warn('[meta] removing Prelude ad account from Instagram failed', err.message));
+  await graph('DELETE', `${ig.pageId}/agencies`, userToken, { business: businessId })
+    .catch(err => console.warn('[meta] removing Prelude agency from Page failed', err.message));
+}
+
 // Created lazily too (mirrors db/schema.sql).
 let managedReady;
 function ensureManagedTable() {

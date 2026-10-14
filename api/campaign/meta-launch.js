@@ -233,7 +233,7 @@ export default async function handler(req, res) {
       token = conn.token;
     }
     if (!act) {
-      throw needs('no_ad_account', `Choose which ad account @${account.username}'s ads run in (Ad Accounts).`, { igUsername: account.username });
+      throw needs('no_ad_account', `Choose which ad account @${account.username}'s ads run in, or let Prelude run them (Ad Accounts).`, { igUsername: account.username });
     }
 
     if (check) {

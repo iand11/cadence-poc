@@ -30,14 +30,16 @@ export async function startMetaConnect() {
   window.location.assign(url);
 }
 
-/**
- * Set the ad account an Instagram account's boosts run in (null to unassign).
- * `PRELUDE_AD_ACCOUNT` runs its new ads in Prelude's ad account (managed, for artists without one).
- */
-export const PRELUDE_AD_ACCOUNT = 'prelude';
-
+/** Set the ad account an Instagram account's boosts run in (null to unassign, which also stops Prelude-managed ads). */
 export const assignMetaAdAccount = (igUserId, adAccountId) =>
   request('/api/connect/meta', { method: 'POST', body: { action: 'assign', igUserId, adAccountId } });
+
+/**
+ * The artist allows Prelude to run their new ads from Prelude's ad account (they have none).
+ * Shares their Page and Instagram account with Prelude's business on Meta.
+ */
+export const allowPreludeAds = (igUserId) =>
+  request('/api/connect/meta', { method: 'POST', body: { action: 'assign', igUserId, adAccountId: 'prelude', consent: true } });
 
 export const disconnectMeta = () => request('/api/connect/meta', { method: 'DELETE' });
 
