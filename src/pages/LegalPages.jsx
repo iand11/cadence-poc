@@ -3,7 +3,7 @@ import { Link } from 'react-router';
 // Public policy pages (no password gate, no login). Meta requires a privacy policy
 // URL and a data deletion URL before the app can go Live.
 export const CONTACT_EMAIL = 'privacy@preludemusic.ai';
-const UPDATED = 'October 14, 2026';
+const UPDATED = 'October 15, 2026';
 
 function Shell({ title, children }) {
   return (
@@ -86,6 +86,21 @@ export function PrivacyPolicy() {
           <li>To provide Prelude's features, measure campaigns and keep the service secure.</li>
           <li>With service providers that run Prelude for us (hosting, database, authentication, payments) and with Meta and Spotify as described above.</li>
           <li>We do not sell personal data.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>Requests from public authorities</h2>
+        <p>
+          If a government, law enforcement or other public authority asks us for personal data, including data we receive from
+          Meta or Spotify:
+        </p>
+        <ul>
+          <li>Every request is reviewed by legal counsel before we respond, and we verify the authority and its legal basis.</li>
+          <li>We challenge or ask to narrow requests that are unlawful, outside the authority's jurisdiction, or overbroad.</li>
+          <li>When disclosure is legally required, we disclose only the minimum data the request requires.</li>
+          <li>We notify affected users first unless the law prohibits it.</li>
+          <li>We keep a record of every request, our legal reasoning, who handled it and what was disclosed.</li>
         </ul>
       </section>
 
