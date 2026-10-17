@@ -80,7 +80,8 @@ Campaign → Ad Set → Ad in that ad account: a boost (`creative.postId`, post 
 permalink shortcode) or a new image ad (`creative.igUserId` "Run as" account + `creative.images`,
 uploaded in the builder via `AdImagesField` → `/api/ad-images` (Postgres `ad_images`), 2–10 make a carousel in that order, + `trackUrl` destination and CTA). `check: true` validates
 without creating anything and gates "Submit for Approval". `api/campaign/meta-campaign.js` reads status/insights and goes live or
-pauses. The client side is `src/data/metaAds.js`, `useMetaConnection`, `AccountConnector`
+pauses; its GET report (totals, video, daily series, age/gender/country/placement breakdowns, ad rankings,
+budget, rejections) is built in `api/lib/meta-insights.js` and shown by `MetaCampaignInsights`. The client side is `src/data/metaAds.js`, `useMetaConnection`, `AccountConnector`
 and `MetaCampaignPanel`. Smart links (Links page `/app/links`, `LinksPage` → `SmartLinksPanel`): public
 landing page `/l/:slug` (`api/l.js`) with a button per streaming service, tracked redirect
 `/go/:slug/:service` (`api/go.js`), API `api/links/index.js`, helpers `api/lib/smartlinks.js`,

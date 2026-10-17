@@ -5,6 +5,7 @@ import { formatNumber, formatDollar } from '../../utils/formatters';
 import { useAsync } from '../../hooks/useAsync';
 import { fetchCampaignLinkStats } from '../../data/smartLinks';
 import { ServiceBars, ListeningStats } from './SmartLinksPanel';
+import MetaCampaignInsights from './MetaCampaignInsights';
 
 const usesSmartLink = (directive) => /\/l\/[\w-]+\/?(\?|$)/.test(directive.creative?.trackUrl || '');
 
@@ -186,15 +187,7 @@ export default function MetaCampaignPanel({ directive, updateDirective }) {
         </div>
       )}
 
-      {ins && (
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-          <Stat label="Spend" value={formatDollar(ins.spend)} />
-          <Stat label="Impressions" value={formatNumber(ins.impressions)} />
-          <Stat label="Reach" value={formatNumber(ins.reach)} />
-          <Stat label="Clicks" value={formatNumber(ins.clicks)} />
-          <Stat label="Engagements" value={formatNumber(ins.engagements)} />
-        </div>
-      )}
+      {live && <MetaCampaignInsights live={live} />}
       {usesSmartLink(directive) && <StreamingClicks directive={directive} spend={Number(ins?.spend) || 0} version={linkVersion} />}
       {live && !ins && (
         <p className="text-[10px] text-[#6B6560]">No delivery yet. Numbers appear here once Meta starts serving the ad.</p>
