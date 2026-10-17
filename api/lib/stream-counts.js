@@ -9,24 +9,27 @@
 //     and Prelude must not derive new metrics (such as views gained) from them. Both are
 //     allowed for developers that pass YouTube's analytics audit; set
 //     YOUTUBE_ANALYTICS_APPROVED=1 once approved. Scraping YouTube is banned (III.E.6).
-//   - Spotify: plays per track are public in the app, but no API returns them and the
-//     Spotify User Guidelines ban scraping. Counts are entered by hand (from the app or
-//     Spotify for Artists) until a source is chosen; a fetcher can be added to FETCHERS.
+//   - Spotify: plays per track are public in the app and web player, but no API returns
+//     them and the Spotify User Guidelines ban automated collection. Ian chose to read
+//     them from the public page anyway (api/lib/spotify-playcount.js, no Spotify
+//     credentials); SPOTIFY_PLAYCOUNT_SCRAPE=0 turns that off. A count can always be
+//     entered by hand, to fill a day the page read failed.
 //   - Apple Music, Deezer, Amazon Music, TIDAL, Pandora: no public count, not tracked.
 //   - SoundCloud: public counts, but its API needs an approved app and its terms ban
 //     scraping; not tracked.
 import { query, queryOne } from './db.js';
 import { parseSourceUrl, norm } from './link-lookup.js';
+import { spotifyPlaycount, spotifyScrapeEnabled } from './spotify-playcount.js';
 
 const YOUTUBE_API = process.env.YOUTUBE_API_URL || 'https://www.googleapis.com/youtube/v3';
 export const YOUTUBE_RETENTION_DAYS = 30;
 export const youtubeApproved = () => process.env.YOUTUBE_ANALYTICS_APPROVED === '1';
 export const youtubeConfigured = () => !!process.env.YOUTUBE_API_KEY;
 
-/** Services with a public count. `auto`: Prelude reads it every day; otherwise entered by hand. */
+/** Services with a public count. `auto`: Prelude reads it every day; `manual`: a count can be typed in. */
 export const TRACKED = {
-  spotify: { label: 'Spotify', auto: false, note: 'Spotify has no API for play counts and bans scraping, so enter the count shown in the app or Spotify for Artists.' },
-  youtube: { label: 'YouTube', auto: true, note: 'Views from the YouTube Data API.' },
+  spotify: { label: 'Spotify', get auto() { return spotifyScrapeEnabled(); }, manual: true },
+  youtube: { label: 'YouTube', auto: true, manual: false },
 };
 
 /** Why each other smart-link service isn't tracked. */
@@ -135,8 +138,23 @@ export async function findYouTubeVideo(title, artistName) {
   return official ? `https://www.youtube.com/watch?v=${official.id.videoId}` : null;
 }
 
-// Services Prelude reads by itself. A Spotify source (a data vendor, say) goes here.
+const pause = (ms) => new Promise(r => setTimeout(r, ms));
+
+// Services Prelude reads by itself
 const FETCHERS = {
+  spotify: async (sources) => {
+    if (!spotifyScrapeEnabled()) return {};
+    const out = {};
+    for (const [i, s] of sources.entries()) {
+      if (i) await pause(1000); // one page at a time
+      try {
+        out[s.external_id] = { count: (await spotifyPlaycount({ kind: s.kind, id: s.external_id })).count };
+      } catch (err) {
+        out[s.external_id] = { error: err.message };
+      }
+    }
+    return out;
+  },
   youtube: async (sources) => {
     if (!youtubeConfigured()) return Object.fromEntries(sources.map(s => [s.external_id, { error: 'YOUTUBE_API_KEY is not set.' }]));
     const views = await youtubeViews(sources.map(s => s.external_id));
@@ -160,6 +178,7 @@ export async function snapshotTracker(trackerId) {
       counts = Object.fromEntries(list.map(s => [s.external_id, { error: err.message }]));
     }
     for (const s of list) {
+      if (!TRACKED[service]?.auto) continue;
       const r = counts[s.external_id] || { error: 'No count returned.' };
       if (r.count != null) {
         await query(
@@ -289,7 +308,7 @@ export async function recordCount(trackerId, { service, externalId, day, count }
   const n = Number(String(count ?? '').replace(/[,\s]/g, ''));
   if (!Number.isFinite(n) || n < 0 || !Number.isInteger(n)) throw bad('Enter the count as a whole number.');
   if (d > today()) throw bad("That date hasn't happened yet.");
-  if (TRACKED[service]?.auto) throw bad(`${TRACKED[service].label} is read automatically.`);
+  if (!TRACKED[service]?.manual) throw bad(`${TRACKED[service]?.label || service} counts can't be entered by hand.`);
   const src = await queryOne('SELECT 1 FROM stream_tracker_sources WHERE tracker_id = $1 AND service = $2 AND external_id = $3',
     [trackerId, service, externalId]);
   if (!src) throw bad('Source not found', 404);
@@ -320,7 +339,7 @@ export function summarize(tracker, sources, counts) {
     const showGain = s.service !== 'youtube' || youtubeApproved();
     return {
       service: s.service, externalId: s.external_id, kind: s.kind, url: s.url, label: s.label,
-      auto: !!TRACKED[s.service]?.auto, lastError: s.last_error || null,
+      auto: !!TRACKED[s.service]?.auto, manual: !!TRACKED[s.service]?.manual, lastError: s.last_error || null,
       baseline: baseline ? { ...baseline, afterStart: baseline.day >= start } : null,
       latest,
       gain: showGain && baseline && latest && latest.day !== baseline.day ? latest.count - baseline.count : null,
@@ -338,6 +357,5 @@ export async function trackerReport(tracker) {
     startDate: dayStr(tracker.start_date), endDate: dayStr(tracker.end_date), lastRunAt: tracker.last_run_at,
     sources: summarize(tracker, sources, counts),
     youtube: { configured: youtubeConfigured(), approved: youtubeApproved(), retentionDays: youtubeApproved() ? null : YOUTUBE_RETENTION_DAYS },
-    services: TRACKED,
   };
 }

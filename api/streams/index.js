@@ -2,6 +2,7 @@
 // (api/lib/stream-counts.js says which services have a public count and how each is read).
 //
 //   GET ?id=<tracker id>   → { id, title, startDate, endDate, sources: [{ service, baseline, latest, gain, daily }], youtube, services }
+//   GET ?probe=<Spotify track/album URL> → what the public page contains (checks the play-count reader)
 //   GET ?preview=<link slug> → { tracked: [{ service, url }], skipped: [{ service, reason }] } for a smart link
 //   POST { action: 'create', id, linkSlug?, links?, title?, artistSlug?, artistName?, startDate, endDate }
 //        → starts tracking (takes the first count now); returns the report plus skipped services
@@ -15,6 +16,8 @@ import {
   ensureStreamTables, createTracker, ownedTracker, trackerReport, recordCount,
   snapshotTracker, addSources, sourceFromLink,
 } from '../lib/stream-counts.js';
+import { parseSourceUrl } from '../lib/link-lookup.js';
+import { probeSpotifyPage } from '../lib/spotify-playcount.js';
 
 const bad = (message, status = 400) => Object.assign(new Error(message), { status });
 
@@ -25,6 +28,11 @@ export default async function handler(req, res) {
     const uid = await getUid(req);
 
     if (req.method === 'GET') {
+      if (params.get('probe')) {
+        const src = parseSourceUrl(params.get('probe'));
+        if (src?.service !== 'spotify' || src.kind === 'artist') throw bad('Pass a Spotify track or album link.');
+        return res.status(200).json(await probeSpotifyPage(src));
+      }
       if (params.get('preview')) {
         const link = await queryOne('SELECT links FROM smart_links WHERE slug = $1 AND user_id = $2', [params.get('preview'), uid]);
         if (!link) throw bad('Smart link not found', 404);

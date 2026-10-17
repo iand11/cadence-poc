@@ -11,8 +11,8 @@ import { formatNumber } from '../../utils/formatters';
 import { AXIS_STYLE, GRID_STYLE, TOOLTIP_STYLE } from '../../utils/chartTheme';
 
 // Streams on each streaming service before the campaign and on every day of it.
-// YouTube is read daily from its API; Spotify has no API for play counts (and bans
-// scraping), so its count is typed in from the app or Spotify for Artists.
+// YouTube is read daily from its API, Spotify from its public web player page; a
+// Spotify count can also be typed in when a day's read fails.
 
 const SOURCE_LABELS = {
   spotify: { track: 'Spotify track', album: 'Spotify album' },
@@ -67,7 +67,7 @@ export default function StreamCountsPanel({ directive, updateDirective }) {
             {report ? `${report.title ? `${report.title} · ` : ''}campaign runs ${shortDay(report.startDate)} – ${shortDay(report.endDate)}` : 'Loading…'}
           </p>
         </div>
-        <button onClick={() => run(() => refreshStreamTracker(trackerId)).catch(() => {})} disabled={busy || !report} className={BTN} title="Read YouTube views now (normally once a day)">
+        <button onClick={() => run(() => refreshStreamTracker(trackerId)).catch(() => {})} disabled={busy || !report} className={BTN} title="Read the counts now (normally once a day)">
           {busy ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />}Update
         </button>
       </div>
@@ -112,7 +112,7 @@ function SourceRow({ source: s, startDate, busy, onCount, onRemove }) {
           <a href={s.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[11px] text-[#F5F0E8] hover:text-[#DA7756]">
             {sourceLabel(s)}<ExternalLink size={9} />
           </a>
-          <p className="text-[9px] font-mono text-[#6B6560]">{s.auto ? 'Read daily from the YouTube API' : 'Entered by hand'}</p>
+          <p className="text-[9px] font-mono text-[#6B6560]">{!s.auto ? 'Entered by hand' : s.service === 'youtube' ? 'Read daily from the YouTube API' : 'Read daily from the Spotify page'}</p>
         </div>
         <Figure label={s.baseline?.afterStart ? 'First count' : 'Before'} value={full(s.baseline?.count)} sub={s.baseline ? shortDay(s.baseline.day) : 'none yet'}
           hint={s.baseline?.afterStart ? 'Tracking started after the campaign began, so this is the first count, not a true before.' : 'The last count from before the campaign started.'} />
@@ -132,7 +132,7 @@ function SourceRow({ source: s, startDate, busy, onCount, onRemove }) {
       {s.lastError && (
         <p className="flex items-start gap-1.5 text-[10px] text-[#D4A574] px-3 pb-2"><AlertTriangle size={10} className="mt-0.5 shrink-0" />{s.lastError}</p>
       )}
-      {!s.auto && <CountForm busy={busy} onSave={onCount} />}
+      {s.manual && (!s.auto || s.lastError) && <CountForm busy={busy} onSave={onCount} />}
 
       {open && (
         <div className="border-t border-[#2C2B28] p-3">
@@ -233,7 +233,7 @@ function Notes({ report }) {
   if (!report.youtube.approved) {
     notes.push(`YouTube’s API rules allow keeping view counts for ${report.youtube.retentionDays} days and no calculated figures (like views gained) until Prelude passes YouTube’s analytics audit.`);
   }
-  notes.push('Spotify shows play counts but has no API for them and bans scraping, so enter Spotify counts by hand. Apple Music, Deezer, Amazon Music and TIDAL show no public counts.');
+  notes.push('Spotify counts are read from its public page, which Spotify can change at any time; if a day fails, enter that day’s count by hand. Apple Music, Deezer, Amazon Music and TIDAL show no public counts.');
   return (
     <div className="mt-3 space-y-1">
       {notes.map(n => (

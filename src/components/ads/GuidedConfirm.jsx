@@ -427,7 +427,7 @@ export default function GuidedConfirm({ plan, artist, campaigns, posts, errors, 
 }
 
 // Stream-goal campaigns: which of the release's links get a daily count. The links come
-// from the release's smart link; YouTube is read from its API, Spotify is entered by hand.
+// from the release's smart link; YouTube is read from its API, Spotify from its public page.
 function StreamTrackingSetup({ artist, smartLinks, linkSlug, onLinkSlug, youtubeUrl, onYoutubeUrl }) {
   const links = (smartLinks || []).filter(l => !artist?.slug || l.artistSlug === artist.slug);
   const [preview, setPreview] = useState(null);
@@ -469,7 +469,7 @@ function StreamTrackingSetup({ artist, smartLinks, linkSlug, onLinkSlug, youtube
                 <p key={`${t.service}:${t.externalId}`} className="flex items-center gap-1.5 text-[10px] text-[#9B9590]">
                   <DspIcon service={t.service} size={10} />
                   <span className="text-[#F5F0E8]">{SERVICE_LABELS[t.service]}</span>
-                  {t.service === 'youtube' ? 'views read daily' : 'plays entered by hand (Spotify has no API for them)'}
+                  {t.service === 'youtube' ? 'views read daily' : 'plays read daily'}
                 </p>
               ))}
               {current.skipped.map(s => (

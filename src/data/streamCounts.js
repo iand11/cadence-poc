@@ -1,6 +1,6 @@
 // Stream counts for stream-goal campaigns (/api/streams): a count per streaming service
-// per day, from before the campaign until it ends. YouTube is read automatically;
-// Spotify has no API for play counts, so its count is entered by hand.
+// per day, from before the campaign until it ends. YouTube and Spotify are read daily;
+// a Spotify count can also be entered by hand.
 import { request } from './metaAds';
 
 /** { id, title, startDate, endDate, sources: [{ service, externalId, url, auto, baseline, latest, gain, showGain, daily }], youtube } */
