@@ -1,4 +1,48 @@
-import { PLATFORM_PROFILES } from '../data/campaignMetrics';
+// Platform benchmark ranges (industry averages) used only for pre-launch estimates
+const PLATFORM_PROFILES = {
+  spotify: {
+    cpmRange: [3, 8],
+    ctrRange: [0.8, 2.5],
+    resultType: 'streams',
+    resultLabel: 'Streams',
+    conversionRate: [0.15, 0.40],
+  },
+  meta: {
+    cpmRange: [5, 15],
+    ctrRange: [0.5, 2.0],
+    resultType: 'followers',
+    resultLabel: 'Followers',
+    conversionRate: [0.05, 0.15],
+  },
+  google: {
+    cpmRange: [4, 12],
+    ctrRange: [0.3, 1.5],
+    resultType: 'clicks',
+    resultLabel: 'Clicks',
+    conversionRate: [0.10, 0.30],
+  },
+  youtube: {
+    cpmRange: [3, 10],
+    ctrRange: [0.5, 2.0],
+    resultType: 'views',
+    resultLabel: 'Video Views',
+    conversionRate: [0.10, 0.30],
+  },
+  tiktok: {
+    cpmRange: [2, 6],
+    ctrRange: [1.0, 3.5],
+    resultType: 'followers',
+    resultLabel: 'Followers',
+    conversionRate: [0.08, 0.20],
+  },
+  x: {
+    cpmRange: [6, 18],
+    ctrRange: [0.3, 1.2],
+    resultType: 'followers',
+    resultLabel: 'Followers',
+    conversionRate: [0.03, 0.10],
+  },
+};
 import { PLATFORM_LABELS } from '../data/directives';
 
 /**

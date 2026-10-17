@@ -1,29 +1,19 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, ReferenceLine,
-} from 'recharts';
-import {
-  ArrowLeft, DollarSign, MousePointerClick, TrendingDown, Music,
-  Eye, Users, Headphones, Calendar, Target, MapPin, Megaphone, History,
-  MessageSquare, ChevronDown, CheckCircle, XCircle, Wifi, WifiOff,
+  ArrowLeft, DollarSign, Music, Eye, Users, Calendar, Target, MapPin,
+  Megaphone, History, MessageSquare, ChevronDown,
 } from 'lucide-react';
 import ChatInterface from '../components/ai/ChatInterface';
-import KpiCard from '../components/shared/KpiCard';
-import ChartCard from '../components/shared/ChartCard';
-import OptimizationBanner from '../components/ads/OptimizationBanner';
 import OptimizationRow from '../components/ads/OptimizationRow';
 import MetaCampaignPanel from '../components/ads/MetaCampaignPanel';
 import { useDirectives } from '../hooks/useDirectives';
 import { useOptimizations } from '../hooks/useOptimizations';
-import { generateCampaignMetrics } from '../data/campaignMetrics';
-import { detectOptimizations } from '../utils/campaignOptimizer';
+import { useCampaignReports } from '../hooks/useCampaignReports';
 import { STATUS_CONFIG, PLATFORM_LABELS, OBJECTIVE_LABELS } from '../data/directives';
 import { PLATFORM_COLORS } from '../constants/colors';
-import { CHART_COLORS, AXIS_STYLE, GRID_STYLE, TOOLTIP_STYLE } from '../utils/chartTheme';
-import { formatNumber, formatDate, formatDollar } from '../utils/formatters';
+import { formatNumber, formatDollar } from '../utils/formatters';
 
 const PLATFORM_COLOR_MAP = {
   spotify: PLATFORM_COLORS.spotify,
@@ -34,63 +24,17 @@ const PLATFORM_COLOR_MAP = {
   x: PLATFORM_COLORS.twitter,
 };
 
-const RESULT_ICONS = {
-  streams: Headphones,
-  followers: Users,
-  views: Eye,
-};
-
 export default function CampaignDetail() {
   const { id } = useParams();
   const { directives, updateDirective } = useDirectives();
-  const { applied, dismissedIds, applyOptimization, dismissOptimization } = useOptimizations();
+  const { applied } = useOptimizations();
 
   const directive = useMemo(() => directives.find(d => d.id === id), [directives, id]);
 
-  // Live metrics from API for active campaigns, mock fallback otherwise
-  const [metrics, setMetrics] = useState(null);
-  const [platformStatus, setPlatformStatus] = useState(null);
-  const [metricsSource, setMetricsSource] = useState(null);
-  const [metricsLoading, setMetricsLoading] = useState(false);
-
-  useEffect(() => {
-    if (!directive) { setMetrics(null); return; }
-
-    // Real Meta campaign: MetaCampaignPanel shows live numbers; never simulate them
-    if (directive.platformCampaignId) {
-      setMetrics(null);
-      setMetricsSource('meta');
-      setPlatformStatus(null);
-      return;
-    }
-
-    // For demo: use mock metrics for any campaign with a start date in the past
-    const started = directive.schedule?.startDate && directive.schedule.startDate <= new Date().toISOString().split('T')[0];
-    if (started || ['active', 'executing', 'completed'].includes(directive.status)) {
-      setMetrics(generateCampaignMetrics({ ...directive, status: directive.status === 'draft' ? 'active' : directive.status }));
-      setMetricsSource('simulated');
-      setPlatformStatus({ exists: true, status: 'ENABLED', effectiveStatus: 'ELIGIBLE' });
-      setMetricsLoading(false);
-    } else {
-      setMetrics(generateCampaignMetrics(directive));
-      setMetricsSource(null);
-      setPlatformStatus(null);
-    }
-  }, [directive?.status, directive?.id, directive?.platformCampaignId, id]);
-
-  // Optimizations for this campaign's artist (same-artist cross-platform)
-  const optimizations = useMemo(() => {
-    if (!directive || !['active', 'executing'].includes(directive.status)) return [];
-    const sameArtist = directives.filter(d =>
-      d.artistSlug === directive.artistSlug && ['active', 'executing'].includes(d.status)
-    );
-    if (sameArtist.length < 2) return [];
-    const withMetrics = sameArtist.map(d => ({
-      directive: d,
-      metrics: { totals: generateCampaignMetrics(d)?.totals },
-    }));
-    return detectOptimizations(withMetrics).filter(o => !dismissedIds.has(o.id));
-  }, [directive, directives, dismissedIds]);
+  // Real delivery metrics (Meta reports them); other platforms have none
+  const single = useMemo(() => (directive ? [directive] : []), [directive]);
+  const { metricsById } = useCampaignReports(single);
+  const metrics = directive ? metricsById[directive.id] || null : null;
 
   // Optimization history for this campaign
   const optimizationHistory = useMemo(() => {
@@ -118,12 +62,11 @@ export default function CampaignDetail() {
     if (totals) {
       lines.push('', 'Performance:');
       lines.push(`  Spend: ${formatDollar(totals.spend)} of ${formatDollar(totals.budget)} (${totals.budgetUsedPercent}%)`);
-      lines.push(`  Days: ${totals.daysElapsed} elapsed, ${totals.daysRemaining} remaining of ${totals.daysTotal}`);
+      if (totals.daysTotal) lines.push(`  Days: ${totals.daysElapsed} elapsed, ${totals.daysRemaining} remaining of ${totals.daysTotal}`);
       lines.push(`  Impressions: ${formatNumber(totals.impressions)}`);
-      lines.push(`  Clicks: ${formatNumber(totals.clicks)}`);
       lines.push(`  ${metrics?.resultLabel || 'Results'}: ${formatNumber(totals.results)}`);
-      lines.push(`  Cost per result: $${totals.costPerResult.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
-      lines.push(`  CTR: ${totals.avgCTR}%`);
+      lines.push(`  Cost per link click: $${totals.costPerResult.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+      lines.push(`  Link CTR: ${totals.avgCTR}%`);
     }
     if (directive.audience) {
       const aud = directive.audience;
@@ -150,19 +93,6 @@ export default function CampaignDetail() {
 
   const statusCfg = STATUS_CONFIG[directive.status] || STATUS_CONFIG.draft;
   const platformColor = PLATFORM_COLOR_MAP[directive.platform] || '#9B9590';
-  const ResultIcon = RESULT_ICONS[metrics?.resultType] || Target;
-  const hasData = metrics?.daily?.length > 0;
-
-  // Daily budget target for reference line
-  const dailyBudgetTarget = totals ? totals.budget / totals.daysTotal : 0;
-
-  // Funnel data
-  const funnelData = totals ? [
-    { name: 'Impressions', value: totals.impressions, fill: CHART_COLORS[0] },
-    { name: 'Clicks', value: totals.clicks, fill: CHART_COLORS[2] },
-    { name: metrics?.resultLabel || 'Results', value: totals.results, fill: CHART_COLORS[3] },
-  ] : [];
-
   const chatWelcome = `I'm Prelude. I have full context on this ${PLATFORM_LABELS[directive.platform] || directive.platform} ${OBJECTIVE_LABELS[directive.objective] || directive.objective} campaign for ${directive.artistName || directive.artistSlug}. Ask me anything about performance, optimization, or next steps.`;
 
   const chatSuggestions = [
@@ -224,177 +154,6 @@ export default function CampaignDetail() {
         <MetaCampaignPanel directive={directive} updateDirective={updateDirective} />
       )}
 
-      {/* Budget Pacing Bar */}
-      {hasData && totals && (
-        <div className="bg-[#171614] border border-[#2C2B28] rounded p-4 mb-4">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-mono text-[#9B9590]">Budget Pacing</span>
-            <span className="text-[10px] font-mono text-[#6B6560]">
-              {totals.daysElapsed} of {totals.daysTotal} days · {totals.daysRemaining} remaining
-            </span>
-          </div>
-          <div className="w-full h-2 bg-[#2C2B28] rounded-full overflow-hidden">
-            <div
-              className="h-full rounded-full transition-all duration-500"
-              style={{
-                width: `${Math.min(100, totals.budgetUsedPercent)}%`,
-                backgroundColor: totals.budgetUsedPercent > 90 ? '#C75F4F' : totals.budgetUsedPercent > 70 ? '#D4A574' : '#7BAF73',
-              }}
-            />
-          </div>
-          <div className="flex items-center justify-between mt-1.5">
-            <span className="text-[10px] font-mono text-[#F5F0E8]">
-              {formatDollar(totals.spend)} spent
-            </span>
-            <span className="text-[10px] font-mono text-[#6B6560]">
-              {formatDollar(totals.budget)} budget · {totals.budgetUsedPercent}%
-            </span>
-          </div>
-        </div>
-      )}
-
-      {/* Optimization Banners */}
-      {optimizations.length > 0 && (
-        <div className="space-y-2 mb-4">
-          <AnimatePresence>
-            {optimizations.map(opt => (
-              <OptimizationBanner
-                key={opt.id}
-                suggestion={opt}
-                onApply={(s) => applyOptimization(s, updateDirective)}
-                onDismiss={dismissOptimization}
-              />
-            ))}
-          </AnimatePresence>
-        </div>
-      )}
-
-      {/* KPI Row */}
-      {hasData && totals && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-          <KpiCard
-            title="Total Spend"
-            value={totals.spend}
-            prefix="$"
-            icon={DollarSign}
-            index={0}
-            delta={`${totals.budgetUsedPercent}% of budget`}
-          />
-          <KpiCard
-            title={metrics.resultLabel}
-            value={totals.results}
-            icon={ResultIcon}
-            index={1}
-          />
-          <KpiCard
-            title={`Cost / ${metrics.resultLabel.replace(/s$/, '')}`}
-            value={totals.costPerResult}
-            prefix="$"
-            icon={TrendingDown}
-            index={2}
-          />
-          <KpiCard
-            title="Avg. CTR"
-            value={totals.avgCTR}
-            suffix="%"
-            icon={MousePointerClick}
-            index={3}
-          />
-        </div>
-      )}
-
-      {/* Daily Spend Chart */}
-      {hasData && (
-        <ChartCard title="Daily Spend" subtitle="Budget pacing over campaign duration" className="mb-4">
-          <ResponsiveContainer width="100%" height={280}>
-            <AreaChart data={metrics.daily} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
-              <defs>
-                <linearGradient id="spendGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#DA7756" stopOpacity={0.15} />
-                  <stop offset="100%" stopColor="#DA7756" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid {...GRID_STYLE} />
-              <XAxis dataKey="date" {...AXIS_STYLE} tickFormatter={formatDate} interval={Math.max(0, Math.floor(metrics.daily.length / 7))} />
-              <YAxis {...AXIS_STYLE} tickFormatter={(v) => `$${v}`} width={50} />
-              <Tooltip
-                {...TOOLTIP_STYLE}
-                formatter={(value) => [`$${Number(value).toFixed(2)}`, '']}
-                labelFormatter={formatDate}
-              />
-              <ReferenceLine
-                y={dailyBudgetTarget}
-                stroke="#6B6560"
-                strokeDasharray="4 4"
-                label={{ value: 'Target', position: 'right', fill: '#6B6560', fontSize: 10 }}
-              />
-              <Area
-                type="monotone"
-                dataKey="spend"
-                name="Daily Spend"
-                stroke="#DA7756"
-                fill="url(#spendGradient)"
-                strokeWidth={2}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </ChartCard>
-      )}
-
-      {/* Daily Results Chart */}
-      {hasData && (
-        <ChartCard title={`Daily ${metrics.resultLabel}`} subtitle={`${metrics.resultLabel} driven by this campaign`} className="mb-4">
-          <ResponsiveContainer width="100%" height={280}>
-            <AreaChart data={metrics.daily} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
-              <defs>
-                <linearGradient id="resultsGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={platformColor} stopOpacity={0.15} />
-                  <stop offset="100%" stopColor={platformColor} stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid {...GRID_STYLE} />
-              <XAxis dataKey="date" {...AXIS_STYLE} tickFormatter={formatDate} interval={Math.max(0, Math.floor(metrics.daily.length / 7))} />
-              <YAxis {...AXIS_STYLE} tickFormatter={formatNumber} width={50} />
-              <Tooltip
-                {...TOOLTIP_STYLE}
-                formatter={(value) => [formatNumber(value), '']}
-                labelFormatter={formatDate}
-              />
-              <Area
-                type="monotone"
-                dataKey="results"
-                name={metrics.resultLabel}
-                stroke={platformColor}
-                fill="url(#resultsGradient)"
-                strokeWidth={2}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </ChartCard>
-      )}
-
-      {/* Performance Funnel */}
-      {hasData && funnelData.length > 0 && (
-        <ChartCard title="Performance Funnel" subtitle="Impressions → Clicks → Conversions" className="mb-4">
-          <ResponsiveContainer width="100%" height={180}>
-            <BarChart data={funnelData} layout="vertical" margin={{ top: 5, right: 30, bottom: 5, left: 10 }}>
-              <CartesianGrid {...GRID_STYLE} horizontal={false} />
-              <XAxis type="number" {...AXIS_STYLE} tickFormatter={formatNumber} />
-              <YAxis type="category" dataKey="name" {...AXIS_STYLE} width={90} />
-              <Tooltip
-                {...TOOLTIP_STYLE}
-                formatter={(value) => [formatNumber(value), '']}
-              />
-              <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={24}>
-                {funnelData.map((entry, i) => (
-                  <motion.rect key={i} fill={entry.fill} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartCard>
-      )}
-
       {/* Campaign Details */}
       <div className="bg-[#171614] border border-[#2C2B28] rounded p-4">
         <h3 className="text-xs font-medium text-[#F5F0E8] mb-3">Campaign Details</h3>
@@ -430,16 +189,18 @@ export default function CampaignDetail() {
         </div>
       )}
 
-      {/* No data state for non-active campaigns */}
-      {!hasData && (
+      {/* Only campaigns running on Meta have delivery reporting */}
+      {!directive.platformCampaignId && (
         <div className="flex flex-col items-center justify-center py-12 text-center mt-4">
           <div className="w-10 h-10 rounded-full bg-[#DA7756]/10 border border-[#DA7756]/20 flex items-center justify-center mb-3">
             <Megaphone size={16} className="text-[#DA7756]" />
           </div>
           <p className="text-xs text-[#9B9590]">
             {directive.status === 'draft' || directive.status === 'pending_approval'
-              ? 'Campaign has not been launched yet. Tracking data will appear once the campaign is active.'
-              : 'No tracking data available for this campaign.'}
+              ? 'Campaign has not been launched yet. Delivery data will appear once it is running.'
+              : directive.platform === 'meta'
+                ? 'This campaign was not launched on Meta, so there is no delivery data.'
+                : `Prelude doesn't report ${PLATFORM_LABELS[directive.platform] || directive.platform} delivery yet, so there is no data for this campaign.`}
           </p>
         </div>
       )}

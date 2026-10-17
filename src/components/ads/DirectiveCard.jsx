@@ -1,8 +1,6 @@
-import { useMemo } from 'react';
 import { Music, Calendar, DollarSign, CheckCircle, XCircle, Play, Pencil, Trash2, Clock, Zap, ExternalLink } from 'lucide-react';
 import { STATUS_CONFIG, PLATFORM_LABELS, OBJECTIVE_LABELS } from '../../data/directives';
 import { PLATFORM_COLORS } from '../../constants/colors';
-import { generateCampaignMetrics } from '../../data/campaignMetrics';
 import { formatDollar } from '../../utils/formatters';
 
 const PLATFORM_COLOR_MAP = {
@@ -23,6 +21,7 @@ export default function DirectiveCard({
   onDelete,
   onSubmitForApproval,
   onClick,
+  metrics, // real delivery metrics (useCampaignReports), when the platform reports them
 }) {
   const statusCfg = STATUS_CONFIG[directive.status] || STATUS_CONFIG.draft;
   const platformColor = PLATFORM_COLOR_MAP[directive.platform] || '#9B9590';
@@ -34,13 +33,6 @@ export default function DirectiveCard({
   const isFailed = directive.status === 'failed';
   const isPaused = directive.status === 'paused';
   const isClickable = !!onClick;
-
-  const metrics = useMemo(() => {
-    if ((isActive || directive.status === 'completed') && !directive.platformCampaignId) {
-      return generateCampaignMetrics(directive);
-    }
-    return null;
-  }, [directive, isActive]);
 
   const pacing = metrics?.totals;
 

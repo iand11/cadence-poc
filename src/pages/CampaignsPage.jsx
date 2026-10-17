@@ -12,6 +12,7 @@ import ManagedReviewPanel from '../components/ads/ManagedReviewPanel';
 import { useMetaConnection } from '../hooks/useMetaConnection';
 import { launchMetaCampaign, isMetaDirective, ACCOUNT_FIX_CODES } from '../data/metaAds';
 import { useDirectives } from '../hooks/useDirectives';
+import { useCampaignReports } from '../hooks/useCampaignReports';
 import { generateDirective, PLATFORM_LABELS } from '../data/directives';
 
 import { PLATFORM_COLORS } from '../constants/colors';
@@ -43,6 +44,8 @@ export default function CampaignsPage() {
     createDirective, updateDirective, deleteDirective,
     approveDirective, rejectDirective, submitForApproval, executeDirective,
   } = useDirectives();
+
+  const { metricsById, loading: reportsLoading } = useCampaignReports(directives);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -416,7 +419,7 @@ export default function CampaignsPage() {
 
       {/* Dashboard view */}
       {tab === 'dashboard' ? (
-        <CampaignDashboard directives={directives} updateDirective={updateDirective} />
+        <CampaignDashboard directives={directives} metricsById={metricsById} loading={reportsLoading} />
       ) : tab === 'content' ? (
         <ContentFeed onBoost={handleBoostContent} />
       ) : (
@@ -436,6 +439,7 @@ export default function CampaignsPage() {
                   >
                     <DirectiveCard
                       directive={d}
+                      metrics={metricsById[d.id]}
                       onEdit={handleEdit}
                       onApprove={approveDirective}
                       onReject={rejectDirective}
