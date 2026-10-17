@@ -8,6 +8,8 @@ import {
 import ChatInterface from '../components/ai/ChatInterface';
 import OptimizationRow from '../components/ads/OptimizationRow';
 import MetaCampaignPanel from '../components/ads/MetaCampaignPanel';
+import StreamCountsPanel from '../components/ads/StreamCountsPanel';
+import { smartLinkSlug } from '../data/streamCounts';
 import { useDirectives } from '../hooks/useDirectives';
 import { useOptimizations } from '../hooks/useOptimizations';
 import { useCampaignReports } from '../hooks/useCampaignReports';
@@ -149,6 +151,11 @@ export default function CampaignDetail() {
         </div>
       </div>
 
+
+      {/* Streams per service, before the campaign and each day of it */}
+      {(directive.streamTrackerId || directive.goal === 'streams' || smartLinkSlug(directive.creative?.trackUrl)) && (
+        <StreamCountsPanel directive={directive} updateDirective={updateDirective} />
+      )}
 
       {directive.platformCampaignId && directive.platform === 'meta' && (
         <MetaCampaignPanel directive={directive} updateDirective={updateDirective} />
