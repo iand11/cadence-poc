@@ -25,7 +25,7 @@
 // through /api/campaign/meta-campaign. If any step fails, what was created is deleted.
 import {
   graph, graphUpload, getUid, requireConnection, readBody, sendError, needs, adAccountFor, findInstagramPost,
-  listInstagramAccounts, isManaged, preludeAccount, saveManagedCampaign, MANAGED_ACCOUNT_NAME,
+  instagramAccountsFor, isManaged, preludeAccount, saveManagedCampaign, MANAGED_ACCOUNT_NAME,
 } from '../lib/meta.js';
 import { adImageId, getAdImage } from '../lib/ad-images.js';
 import { prepayEnabled } from '../lib/stripe.js';
@@ -79,15 +79,17 @@ function withCampaign(url, campaignId) {
 const isHttpUrl = (u) => /^https?:\/\/\S+$/i.test(String(u || ''));
 
 /** Which Instagram account (and Page) the ad runs as, plus the post for a boost. */
-async function resolveIdentity(token, directive, uid) {
+async function resolveIdentity(conn, directive, uid) {
   const creative = directive.creative || {};
   if (creative.postId) {
-    const found = await findInstagramPost(token, {
+    const found = await findInstagramPost(conn, {
       permalink: creative.permalink || creative.trackUrl,
       postId: creative.postId,
     });
     if (!found) {
-      throw needs('post_not_found', `Prelude can't see ${directive.artistName || 'this artist'}'s Instagram account. In Ad Accounts, use "Add or change accounts" and include their Instagram account and Facebook Page.`);
+      throw needs('post_not_found', conn.mode === 'partner'
+        ? `Prelude can't see ${directive.artistName || 'this artist'}'s Instagram account yet. In Ad Accounts, add their Facebook Page and wait for the owner to approve Prelude's request.`
+        : `Prelude can't see ${directive.artistName || 'this artist'}'s Instagram account. In Ad Accounts, use "Add or change accounts" and include their Instagram account and Facebook Page.`);
     }
     const { eligibility } = found;
     if (eligibility && eligibility.eligible_to_boost === false) {
@@ -99,7 +101,7 @@ async function resolveIdentity(token, directive, uid) {
   if (!creative.igUserId) {
     throw needs('post_not_found', 'Choose which Instagram account this ad runs as.');
   }
-  const account = (await listInstagramAccounts(token)).find(a => a.igUserId === String(creative.igUserId));
+  const account = (await instagramAccountsFor(conn)).find(a => a.igUserId === String(creative.igUserId));
   if (!account) {
     throw needs('post_not_found', 'That Instagram account is no longer shared with Prelude. Reconnect it in Ad Accounts.');
   }
@@ -214,8 +216,8 @@ export default async function handler(req, res) {
     const endDate = directive.schedule?.endDate;
     if (!daily && !endDate) throw bad('A lifetime budget needs an end date.');
 
-    // 1. The Instagram account it runs as (+ the post for a boost), seen through the user's token
-    const { account, mediaId } = await resolveIdentity(conn.token, directive, uid);
+    // 1. The Instagram account it runs as (+ the post for a boost), seen through the connection's token
+    const { account, mediaId } = await resolveIdentity(conn, directive, uid);
 
     // 2. The ad account assigned to that Instagram account (or Prelude's, when managed)
     const managed = isManaged(conn.selection, account.igUserId);

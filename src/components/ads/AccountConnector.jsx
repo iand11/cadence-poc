@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { X, CheckCircle, Link2, Loader2, AlertTriangle, AtSign } from 'lucide-react';
+import { X, CheckCircle, Link2, Loader2, AlertTriangle, AtSign, Clock, RefreshCw, Plus, Copy } from 'lucide-react';
 import { PLATFORM_LABELS, PLATFORM_CONSTRAINTS } from '../../data/directives';
 import { PLATFORM_COLORS } from '../../constants/colors';
 import { useMetaConnection } from '../../hooks/useMetaConnection';
-import { startMetaConnect, assignMetaAdAccount, allowPreludeAds, disconnectMeta } from '../../data/metaAds';
+import {
+  startMetaConnect, assignMetaAdAccount, allowPreludeAds, disconnectMeta, addMetaPage, addMetaAdAccount, removeMetaAsset,
+} from '../../data/metaAds';
 
 // Meta is real; the rest are still simulated in the demo.
 const SIMULATED_KEYS = ['tiktok', 'youtube'];
@@ -48,7 +50,9 @@ function PreludeConsent({ ig, connection, busy, onAllow, onCancel }) {
     <div className="mt-1.5 p-3 rounded border border-[#DA7756]/30 bg-[#DA7756]/5 space-y-2">
       <p className="text-[11px] text-[#F5F0E8] font-medium">Let Prelude run ads for @{ig.username}</p>
       <ul className="text-[10px] text-[#9B9590] space-y-1 list-disc pl-4">
-        <li>Prelude's business gets advertiser access to the {ig.pageName} Facebook Page and @{ig.username} on Meta.</li>
+        <li>{connection.mode === 'partner'
+          ? `Prelude's ad account is authorized to run ads as @${ig.username}, using the access the ${ig.pageName} Page already shares.`
+          : `Prelude's business gets advertiser access to the ${ig.pageName} Facebook Page and @${ig.username} on Meta.`}</li>
         <li>New posts you create in Prelude run from Prelude's ad account and appear as @{ig.username}. Prelude only creates ads; it doesn't publish to the profile.</li>
         <li>{connection.managedPrepay
           ? "You pay each campaign's budget plus Prelude's fee by card before it goes live."
@@ -82,11 +86,104 @@ function PreludeConsent({ ig, connection, busy, onAllow, onCancel }) {
   );
 }
 
+/** Which ad account each shared Instagram account runs ads in, or "Let Prelude run ads". */
+function InstagramAssignments({ connection, busy, run, refresh, emptyHint, noAdAccountsHint }) {
+  const [consentFor, setConsentFor] = useState(null);
+  const accountMap = connection?.selection?.accountMap || {};
+  const adAccounts = (connection?.adAccounts || []).filter(a => a.status !== 'pending');
+
+  return (
+    !connection.instagramAccounts ? (
+      <p className="flex items-center gap-1.5 text-[10px] text-[#6B6560]">
+        <Loader2 size={10} className="animate-spin" /> Loading shared accounts…
+      </p>
+    ) : connection.instagramAccounts.length === 0 ? (
+      <p className="text-[10px] text-[#D4A574]">{emptyHint}</p>
+    ) : (
+      <div>
+        <p className="text-[9px] font-mono text-[#6B6560] mb-1.5">
+          Ad account for each artist's Instagram ({adAccounts.filter(a => a.active).length} ad account{adAccounts.filter(a => a.active).length === 1 ? '' : 's'} available)
+        </p>
+        <div className="space-y-1.5">
+          {connection.instagramAccounts.map(ig => {
+            const entry = accountMap[ig.igUserId];
+            if (entry?.managed) {
+              return (
+                <div key={ig.igUserId} className="flex items-center gap-2">
+                  <IgName ig={ig} />
+                  <span className="flex-1 min-w-0 flex items-center gap-1 text-[10px] text-[#7BAF73]">
+                    <CheckCircle size={10} /> Prelude runs ads for this account
+                  </span>
+                  <button
+                    onClick={() => run(async () => { await assignMetaAdAccount(ig.igUserId, null); await refresh(true); })}
+                    disabled={busy}
+                    className="text-[10px] font-mono text-[#6B6560] hover:text-[#C75F4F] cursor-pointer shrink-0"
+                  >
+                    Stop
+                  </button>
+                </div>
+              );
+            }
+            const assigned = entry?.adAccountId || '';
+            return (
+              <div key={ig.igUserId}>
+                <div className="flex items-center gap-2">
+                  <IgName ig={ig} />
+                  <select
+                    value={assigned}
+                    disabled={busy}
+                    onChange={e => run(async () => {
+                      await assignMetaAdAccount(ig.igUserId, e.target.value || null);
+                      await refresh(true);
+                    })}
+                    className={`flex-1 min-w-0 bg-[#171614] border rounded px-2 py-1 text-[10px] ${
+                      assigned ? 'border-[#2C2B28] text-[#F5F0E8]' : 'border-[#D4A574]/40 text-[#D4A574]'
+                    }`}
+                  >
+                    <option value="">Not assigned (can't run ads)</option>
+                    {adAccounts.map(a => (
+                      <option key={a.id} value={a.id} disabled={!a.active}>
+                        {a.name} ({a.currency}){a.business ? ` · ${a.business}` : ''}{a.active ? '' : ' · inactive'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {!assigned && (consentFor === ig.igUserId ? (
+                  <PreludeConsent
+                    ig={ig}
+                    connection={connection}
+                    busy={busy}
+                    onCancel={() => setConsentFor(null)}
+                    onAllow={() => run(async () => {
+                      await allowPreludeAds(ig.igUserId);
+                      setConsentFor(null);
+                      await refresh(true);
+                    })}
+                  />
+                ) : (
+                  <button
+                    onClick={() => setConsentFor(ig.igUserId)}
+                    className="ml-[8.5rem] mt-1 text-[10px] text-[#DA7756] hover:underline cursor-pointer"
+                  >
+                    No ad account? Let Prelude run ads for @{ig.username}
+                  </button>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+        {adAccounts.length === 0 && (
+          <p className="text-[10px] text-[#D4A574] mt-1.5">{noAdAccountsHint}</p>
+        )}
+      </div>
+    )
+  );
+}
+
 function MetaAccountCard() {
   const { loading, connection, error, refresh } = useMetaConnection();
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState(null);
-  const [consentFor, setConsentFor] = useState(null);
 
   // Load ad accounts + Instagram accounts whenever the dialog opens
   useEffect(() => { refresh(true); }, [refresh]);
@@ -104,8 +201,6 @@ function MetaAccountCard() {
   };
 
   const connected = !!connection?.connected;
-  const accountMap = connection?.selection?.accountMap || {};
-  const adAccounts = connection?.adAccounts || [];
 
   return (
     <div className="p-3 rounded border border-[#2C2B28] bg-[#0D0C0B] space-y-3">
@@ -163,94 +258,14 @@ function MetaAccountCard() {
 
       {connected && (
         <>
-          {!connection.instagramAccounts ? (
-            <p className="flex items-center gap-1.5 text-[10px] text-[#6B6560]">
-              <Loader2 size={10} className="animate-spin" /> Loading shared accounts…
-            </p>
-          ) : connection.instagramAccounts.length === 0 ? (
-            <p className="text-[10px] text-[#D4A574]">
-              No Instagram accounts shared. Use "Add or change accounts" and include each artist's Instagram account and Facebook Page.
-            </p>
-          ) : (
-            <div>
-              <p className="text-[9px] font-mono text-[#6B6560] mb-1.5">
-                Ad account for each artist's Instagram ({adAccounts.filter(a => a.active).length} ad account{adAccounts.filter(a => a.active).length === 1 ? '' : 's'} available)
-              </p>
-              <div className="space-y-1.5">
-                {connection.instagramAccounts.map(ig => {
-                  const entry = accountMap[ig.igUserId];
-                  if (entry?.managed) {
-                    return (
-                      <div key={ig.igUserId} className="flex items-center gap-2">
-                        <IgName ig={ig} />
-                        <span className="flex-1 min-w-0 flex items-center gap-1 text-[10px] text-[#7BAF73]">
-                          <CheckCircle size={10} /> Prelude runs ads for this account
-                        </span>
-                        <button
-                          onClick={() => run(async () => { await assignMetaAdAccount(ig.igUserId, null); await refresh(true); })}
-                          disabled={busy}
-                          className="text-[10px] font-mono text-[#6B6560] hover:text-[#C75F4F] cursor-pointer shrink-0"
-                        >
-                          Stop
-                        </button>
-                      </div>
-                    );
-                  }
-                  const assigned = entry?.adAccountId || '';
-                  return (
-                    <div key={ig.igUserId}>
-                      <div className="flex items-center gap-2">
-                        <IgName ig={ig} />
-                        <select
-                          value={assigned}
-                          disabled={busy}
-                          onChange={e => run(async () => {
-                            await assignMetaAdAccount(ig.igUserId, e.target.value || null);
-                            await refresh(true);
-                          })}
-                          className={`flex-1 min-w-0 bg-[#171614] border rounded px-2 py-1 text-[10px] ${
-                            assigned ? 'border-[#2C2B28] text-[#F5F0E8]' : 'border-[#D4A574]/40 text-[#D4A574]'
-                          }`}
-                        >
-                          <option value="">Not assigned (can't run ads)</option>
-                          {adAccounts.map(a => (
-                            <option key={a.id} value={a.id} disabled={!a.active}>
-                              {a.name} ({a.currency}){a.business ? ` · ${a.business}` : ''}{a.active ? '' : ' · inactive'}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      {!assigned && (consentFor === ig.igUserId ? (
-                        <PreludeConsent
-                          ig={ig}
-                          connection={connection}
-                          busy={busy}
-                          onCancel={() => setConsentFor(null)}
-                          onAllow={() => run(async () => {
-                            await allowPreludeAds(ig.igUserId);
-                            setConsentFor(null);
-                            await refresh(true);
-                          })}
-                        />
-                      ) : (
-                        <button
-                          onClick={() => setConsentFor(ig.igUserId)}
-                          className="ml-[8.5rem] mt-1 text-[10px] text-[#DA7756] hover:underline cursor-pointer"
-                        >
-                          No ad account? Let Prelude run ads for @{ig.username}
-                        </button>
-                      ))}
-                    </div>
-                  );
-                })}
-              </div>
-              {adAccounts.length === 0 && (
-                <p className="text-[10px] text-[#D4A574] mt-1.5">
-                  No ad accounts shared. Use "Add or change accounts" to include the ad accounts you run campaigns from, or let Prelude run ads for artists without one.
-                </p>
-              )}
-            </div>
-          )}
+          <InstagramAssignments
+            connection={connection}
+            busy={busy}
+            run={run}
+            refresh={refresh}
+            emptyHint={'No Instagram accounts shared. Use "Add or change accounts" and include each artist\'s Instagram account and Facebook Page.'}
+            noAdAccountsHint={'No ad accounts shared. Use "Add or change accounts" to include the ad accounts you run campaigns from, or let Prelude run ads for artists without one.'}
+          />
 
           <div className="flex items-center gap-3">
             <button
@@ -281,8 +296,191 @@ function MetaAccountCard() {
   );
 }
 
+const statusBadge = (status, error) => (status === 'active'
+  ? <span className="flex items-center gap-1 text-[10px] text-[#7BAF73] shrink-0"><CheckCircle size={10} /> Shared</span>
+  : <span className="flex items-center gap-1 text-[10px] text-[#D4A574] shrink-0" title={error || undefined}><Clock size={10} /> Waiting for approval</span>);
+
+/**
+ * Partner access (Facebook Login off): the user adds the artist's Page (and their ad account,
+ * if they have one); the owner approves Prelude's request on Meta, or shares it themselves.
+ */
+function PartnerMetaCard() {
+  const { loading, connection, error, refresh } = useMetaConnection();
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState(null);
+  const [pageInput, setPageInput] = useState('');
+  const [adAccountInput, setAdAccountInput] = useState('');
+  const [copied, setCopied] = useState(false);
+
+  // Opening the dialog also picks up any approvals made on Meta since
+  useEffect(() => { refresh(true); }, [refresh]);
+
+  const run = async (fn) => {
+    setBusy(true);
+    setActionError(null);
+    try {
+      await fn();
+    } catch (e) {
+      setActionError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const configured = connection?.configured !== false;
+  const businessId = connection?.businessId;
+  const pages = connection?.pages || [];
+  const adAccountRequests = connection?.adAccountRequests || [];
+  const inputCls = 'flex-1 min-w-0 bg-[#171614] border border-[#2C2B28] rounded px-2 py-1 text-[10px] text-[#F5F0E8] placeholder-[#6B6560] outline-none focus:border-[#DA7756]/50';
+  const addBtn = 'flex items-center gap-1 text-[10px] font-medium text-[#0D0C0B] bg-[#DA7756] hover:bg-[#DA7756]/90 disabled:opacity-40 rounded px-2.5 py-1 shrink-0 cursor-pointer';
+
+  const copyId = () => {
+    navigator.clipboard?.writeText(businessId).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }).catch(() => {});
+  };
+
+  return (
+    <div className="p-3 rounded border border-[#2C2B28] bg-[#0D0C0B] space-y-3">
+      <div className="flex items-center gap-3">
+        <PlatformIcon platform="meta" />
+        <div className="flex-1 min-w-0">
+          <p className="text-xs text-[#F5F0E8] font-medium">{PLATFORM_LABELS.meta}</p>
+          <p className="text-[9px] text-[#6B6560] line-clamp-1">
+            Artists share their Facebook Page and Instagram with Prelude. No Meta login needed.
+          </p>
+        </div>
+        {loading ? (
+          <Loader2 size={12} className="text-[#6B6560] animate-spin shrink-0" />
+        ) : connection?.connected ? (
+          <span className="flex items-center gap-1 text-[10px] text-[#7BAF73] shrink-0"><CheckCircle size={11} /> Connected</span>
+        ) : null}
+      </div>
+
+      {!configured ? (
+        <p className="text-[9px] font-mono text-[#D4A574]">
+          Meta partner access isn't configured on the server yet (META_APP_SECRET, META_PRELUDE_BUSINESS_ID, META_PRELUDE_TOKEN).
+        </p>
+      ) : (
+        <>
+          <div className="p-3 rounded border border-[#2C2B28] bg-[#171614] space-y-1.5">
+            <p className="text-[11px] text-[#F5F0E8] font-medium">How it works</p>
+            <ol className="text-[10px] text-[#9B9590] space-y-1 list-decimal pl-4">
+              <li>Add the artist's Facebook Page (its Instagram professional account must be linked to it). Prelude sends the Page an access request.</li>
+              <li>
+                The Page owner approves it in Facebook or Meta Business Suite. They can also share it themselves: Business settings → Partners → Add,
+                with Prelude's business ID{businessId ? (
+                  <button onClick={copyId} className="inline-flex items-center gap-0.5 mx-1 font-mono text-[#F5F0E8] hover:text-[#DA7756] cursor-pointer" title="Copy">
+                    {businessId} <Copy size={9} />{copied && <span className="text-[#7BAF73]">copied</span>}
+                  </button>
+                ) : ' '}
+                and the Page and Instagram account.
+              </li>
+              <li>
+                Have an ad account? Add it too and approve the same way; ads run and bill there.
+                No ad account? Choose "Let Prelude run ads" once the Page is shared
+                {connection?.managedPrepay ? ", and the budget plus Prelude's fee is paid by card before each ad goes live." : ', and Prelude reviews each ad before it goes live.'}
+              </li>
+            </ol>
+          </div>
+
+          <div className="space-y-2">
+            <form
+              onSubmit={e => { e.preventDefault(); run(async () => { await addMetaPage(pageInput); setPageInput(''); await refresh(true); }); }}
+              className="flex items-center gap-2"
+            >
+              <input value={pageInput} onChange={e => setPageInput(e.target.value)} placeholder="Facebook Page link or ID" className={inputCls} />
+              <button type="submit" disabled={busy || !pageInput.trim()} className={addBtn}>
+                {busy ? <Loader2 size={10} className="animate-spin" /> : <Plus size={10} />} Add Page
+              </button>
+            </form>
+            <form
+              onSubmit={e => { e.preventDefault(); run(async () => { await addMetaAdAccount(adAccountInput); setAdAccountInput(''); await refresh(true); }); }}
+              className="flex items-center gap-2"
+            >
+              <input value={adAccountInput} onChange={e => setAdAccountInput(e.target.value)} placeholder="Ad account ID (optional, e.g. 1234567890)" className={inputCls} />
+              <button type="submit" disabled={busy || !adAccountInput.trim()} className={addBtn}>
+                {busy ? <Loader2 size={10} className="animate-spin" /> : <Plus size={10} />} Add ad account
+              </button>
+            </form>
+          </div>
+
+          {(pages.length > 0 || adAccountRequests.length > 0) && (
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <p className="text-[9px] font-mono text-[#6B6560]">Shared with Prelude</p>
+                <button
+                  onClick={() => run(() => refresh(true))}
+                  disabled={busy}
+                  className="flex items-center gap-1 text-[10px] font-mono text-[#9B9590] hover:text-[#F5F0E8] cursor-pointer"
+                >
+                  <RefreshCw size={9} /> Check for approvals
+                </button>
+              </div>
+              {pages.map(p => (
+                <div key={p.pageId}>
+                  <div className="flex items-center gap-2">
+                    <span className="flex-1 min-w-0 text-[10px] text-[#F5F0E8] truncate">
+                      {p.pageName || `Page ${p.pageId}`}
+                      {p.igUsername && <span className="text-[#9B9590]"> · @{p.igUsername}</span>}
+                    </span>
+                    {statusBadge(p.status, p.error)}
+                    <button
+                      onClick={() => run(async () => { await removeMetaAsset({ pageId: p.pageId }); await refresh(true); })}
+                      disabled={busy}
+                      className="text-[10px] font-mono text-[#6B6560] hover:text-[#C75F4F] cursor-pointer shrink-0"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                  {p.error && <p className="text-[9px] text-[#D4A574] mt-0.5">{p.error}</p>}
+                </div>
+              ))}
+              {adAccountRequests.map(a => (
+                <div key={a.id}>
+                  <div className="flex items-center gap-2">
+                    <span className="flex-1 min-w-0 text-[10px] text-[#F5F0E8] truncate">
+                      {a.name || 'Ad account'} <span className="text-[#6B6560] font-mono">{a.id.replace(/^act_/, '')}</span>
+                    </span>
+                    {statusBadge(a.status, a.error)}
+                    <button
+                      onClick={() => run(async () => { await removeMetaAsset({ adAccountId: a.id }); await refresh(true); })}
+                      disabled={busy}
+                      className="text-[10px] font-mono text-[#6B6560] hover:text-[#C75F4F] cursor-pointer shrink-0"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                  {a.error && <p className="text-[9px] text-[#D4A574] mt-0.5">{a.error}</p>}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {pages.some(p => p.status === 'active') && (
+            <InstagramAssignments
+              connection={connection}
+              busy={busy}
+              run={run}
+              refresh={refresh}
+              emptyHint="None of the shared Pages has an Instagram professional account linked yet."
+              noAdAccountsHint="No ad accounts shared yet. Add one above, or let Prelude run ads for artists without one."
+            />
+          )}
+        </>
+      )}
+
+      {(actionError || error) && (
+        <p className="flex items-start gap-1 text-[10px] text-[#C75F4F]">
+          <AlertTriangle size={10} className="mt-0.5 shrink-0" />
+          {actionError || error.message}
+        </p>
+      )}
+    </div>
+  );
+}
+
 /** `notice`: why the modal was opened (e.g. a boost that can't launch yet). */
 export default function AccountConnector({ isOpen, onClose, notice }) {
+  const { connection, error } = useMetaConnection();
   if (!isOpen) return null;
 
   return (
@@ -313,7 +511,13 @@ export default function AccountConnector({ isOpen, onClose, notice }) {
               <p className="text-[11px] text-[#F5F0E8]">{notice}</p>
             </div>
           )}
-          <MetaAccountCard />
+          {connection?.mode === 'partner' ? <PartnerMetaCard />
+            : connection ? <MetaAccountCard />
+            : (
+              <div className="flex items-center gap-2 p-3 rounded border border-[#2C2B28] bg-[#0D0C0B] text-[10px] text-[#6B6560]">
+                {error ? <><AlertTriangle size={10} className="text-[#C75F4F]" /> {error.message}</> : <><Loader2 size={10} className="animate-spin" /> Loading…</>}
+              </div>
+            )}
 
           {SIMULATED_KEYS.map(platform => (
             <div key={platform} className="flex items-center gap-3 p-3 rounded border border-[#2C2B28] bg-[#0D0C0B] opacity-70">

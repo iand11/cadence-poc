@@ -100,7 +100,7 @@ export function MetaRunAsPicker({ value, onChange, onOpenAccounts }) {
       <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">Run as (Instagram account)</label>
       {connection && !connection.connected ? (
         <p className="text-[10px] text-[#D4A574]">
-          Connect Meta to choose an account.{' '}
+          {connection.mode === 'partner' ? "Share the artist's Facebook Page with Prelude to choose an account." : 'Connect Meta to choose an account.'}{' '}
           {onOpenAccounts && (
             <button onClick={() => onOpenAccounts()} className="text-[#DA7756] hover:underline cursor-pointer">Open Ad Accounts</button>
           )}
