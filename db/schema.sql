@@ -741,3 +741,46 @@ CREATE TABLE IF NOT EXISTS artist_playlists_current (
   is_editorial boolean,
   PRIMARY KEY (artist_id, playlist_id)
 );
+
+-- Stream counts for stream-goal campaigns (api/lib/stream-counts.js). One tracker per
+-- campaign plan, one source per counted release link (Spotify track/album, YouTube
+-- video), one count per source per day. YouTube counts read with an API key are kept
+-- 30 days unless YOUTUBE_ANALYTICS_APPROVED=1 (YouTube Developer Policies III.E.4).
+CREATE TABLE IF NOT EXISTS stream_trackers (
+  id           text PRIMARY KEY,               -- campaign plan id (client directive ids carry it)
+  user_id      text NOT NULL,
+  title        text,
+  artist_slug  text,
+  artist_name  text,
+  link_slug    text,                           -- the release's smart link
+  start_date   date NOT NULL,
+  end_date     date NOT NULL,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  last_run_at  timestamptz
+);
+CREATE INDEX IF NOT EXISTS stream_trackers_user_idx ON stream_trackers (user_id);
+
+CREATE TABLE IF NOT EXISTS stream_tracker_sources (
+  tracker_id   text NOT NULL REFERENCES stream_trackers (id) ON DELETE CASCADE,
+  service      text NOT NULL,                  -- spotify | youtube
+  external_id  text NOT NULL,                  -- Spotify track/album id, YouTube video id
+  kind         text,                           -- track | album | video
+  url          text NOT NULL,
+  label        text,
+  last_error   text,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (tracker_id, service, external_id)
+);
+
+CREATE TABLE IF NOT EXISTS stream_counts (
+  tracker_id   text NOT NULL,
+  service      text NOT NULL,
+  external_id  text NOT NULL,
+  day          date NOT NULL,
+  count        bigint NOT NULL,
+  source       text NOT NULL,                  -- api | manual
+  recorded_at  timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (tracker_id, service, external_id, day),
+  FOREIGN KEY (tracker_id, service, external_id)
+    REFERENCES stream_tracker_sources (tracker_id, service, external_id) ON DELETE CASCADE
+);

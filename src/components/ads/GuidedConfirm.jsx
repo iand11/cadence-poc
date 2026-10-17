@@ -1,13 +1,15 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Music, Eye, Heart, AlertTriangle, Info, Calendar, MapPin, Users,
-  Link2, Loader2, Plus, Check, Search, FileVideo, Sparkles, Image as ImageIcon, Pencil,
+  Link2, Loader2, Plus, Check, Search, FileVideo, Sparkles, Image as ImageIcon, Pencil, Headphones,
 } from 'lucide-react';
+import DspIcon from './DspIcon';
+import { previewStreamSources } from '../../data/streamCounts';
 import AdImagesField from './AdImagesField';
 import LyricVideoMaker from './LyricVideoMaker';
 import AdVideoField from './AdVideoField';
 import { FileUploadField, MetaRunAsPicker } from './DirectiveBuilder';
-import { createSmartLink, lookupSmartLinks, artistPageSmartLinks, linksList, linksMap, foundSummary, linkTitle } from '../../data/smartLinks';
+import { createSmartLink, lookupSmartLinks, artistPageSmartLinks, linksList, linksMap, foundSummary, linkTitle, SERVICE_LABELS } from '../../data/smartLinks';
 import ServiceLinksEditor from './ServiceLinksEditor';
 import { PLATFORM_LABELS, OBJECTIVE_LABELS } from '../../data/directives';
 import { postEngagement } from '../../utils/assistedCampaign';
@@ -333,7 +335,7 @@ export function GuidedContentStep({ campaign, posts, artist, recommendNew, smart
 
 // ─── Read-only confirmation ───
 
-export default function GuidedConfirm({ plan, artist, campaigns, posts, errors, destinationLabel, onEditContent, onEditLink }) {
+export default function GuidedConfirm({ plan, artist, campaigns, posts, errors, destinationLabel, onEditContent, onEditLink, streamTracking }) {
   const total = campaigns.reduce((sum, c) => sum + (c.directive.budget?.amount || 0), 0);
   const { schedule, audience } = plan;
   const anyNew = campaigns.some(c => c.mode === 'new');
@@ -415,9 +417,78 @@ export default function GuidedConfirm({ plan, artist, campaigns, posts, errors, 
         })}
       </div>
 
+      {plan.goal === 'streams' && streamTracking && <StreamTrackingSetup artist={artist} {...streamTracking} />}
+
       <p className="text-[10px] text-[#6B6560]">
         Building submits {campaigns.length === 1 ? 'this campaign' : `these ${campaigns.length} campaigns`} for approval. Nothing goes live or spends until you launch it from Campaigns.
       </p>
+    </div>
+  );
+}
+
+// Stream-goal campaigns: which of the release's links get a daily count. The links come
+// from the release's smart link; YouTube is read from its API, Spotify from its public page.
+function StreamTrackingSetup({ artist, smartLinks, linkSlug, onLinkSlug, youtubeUrl, onYoutubeUrl }) {
+  const links = (smartLinks || []).filter(l => !artist?.slug || l.artistSlug === artist.slug);
+  const [preview, setPreview] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (!linkSlug) return;
+    let cancelled = false;
+    previewStreamSources(linkSlug)
+      .then(r => { if (!cancelled) { setPreview({ slug: linkSlug, ...r }); setError(null); } })
+      .catch(e => { if (!cancelled) { setPreview(null); setError(e.message); } });
+    return () => { cancelled = true; };
+  }, [linkSlug]);
+
+  const current = preview?.slug === linkSlug ? preview : null;
+  const hasYouTube = current?.tracked.some(t => t.service === 'youtube');
+
+  return (
+    <div className="bg-[#0D0C0B] border border-[#2C2B28] rounded-lg p-3">
+      <p className="flex items-center gap-1.5 text-[11px] font-medium text-[#F5F0E8]">
+        <Headphones size={11} className="text-[#DA7756]" />Stream tracking
+      </p>
+      <p className="text-[10px] text-[#6B6560] mt-0.5">
+        Prelude records the release's streams on each service from today until the campaign ends, and shows them on the campaign page.
+      </p>
+      {links.length === 0 ? (
+        <p className="text-[10px] text-[#D4A574] mt-2">No smart link for this artist yet, so streams can't be tracked. Add one on a new-post step, or start tracking from the campaign page later.</p>
+      ) : (
+        <>
+          <select value={linkSlug || ''} onChange={e => onLinkSlug(e.target.value || null)} className={`${inputCls} mt-2`}>
+            <option value="">Don't track streams</option>
+            {links.map(l => <option key={l.slug} value={l.slug}>{linkTitle(l)}</option>)}
+          </select>
+          {linkSlug && !current && !error && <Loader2 size={11} className="animate-spin text-[#6B6560] mt-2" />}
+          {error && <p className="text-[10px] text-[#C75F4F] mt-2">{error}</p>}
+          {current && (
+            <div className="mt-2 space-y-1">
+              {current.tracked.map(t => (
+                <p key={`${t.service}:${t.externalId}`} className="flex items-center gap-1.5 text-[10px] text-[#9B9590]">
+                  <DspIcon service={t.service} size={10} />
+                  <span className="text-[#F5F0E8]">{SERVICE_LABELS[t.service]}</span>
+                  {t.service === 'youtube' ? 'views read daily' : 'plays read daily'}
+                </p>
+              ))}
+              {current.skipped.map(s => (
+                <p key={s.service} className="flex items-center gap-1.5 text-[10px] text-[#6B6560]">
+                  <DspIcon service={s.service} size={10} color="#6B6560" />{s.reason}
+                </p>
+              ))}
+              {!hasYouTube && (
+                <input
+                  value={youtubeUrl}
+                  onChange={e => onYoutubeUrl(e.target.value)}
+                  placeholder="YouTube video link (optional; Prelude searches for it if left empty)"
+                  className={`${inputCls} mt-1`}
+                />
+              )}
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

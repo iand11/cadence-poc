@@ -103,6 +103,17 @@ Env: `META_PRELUDE_AD_ACCOUNT_ID`, `META_PRELUDE_BUSINESS_ID`, `META_PRELUDE_TOK
 `STRIPE_WEBHOOK_SECRET`. Details in
 docs/CAMPAIGN_PLAN.md.
 
+Stream tracking (stream-goal campaigns): confirming a "Drive streams" guided campaign creates a
+`stream_trackers` row from the release's smart link (`api/lib/stream-counts.js`, API `api/streams/index.js`,
+client `src/data/streamCounts.js`, UI `StreamCountsPanel` on the campaign page + the confirm step). One
+`stream_counts` row per source per day; daily cron `/api/cron/stream-counts` (`npm run streams:snapshot`).
+Only services with a public count are tracked: YouTube views via the Data API (`YOUTUBE_API_KEY`; kept 30
+days and no "gained" figures unless `YOUTUBE_ANALYTICS_APPROVED=1`, per YouTube Developer Policies III.E.4);
+Spotify plays are read from the public web player page (`api/lib/spotify-playcount.js`, no Spotify
+credentials, `SPOTIFY_PLAYCOUNT_SCRAPE=0` turns it off; Spotify's User Guidelines ban this, Ian accepted
+the risk 2026-10-17; `GET /api/streams?probe=<spotify url>` checks the parser against the live page) and
+can be entered by hand. Apple Music, Deezer, Amazon, TIDAL have no public count. Never scrape YouTube.
+
 Request caching: client GETs go through `src/data/http.js` (`getJson(url, { ttl })` —
 in-flight dedupe + bounded TTL cache; `qs()` sorts `slugs` so the same artist set hits
 the same cache entry). API responses send `max-age=60` for the browser plus `s-maxage`
