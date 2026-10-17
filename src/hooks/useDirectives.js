@@ -3,83 +3,13 @@ import { CAMPAIGN_PLATFORMS, isCampaignPlatform } from '../data/directives';
 
 const STORAGE_KEY = 'musicspace-directives-v2';
 
-const SEED_CAMPAIGNS = [
-  {
-    id: 'seed-1', artistSlug: 'bruno-mars', artistName: 'Bruno Mars',
-    artistImage: 'https://i.scdn.co/image/ab6761610000e5ebc7688aad1bf03986934d7e26',
-    platform: 'tiktok', status: 'active', objective: 'followers',
-    budget: { amount: 3000, currency: 'USD', period: 'lifetime' },
-    schedule: { startDate: '2026-05-20', endDate: '2026-06-20' },
-    audience: { locations: ['US', 'BR'], ageRange: [18, 34] },
-    creative: { type: 'video', headline: 'New single promo' },
-    rationale: 'Capitalize on viral TikTok moment — "Die With A Smile" trend driving 2M+ sound uses.',
-    createdAt: '2026-05-18T10:00:00Z',
-  },
-  {
-    id: 'seed-2', artistSlug: 'the-weeknd', artistName: 'The Weeknd',
-    artistImage: 'https://i.scdn.co/image/ab6761610000e5ebc1719ac9e6a75c1c25835018',
-    platform: 'youtube', status: 'active', objective: 'views',
-    budget: { amount: 5000, currency: 'USD', period: 'lifetime' },
-    schedule: { startDate: '2026-05-25', endDate: '2026-06-25' },
-    audience: { locations: ['US', 'UK', 'CA'], ageRange: [18, 44] },
-    creative: { type: 'video', headline: 'After Hours Til Dawn tour recap' },
-    rationale: 'Pre-save push ahead of album release. YouTube strongest platform by subscriber count.',
-    createdAt: '2026-05-23T14:00:00Z',
-  },
-  {
-    id: 'seed-3', artistSlug: 'bad-bunny', artistName: 'Bad Bunny',
-    artistImage: 'https://i.scdn.co/image/ab6761610000e5eb81f47f44084e0a09b5f0fa13',
-    platform: 'meta', status: 'active', objective: 'engagement',
-    budget: { amount: 2500, currency: 'USD', period: 'lifetime' },
-    schedule: { startDate: '2026-06-01', endDate: '2026-06-28' },
-    audience: { locations: ['US', 'MX'], ageRange: [18, 34] },
-    creative: { type: 'image', headline: 'Summer tour announcement' },
-    rationale: 'Instagram engagement rate 3.2x above roster average. Boost tour awareness in key markets.',
-    createdAt: '2026-05-30T09:00:00Z',
-  },
-  {
-    id: 'seed-4', artistSlug: 'taylor-swift', artistName: 'Taylor Swift',
-    artistImage: 'https://i.scdn.co/image/ab6761610000e5ebe2e8e7ff002a4afda1c7147e',
-    platform: 'youtube', status: 'completed', objective: 'awareness',
-    budget: { amount: 4000, currency: 'USD', period: 'lifetime' },
-    schedule: { startDate: '2026-05-01', endDate: '2026-05-28' },
-    audience: { locations: ['US', 'UK', 'AU'], ageRange: [16, 34] },
-    creative: { type: 'video', headline: 'New album awareness' },
-    rationale: 'Album release window — maximize first-week streams across editorial playlists.',
-    createdAt: '2026-04-28T11:00:00Z',
-  },
-  {
-    id: 'seed-5', artistSlug: 'rihanna', artistName: 'Rihanna',
-    artistImage: 'https://i.scdn.co/image/ab6761610000e5ebcb565a8e684e3be458d329ac',
-    platform: 'meta', status: 'completed', objective: 'followers',
-    budget: { amount: 2000, currency: 'USD', period: 'lifetime' },
-    schedule: { startDate: '2026-04-15', endDate: '2026-05-15' },
-    audience: { locations: ['US', 'UK', 'FR'], ageRange: [18, 44] },
-    creative: { type: 'image', headline: 'Comeback single teaser' },
-    rationale: 'Re-engagement campaign targeting lapsed followers ahead of new music cycle.',
-    createdAt: '2026-04-13T16:00:00Z',
-  },
-  {
-    id: 'seed-6', artistSlug: 'justin-bieber', artistName: 'Justin Bieber',
-    artistImage: 'https://i.scdn.co/image/ab6761610000e5ebaf20f7db5288bce9beede034',
-    platform: 'tiktok', status: 'draft', objective: 'followers',
-    budget: { amount: 1500, currency: 'USD', period: 'lifetime' },
-    schedule: { startDate: '2026-06-20', endDate: '2026-07-10' },
-    audience: { locations: ['US'], ageRange: [16, 28] },
-    creative: { type: 'video', headline: 'Acoustic sessions promo' },
-    rationale: 'TikTok follower growth lagging behind Instagram. Target Gen-Z with acoustic content.',
-    createdAt: '2026-06-15T08:00:00Z',
-  },
-];
-
 function loadFromStorage() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [...SEED_CAMPAIGNS];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [...SEED_CAMPAIGNS];
+    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    // Drop the sample campaigns earlier versions seeded (ids "seed-1"…"seed-6")
+    return Array.isArray(parsed) ? parsed.filter(d => !String(d?.id).startsWith('seed-')) : [];
   } catch {
-    return [...SEED_CAMPAIGNS];
+    return [];
   }
 }
 

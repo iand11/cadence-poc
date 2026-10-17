@@ -3,14 +3,11 @@ import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
-import { AnimatePresence } from 'motion/react';
-import { DollarSign, Megaphone, TrendingDown, Award, TrendingUp } from 'lucide-react';
+import { DollarSign, Megaphone, TrendingDown, MousePointerClick } from 'lucide-react';
 import KpiCard from '../shared/KpiCard';
+import LoadingState from '../shared/LoadingState';
 import ChartCard from '../shared/ChartCard';
-import OptimizationBanner from './OptimizationBanner';
 import { aggregateCampaignMetrics } from '../../data/campaignMetrics';
-import { detectOptimizations } from '../../utils/campaignOptimizer';
-import { useOptimizations } from '../../hooks/useOptimizations';
 import { PLATFORM_LABELS } from '../../data/directives';
 import { PLATFORM_COLORS } from '../../constants/colors';
 import { CHART_COLORS, AXIS_STYLE, GRID_STYLE, TOOLTIP_STYLE } from '../../utils/chartTheme';
@@ -25,19 +22,16 @@ const PLATFORM_COLOR_MAP = {
   x: PLATFORM_COLORS.twitter,
 };
 
-export default function CampaignDashboard({ directives, updateDirective }) {
-  const agg = useMemo(() => aggregateCampaignMetrics(directives), [directives]);
-  const { dismissedIds, applyOptimization, dismissOptimization } = useOptimizations();
+// Totals come only from real ad-platform reports (Meta today); campaigns on
+// platforms that don't report delivery are left out rather than estimated.
+export default function CampaignDashboard({ directives, metricsById, loading }) {
+  const agg = useMemo(
+    () => aggregateCampaignMetrics(directives.map(d => ({ directive: d, metrics: metricsById[d.id] }))),
+    [directives, metricsById],
+  );
   const [alignByDay, setAlignByDay] = useState(true);
 
-  // Detect optimization opportunities
-  const optimizations = useMemo(() => {
-    const campaignsWithMetrics = agg.campaigns.map(c => ({
-      directive: c.directive,
-      metrics: c,
-    }));
-    return detectOptimizations(campaignsWithMetrics).filter(o => !dismissedIds.has(o.id));
-  }, [agg.campaigns, dismissedIds]);
+  if (loading && !agg.totals) return <LoadingState />;
 
   if (!agg.totals || agg.campaigns.length === 0) {
     return (
@@ -46,7 +40,7 @@ export default function CampaignDashboard({ directives, updateDirective }) {
           <Megaphone size={16} className="text-[#DA7756]" />
         </div>
         <p className="text-xs text-[#9B9590]">
-          No active or completed campaigns to display. Launch a campaign to see tracking data here.
+          No delivery data yet. Spend, clicks and results appear here once a Meta campaign starts running.
         </p>
       </div>
     );
@@ -92,42 +86,20 @@ export default function CampaignDashboard({ directives, updateDirective }) {
           index={1}
         />
         <KpiCard
-          title="Avg. Cost / Result"
+          title="Cost / Link Click"
           value={totals.avgCostPerResult}
           prefix="$"
           icon={TrendingDown}
           index={2}
         />
         <KpiCard
-          title="Best Platform"
-          value={totals.bestPlatform ? (PLATFORM_LABELS[totals.bestPlatform] || totals.bestPlatform) : '—'}
-          icon={Award}
+          title="Link CTR"
+          value={totals.avgCTR}
+          suffix="%"
+          icon={MousePointerClick}
           index={3}
-          delta={totals.bestPlatform ? `$${Number(platformBreakdown.find(p => p.platform === totals.bestPlatform)?.costPerResult || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} CPR` : undefined}
         />
       </div>
-
-      {/* Optimization Banners */}
-      {optimizations.length > 0 && (
-        <div className="space-y-2 mb-4">
-          <div className="flex items-center gap-1.5 mb-1">
-            <TrendingUp size={12} className="text-[#DA7756]" />
-            <span className="text-[10px] font-medium text-[#DA7756]">
-              {optimizations.length} optimization{optimizations.length !== 1 ? 's' : ''} available
-            </span>
-          </div>
-          <AnimatePresence>
-            {optimizations.map(opt => (
-              <OptimizationBanner
-                key={opt.id}
-                suggestion={opt}
-                onApply={(s) => applyOptimization(s, updateDirective)}
-                onDismiss={dismissOptimization}
-              />
-            ))}
-          </AnimatePresence>
-        </div>
-      )}
 
       {/* Spend Timeline */}
       {timelineData.length > 0 && (
@@ -202,7 +174,7 @@ export default function CampaignDashboard({ directives, updateDirective }) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Platform ROI Comparison */}
         {platformBreakdown.length > 0 && (
-          <ChartCard title="Platform ROI" subtitle="Cost per result by platform">
+          <ChartCard title="Platform ROI" subtitle="Cost per link click by platform">
             <ResponsiveContainer width="100%" height={250}>
               <BarChart data={platformBreakdown} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
                 <CartesianGrid {...GRID_STYLE} />
@@ -214,7 +186,7 @@ export default function CampaignDashboard({ directives, updateDirective }) {
                 <YAxis {...AXIS_STYLE} tickFormatter={(v) => `$${v}`} width={45} />
                 <Tooltip
                   {...TOOLTIP_STYLE}
-                  formatter={(value) => [`$${Number(value).toFixed(2)}`, 'Cost / Result']}
+                  formatter={(value) => [`$${Number(value).toFixed(2)}`, 'Cost / Link Click']}
                   labelFormatter={(p) => PLATFORM_LABELS[p] || p}
                 />
                 <Bar dataKey="costPerResult" radius={[4, 4, 0, 0]} barSize={36}>
@@ -275,9 +247,8 @@ export default function CampaignDashboard({ directives, updateDirective }) {
                   <th className="text-right py-2 px-3">Campaigns</th>
                   <th className="text-right py-2 px-3">Spend</th>
                   <th className="text-right py-2 px-3">Impressions</th>
-                  <th className="text-right py-2 px-3">Clicks</th>
                   <th className="text-right py-2 px-3">CTR</th>
-                  <th className="text-right py-2 px-3">Results</th>
+                  <th className="text-right py-2 px-3">Link Clicks</th>
                   <th className="text-right py-2 pl-3">CPR</th>
                 </tr>
               </thead>
@@ -293,7 +264,6 @@ export default function CampaignDashboard({ directives, updateDirective }) {
                     <td className="text-right py-2 px-3">{p.campaigns}</td>
                     <td className="text-right py-2 px-3 text-[#F5F0E8]">{formatDollar(p.spend)}</td>
                     <td className="text-right py-2 px-3">{formatNumber(p.impressions)}</td>
-                    <td className="text-right py-2 px-3">{formatNumber(p.clicks)}</td>
                     <td className="text-right py-2 px-3">{p.ctr.toFixed(1)}%</td>
                     <td className="text-right py-2 px-3 text-[#F5F0E8]">{formatNumber(p.results)}</td>
                     <td className="text-right py-2 pl-3 text-[#DA7756]">${p.costPerResult.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
