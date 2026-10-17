@@ -1,6 +1,7 @@
 // /api/campaign/meta-campaign — read or change a Meta campaign Prelude created.
 //
-//   GET ?id=<campaignId>             → { status, effectiveStatus, insights, managed?, review? }
+//   GET ?id=<campaignId>             → { status, effectiveStatus, objective, issues, budget, insights,
+//                                        daily, breakdowns, ads, managed?, review? } (lib/meta-insights.js)
 //   POST { id, status: 'ACTIVE' }    → go live (campaign, ad sets and ads)
 //   POST { id, status: 'PAUSED' }    → pause the campaign
 //
@@ -21,6 +22,7 @@ import {
   getManagedCampaign, setManagedReview, listManagedReviews, preludeAccount, isAdmin,
   activateCampaign, setManagedCheckout, markManagedPaid,
 } from '../lib/meta.js';
+import { campaignReport, CAMPAIGN_FIELDS } from '../lib/meta-insights.js';
 import { prepayEnabled, prepayQuote, createCheckout, getCheckout } from '../lib/stripe.js';
 
 const forbidden = (message) => Object.assign(new Error(message), { status: 403 });
@@ -36,11 +38,11 @@ async function loadCampaign(uid, id) {
   if (managed) {
     if (managed.user_id !== uid && !isAdmin(uid)) throw forbidden('That campaign belongs to another Prelude account.');
     const { token } = preludeAccount();
-    const campaign = await graph('GET', id, token, { fields: 'id,name,account_id,status,effective_status' });
+    const campaign = await graph('GET', id, token, { fields: CAMPAIGN_FIELDS });
     return { campaign, token, managed };
   }
   const conn = await requireConnection(uid);
-  const campaign = await graph('GET', id, conn.token, { fields: 'id,name,account_id,status,effective_status' });
+  const campaign = await graph('GET', id, conn.token, { fields: CAMPAIGN_FIELDS });
   if (!assignedAdAccounts(conn.selection).has(`act_${campaign.account_id}`)) {
     throw forbidden('That campaign is not in one of your assigned ad accounts.');
   }
@@ -96,11 +98,7 @@ export default async function handler(req, res) {
       if (managed?.review_status === 'payment' && managed.stripe_session_id && await settleCheckout(managed)) {
         ({ campaign, managed } = await loadCampaign(uid, id));
       }
-      const insights = await graph('GET', `${id}/insights`, token, {
-        fields: 'spend,impressions,reach,clicks,actions',
-        date_preset: 'maximum',
-      });
-      const row = insights.data?.[0] || null;
+      const report = await campaignReport(id, token, campaign);
       return res.status(200).json({
         status: campaign.status,
         effectiveStatus: campaign.effective_status,
@@ -111,13 +109,7 @@ export default async function handler(req, res) {
           paid: managed.paid_at ? { cents: managed.paid_cents, at: managed.paid_at } : null,
           quote: prepayEnabled() && !managed.paid_at ? safeQuote(managed) : null,
         } : {}),
-        insights: row && {
-          spend: Number(row.spend || 0),
-          impressions: Number(row.impressions || 0),
-          reach: Number(row.reach || 0),
-          clicks: Number(row.clicks || 0),
-          engagements: Number(row.actions?.find(a => a.action_type === 'post_engagement')?.value || 0),
-        },
+        ...report,
       });
     }
 
