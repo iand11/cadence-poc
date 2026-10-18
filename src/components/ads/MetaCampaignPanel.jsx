@@ -164,7 +164,6 @@ export default function MetaCampaignPanel({ directive, updateDirective }) {
           link={linkStats || null}
           streams={streams || null}
           smartLink={smartLink}
-          destination={directive.creative?.trackUrl || null}
         />
       )}
       {live && !ins && (

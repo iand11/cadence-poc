@@ -1,10 +1,11 @@
-import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import { useState } from 'react';
-import { AlertTriangle, ChevronDown, ArrowRight } from 'lucide-react';
+import { AlertTriangle, ChevronDown } from 'lucide-react';
 import { formatNumber, formatDollar } from '../../utils/formatters';
 import { AXIS_STYLE, GRID_STYLE, TOOLTIP_STYLE } from '../../utils/chartTheme';
-import { ServiceBars, ListeningStats } from './SmartLinksPanel';
-import { SERVICE_LABELS } from '../../data/smartLinks';
+import { ListeningStats } from './SmartLinksPanel';
+import DspIcon from './DspIcon';
+import { SERVICE_LABELS, SERVICE_COLORS } from '../../data/smartLinks';
 
 // Meta reports money in the ad account's currency; Prelude accounts are USD.
 const money = (n) => (n ? `$${n.toFixed(2)}` : '–');
@@ -56,17 +57,21 @@ const placementName = (r) => `${PLATFORM[r.platform] || r.platform} ${POSITION[r
 const RANK = {
   ABOVE_AVERAGE: ['Above average', '#7BAF73'],
   AVERAGE: ['Average', '#D4A574'],
-  BELOW_AVERAGE_35: ['Below avg (bottom 35%)', '#C75F4F'],
-  BELOW_AVERAGE_20: ['Below avg (bottom 20%)', '#C75F4F'],
-  BELOW_AVERAGE_10: ['Below avg (bottom 10%)', '#C75F4F'],
+  BELOW_AVERAGE_35: ['Bottom 35%', '#C75F4F'],
+  BELOW_AVERAGE_20: ['Bottom 20%', '#C75F4F'],
+  BELOW_AVERAGE_10: ['Bottom 10%', '#C75F4F'],
 };
 
+/** One Meta ranking as a pill: colored dot + plain label (never color alone). */
 function Rank({ title, value }) {
-  const [text, color] = RANK[value] || (!value || value === 'UNKNOWN' ? ['Not ranked', '#6B6560'] : [value, '#9B9590']);
+  const [text, color] = RANK[value] || (!value || value === 'UNKNOWN' ? ['Not ranked yet', '#6B6560'] : [value, '#9B9590']);
   return (
-    <span className="text-[10px] font-mono">
-      <span className="text-[#6B6560]">{title}: </span><span style={{ color }}>{text}</span>
-    </span>
+    <div className="flex-1 min-w-[120px] bg-[#0D0C0B] border border-[#2C2B28] rounded px-3 py-2">
+      <p className="text-[10px] text-[#9B9590]">{title}</p>
+      <p className="flex items-center gap-1.5 text-xs text-[#F5F0E8] mt-0.5">
+        <span className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />{text}
+      </p>
+    </div>
   );
 }
 
@@ -103,21 +108,30 @@ function Audience({ rows }) {
   );
 }
 
-function Daily({ rows }) {
+const shortDay = (iso) => new Date(`${iso}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+
+/** Link taps per day; spend is in the tooltip (one measure per axis). */
+function DailyTaps({ rows }) {
   if (!rows || rows.length < 2) return null;
   return (
-    <div className="h-40">
+    <div>
+      <p className="text-[11px] text-[#9B9590] mb-2">Taps per day</p>
+      <div className="h-28">
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={rows} margin={{ top: 4, right: 4, bottom: 0, left: -16 }}>
+          <BarChart data={rows} margin={{ top: 4, right: 0, bottom: 0, left: -24 }}>
             <CartesianGrid vertical={false} {...GRID_STYLE} />
-            <XAxis dataKey="date" tick={AXIS_STYLE} tickFormatter={d => d.slice(5)} axisLine={false} tickLine={false} />
-            <YAxis yAxisId="spend" tick={AXIS_STYLE} tickFormatter={v => `$${v}`} axisLine={false} tickLine={false} />
-            <YAxis yAxisId="clicks" orientation="right" tick={AXIS_STYLE} axisLine={false} tickLine={false} />
-            <Tooltip {...TOOLTIP_STYLE} formatter={(v, n) => (n === 'Spend' ? money(v) : formatNumber(v))} />
-            <Bar yAxisId="spend" dataKey="spend" name="Spend" fill="#DA7756" opacity={0.6} radius={[2, 2, 0, 0]} />
-            <Line yAxisId="clicks" dataKey="linkClicks" name="Link clicks" stroke="#7BAF73" strokeWidth={2} dot={false} />
-          </ComposedChart>
+            <XAxis dataKey="date" tick={AXIS_STYLE} tickFormatter={shortDay} axisLine={false} tickLine={false} />
+            <YAxis tick={AXIS_STYLE} axisLine={false} tickLine={false} allowDecimals={false} />
+            <Tooltip
+              {...TOOLTIP_STYLE}
+              cursor={{ fill: '#F5F0E8', opacity: 0.04 }}
+              labelFormatter={shortDay}
+              formatter={(v, n, item) => [`${formatNumber(v)} · ${money(item.payload.spend)} spent`, 'Link taps']}
+            />
+            <Bar dataKey="linkClicks" fill="#DA7756" radius={[4, 4, 0, 0]} maxBarSize={40} />
+          </BarChart>
         </ResponsiveContainer>
+      </div>
     </div>
   );
 }
@@ -129,29 +143,16 @@ function Expand({ title, summary, children }) {
     <div className="border-t border-[#2C2B28]">
       <button onClick={() => setOpen(o => !o)} className="w-full flex items-center gap-2 py-2.5 text-left cursor-pointer group">
         <span className="text-[11px] text-[#F5F0E8] group-hover:text-[#DA7756] shrink-0">{title}</span>
-        {summary && <span className="text-[10px] font-mono text-[#6B6560] truncate">{summary}</span>}
+        {summary && <span className="text-[10px] text-[#6B6560] truncate">{summary}</span>}
         <ChevronDown size={12} className={`ml-auto shrink-0 text-[#6B6560] transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
-      {open && <div className="pb-3 space-y-3">{children}</div>}
+      {open && <div className="pb-4 space-y-4">{children}</div>}
     </div>
   );
 }
 
-/** One step of the funnel: the number, what it means, and how it relates to the step before. */
-function Step({ value, label, sub, last }) {
-  return (
-    <>
-      <div className="min-w-0 flex-1 bg-[#0D0C0B] border border-[#2C2B28] rounded p-3">
-        <p className="text-lg font-mono text-[#F5F0E8] leading-tight">{value}</p>
-        <p className="text-[10px] text-[#9B9590] mt-0.5">{label}</p>
-        {sub && <p className="text-[9px] font-mono text-[#6B6560] mt-0.5">{sub}</p>}
-      </div>
-      {!last && <ArrowRight size={12} className="hidden md:block shrink-0 self-center text-[#3D3B37]" />}
-    </>
-  );
-}
-
-const share = (n, of) => (of ? `${((n / of) * 100).toFixed(1)}%` : null);
+const share = (n, of) => (of ? (n / of) * 100 : null);
+const pctText = (v) => (v == null ? '' : v >= 10 ? `${Math.round(v)}%` : `${v.toFixed(1)}%`);
 
 /** Streams gained across tracked services (only those whose gain may be shown). */
 function streamGain(streams) {
@@ -163,49 +164,81 @@ function streamGain(streams) {
   };
 }
 
-/**
- * Spend → people reached → link taps → streaming-service taps → streams gained, with
- * a plain explanation of how the ad leads to streams. Steps without data are left out.
- */
-function Summary({ ins, budget, link, streams, smartLink, destination }) {
-  const streamClicks = link ? link.clicks : ins.dspClicks;
-  const gained = streamGain(streams);
-  const steps = [
-    { value: money(ins.spend), label: 'spent', sub: budget ? `of ${formatDollar(budget.amount)}${budget.period === 'daily' ? '/day' : ''}` : null },
-    { value: formatNumber(ins.reach), label: 'people saw the ad', sub: ins.spend && ins.reach ? `${money((ins.spend / ins.reach) * 1000)} per 1,000 people` : null },
-    { value: formatNumber(ins.linkClicks), label: smartLink ? 'tapped through to the song' : 'tapped the link', sub: [share(ins.linkClicks, ins.reach), ins.costPerLinkClick ? `${money(ins.costPerLinkClick)} each` : null].filter(Boolean).join(' · ') },
-  ];
-  if (smartLink && streamClicks != null) {
-    steps.push({
-      value: formatNumber(streamClicks),
-      label: 'opened a streaming service',
-      sub: [share(streamClicks, ins.linkClicks), streamClicks && ins.spend ? `${money(ins.spend / streamClicks)} each` : null].filter(Boolean).join(' · '),
-    });
-  }
-  if (gained) {
-    steps.push({ value: `${gained.gain >= 0 ? '+' : ''}${formatNumber(gained.gain)}`, label: 'streams gained', sub: `${gained.services}, all listeners` });
-  }
-
+/** Budget as a ring: spent of total, days left underneath. */
+function BudgetRing({ spent, budget }) {
+  const total = budget?.amount || 0;
+  const frac = total ? Math.min(1, spent / total) : 0;
+  const r = 30, c = 2 * Math.PI * r;
+  const [now] = useState(() => Date.now());
+  const daysLeft = budget?.end ? Math.ceil((Date.parse(budget.end) - now) / 86400000) : null;
   return (
-    <div className="space-y-2">
-      <div className="grid grid-cols-2 md:flex gap-2">
-        {steps.map((s, i) => <Step key={s.label} {...s} last={i === steps.length - 1} />)}
+    <div className="flex items-center gap-3">
+      <svg width="76" height="76" viewBox="0 0 76 76" role="img" aria-label={`${money(spent)} of ${formatDollar(total)} spent`}>
+        <circle cx="38" cy="38" r={r} fill="none" stroke="#2C2B28" strokeWidth="7" />
+        <circle cx="38" cy="38" r={r} fill="none" stroke="#DA7756" strokeWidth="7" strokeLinecap="round"
+          strokeDasharray={`${c * frac} ${c}`} transform="rotate(-90 38 38)" />
+        <text x="38" y="42" textAnchor="middle" fontSize="12" fill="#F5F0E8" fontFamily="'JetBrains Mono', monospace">{Math.round(frac * 100)}%</text>
+      </svg>
+      <div>
+        <p className="text-sm font-mono text-[#F5F0E8]">{money(spent)}</p>
+        <p className="text-[10px] text-[#9B9590]">of {formatDollar(total)}{budget?.period === 'daily' ? ' a day' : ''}</p>
+        {daysLeft != null && <p className="text-[10px] text-[#6B6560] mt-0.5">{daysLeft > 0 ? `${daysLeft} day${daysLeft === 1 ? '' : 's'} left` : 'ended'}</p>}
       </div>
-      <p className="text-[10px] text-[#9B9590] leading-relaxed">
-        {smartLink ? (
-          <>
-            How this drives streams: the ad sends people to the song's smart link, where they pick a streaming service. Each service tap is
-            someone heading to play the song.{' '}
-            {gained
-              ? 'Streams gained counts every listener, not only people from the ad, so compare it with the days before launch (Streams panel).'
-              : 'Track the release\'s streams to see the lift during the campaign.'}
-          </>
-        ) : destination ? (
-          <>The ad sends people to {destination}. Prelude can't see what they do there, so streams from this ad aren't measured. A smart link as the destination counts streaming taps.</>
-        ) : (
-          <>This ad is optimized for reach and engagement on Instagram, so it doesn't send people to the song directly.</>
-        )}
-      </p>
+    </div>
+  );
+}
+
+/** Funnel: each step narrower than the last, the number on the bar, the step-to-step rate between. */
+function Funnel({ steps }) {
+  const widths = [100, 80, 62, 46, 34];
+  return (
+    <div className="space-y-1.5">
+      {steps.map((s, i) => (
+        <div key={s.label}>
+          <div className="flex items-center gap-3">
+            <div className="flex-1 min-w-0">
+              <div
+                className="h-8 rounded flex items-center px-3"
+                style={{ width: `${widths[i]}%`, background: s.color || '#DA7756', opacity: s.color ? 1 : 1 - i * 0.12 }}
+              >
+                <span className="text-sm font-mono font-medium text-[#0D0C0B]">{s.value}</span>
+              </div>
+            </div>
+            <div className="w-40 md:w-52 shrink-0">
+              <p className="text-[11px] text-[#F5F0E8] leading-tight">{s.label}</p>
+              <p className="text-[10px] text-[#6B6560]">
+                {[s.rate != null ? `${pctText(s.rate)} of previous step` : null, s.sub].filter(Boolean).join(' · ')}
+              </p>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Where streaming taps went: one 100% bar split by service, with logos as the legend. */
+function ServiceSplit({ byService, total }) {
+  const rows = [...(byService || [])].filter(s => s.clicks > 0).sort((x, y) => y.clicks - x.clicks);
+  if (!rows.length) return <p className="text-[11px] text-[#6B6560]">No streaming taps yet.</p>;
+  return (
+    <div>
+      <div className="flex h-3 gap-[2px] rounded overflow-hidden">
+        {rows.map(s => (
+          <div key={s.service} title={`${SERVICE_LABELS[s.service] || s.service}: ${s.clicks}`}
+            style={{ width: `${(s.clicks / Math.max(1, total)) * 100}%`, background: SERVICE_COLORS[s.service] || '#9B9590' }} />
+        ))}
+      </div>
+      <div className="mt-3 space-y-1.5">
+        {rows.map(s => (
+          <div key={s.service} className="flex items-center gap-2">
+            <DspIcon service={s.service} size={14} />
+            <span className="text-[11px] text-[#F5F0E8] flex-1 truncate">{SERVICE_LABELS[s.service] || s.service}</span>
+            <span className="text-[11px] font-mono text-[#F5F0E8]">{formatNumber(s.clicks)}</span>
+            <span className="text-[10px] font-mono text-[#6B6560] w-9 text-right">{pctText(share(s.clicks, total))}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -220,18 +253,15 @@ function Rankings({ ads }) {
         const ranked = [a.quality, a.engagement, a.conversion].some(v => v && v !== 'UNKNOWN');
         return (
           <div key={a.id}>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-              {ads.length > 1 && <span className="text-[10px] text-[#F5F0E8]">{a.name}</span>}
+            {ads.length > 1 && <p className="text-[10px] text-[#9B9590] mb-1">{a.name}</p>}
+            <div className="flex flex-wrap gap-2">
               <Rank title="Quality" value={a.quality} />
               <Rank title="Engagement" value={a.engagement} />
               <Rank title="Conversion" value={a.conversion} />
             </div>
             {!ranked && (
-              <p className="text-[9px] font-mono text-[#6B6560] mt-1">
-                {a.quality == null && a.engagement == null && a.conversion == null
-                  ? 'Meta sent no rankings for this ad.'
-                  : `Meta hasn't ranked this ad yet (it returned UNKNOWN${a.impressions != null ? ` at ${fmtImpressions(a.impressions)}` : ''}).`}
-                {a.impressions != null && a.impressions < 500 ? ' Meta ranks an ad after about 500 impressions.' : ' Meta ranks ads after about 500 impressions, compares them with ads competing for the same audience, and doesn\'t rank every ad.'}
+              <p className="text-[10px] text-[#6B6560] mt-1.5">
+                Meta hasn't ranked this ad{a.impressions != null ? ` (${fmtImpressions(a.impressions)})` : ''}. It ranks ads after about 500 impressions and doesn't rank every ad.
               </p>
             )}
           </div>
@@ -241,124 +271,95 @@ function Rankings({ ads }) {
   );
 }
 
-/** Everything Meta reports for a campaign (see api/lib/meta-insights.js): a short summary, details on demand. */
-export default function MetaCampaignInsights({ live, link, streams, smartLink, destination }) {
+/** Meta campaign report (api/lib/meta-insights.js): results at a glance, the rest under "More detail". */
+export default function MetaCampaignInsights({ live, link, streams, smartLink }) {
   const ins = live.insights;
   const { budget, breakdowns: br, ads } = live;
   const video = ins?.video;
   const issues = [...(live.issues || []), ...(ads || []).flatMap(a => a.issues)];
   const rejected = (ads || []).filter(a => a.rejected.length);
-  const topPlacement = br?.placement?.[0];
-  const topService = [...(link?.byService || [])].sort((x, y) => y.clicks - x.clicks)[0];
+
+  const streamTaps = smartLink ? (link ? link.clicks : ins?.dspClicks ?? null) : null;
+  const gained = streamGain(streams);
+  const steps = ins ? [
+    { value: formatNumber(ins.reach), label: 'saw the ad', sub: `${money((ins.spend / Math.max(1, ins.reach)) * 1000)} per 1,000 people` },
+    { value: formatNumber(ins.linkClicks), label: smartLink ? 'tapped through to the song' : 'tapped the link', sub: `${money(ins.costPerLinkClick)} each`, rate: share(ins.linkClicks, ins.reach) },
+    ...(streamTaps != null ? [{ value: formatNumber(streamTaps), label: 'opened a streaming service', sub: streamTaps ? `${money(ins.spend / streamTaps)} each` : null, rate: share(streamTaps, ins.linkClicks) }] : []),
+    ...(gained ? [{ value: `+${formatNumber(gained.gain)}`, label: 'streams gained', sub: `${gained.services}, all listeners`, color: '#7BAF73' }] : []),
+  ] : [];
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-5">
       {(issues.length > 0 || rejected.length > 0) && (
         <div className="p-3 rounded border border-[#C75F4F]/30 bg-[#C75F4F]/10 space-y-1">
           {rejected.flatMap(a => a.rejected.map(r => (
-            <p key={`${a.id}-${r.reason}`} className="flex items-start gap-1 text-[10px] text-[#F5F0E8]">
-              <AlertTriangle size={10} className="mt-0.5 shrink-0 text-[#C75F4F]" />
+            <p key={`${a.id}-${r.reason}`} className="flex items-start gap-1 text-[11px] text-[#F5F0E8]">
+              <AlertTriangle size={11} className="mt-0.5 shrink-0 text-[#C75F4F]" />
               Meta rejected {a.name || 'an ad'}: {r.detail || r.reason}
             </p>
           )))}
           {issues.map(i => (
-            <p key={i} className="flex items-start gap-1 text-[10px] text-[#F5F0E8]">
-              <AlertTriangle size={10} className="mt-0.5 shrink-0 text-[#C75F4F]" />{i}
+            <p key={i} className="flex items-start gap-1 text-[11px] text-[#F5F0E8]">
+              <AlertTriangle size={11} className="mt-0.5 shrink-0 text-[#C75F4F]" />{i}
             </p>
           ))}
         </div>
       )}
 
-      {ins && <Summary ins={ins} budget={budget} link={link} streams={streams} smartLink={smartLink} destination={destination} />}
+      {ins && (
+        <div className="grid md:grid-cols-[1fr_auto] gap-6 items-start">
+          <div>
+            <Funnel steps={steps} />
+            {!smartLink && <p className="text-[10px] text-[#6B6560] mt-2">Streams aren't measured: this ad doesn't link to a smart link.</p>}
+          </div>
+          <BudgetRing spent={ins.spend} budget={budget} />
+        </div>
+      )}
 
-      <div>
-        {smartLink && link && (
-          <Expand title="Streaming services" summary={link.clicks ? `${formatNumber(link.clicks)} taps${topService ? ` · most on ${SERVICE_LABELS[topService.service] || topService.service}` : ''}` : 'no taps yet'}>
-            <div className={`grid grid-cols-2 ${link.fans ? 'md:grid-cols-5' : 'md:grid-cols-4'} gap-2`}>
-              <Stat label="Smart link views" value={formatNumber(link.views)} />
-              <Stat label="Streaming taps" value={formatNumber(link.clicks)} />
-              <Stat label="Tap rate" value={link.views ? `${(link.clickRate * 100).toFixed(1)}%` : '–'} hint="Share of smart link visitors who picked a service" />
-              <Stat label="Cost / streaming tap" value={link.clicks && ins?.spend ? money(ins.spend / link.clicks) : '–'} />
-              {link.fans > 0 && <Stat label="Spotify fans captured" value={formatNumber(link.fans)} />}
+      {ins && (
+        <div className={`grid gap-6 ${smartLink && link ? 'md:grid-cols-2' : ''}`}>
+          {smartLink && link && (
+            <div>
+              <p className="text-[11px] text-[#9B9590] mb-2">Where they went to listen</p>
+              <ServiceSplit byService={link.byService} total={link.clicks} />
             </div>
-            <ServiceBars byService={link.byService} total={link.clicks} />
-            {ins?.dspClicks > 0 && (
-              <p className="text-[9px] font-mono text-[#6B6560]">Meta attributes {formatNumber(ins.dspClicks)} of them to this ad ({money(ins.costPerDspClick)} each).</p>
-            )}
-            {link.listening && (
-              <div>
-                <p className={label}>Spotify listening by captured fans (after their tap)</p>
-                <ListeningStats listening={link.listening} spend={ins?.spend || 0} />
-              </div>
-            )}
-          </Expand>
-        )}
+          )}
+          <DailyTaps rows={live.daily} />
+        </div>
+      )}
 
-        {ins && (
-          <Expand title="Cost and delivery" summary={`${formatNumber(ins.impressions)} impressions · ${money(ins.cpm)} per 1,000`}>
-            {budget && (
-              <p className="text-[9px] font-mono text-[#6B6560]">
-                Budget {formatDollar(budget.amount)}{budget.period === 'daily' ? '/day' : ' total'}
-                {budget.remaining ? ` · ${money(budget.remaining)} left` : ''}
-                {budget.start ? ` · from ${budget.start.slice(0, 10)}` : ''}
-                {budget.end ? ` to ${budget.end.slice(0, 10)}` : ''}
-                {live.objective ? ` · ${live.objective.replace('OUTCOME_', '').toLowerCase()} objective` : ''}
-              </p>
-            )}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-              <Stat label="Spend" value={money(ins.spend)} />
-              <Stat label="Reach" value={formatNumber(ins.reach)} hint="People who saw the ad at least once" />
-              <Stat label="Impressions" value={formatNumber(ins.impressions)} />
-              <Stat label="Frequency" value={ins.frequency ? ins.frequency.toFixed(2) : '–'} hint="Average times each person saw it" />
-              <Stat label="Link clicks" value={formatNumber(ins.linkClicks)} hint="Clicks to the destination link (not likes or profile taps)" />
-              <Stat label="Cost / link click" value={money(ins.costPerLinkClick)} />
-              <Stat label="Link click rate" value={pct(ins.linkCtr)} />
-              <Stat label="CPM" value={money(ins.cpm)} hint="Cost per 1,000 impressions" />
-              {ins.landingPageViews > 0 && <Stat label="Landing page views" value={formatNumber(ins.landingPageViews)} />}
-              <Stat label="All clicks" value={formatNumber(ins.clicks)} hint="Every click, including likes and profile taps" />
-            </div>
-          </Expand>
-        )}
+      {ins && (
+        <Expand title="More detail" summary="costs, engagement, who saw it, ad quality">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <Stat label="Impressions" value={formatNumber(ins.impressions)} />
+            <Stat label="Frequency" value={ins.frequency ? ins.frequency.toFixed(2) : '–'} hint="Average times each person saw it" />
+            <Stat label="CPM" value={money(ins.cpm)} hint="Cost per 1,000 impressions" />
+            <Stat label="Link click rate" value={pct(ins.linkCtr)} />
+            <Stat label="Engagements" value={formatNumber(ins.engagements)} hint="Reactions, comments, saves, shares and other taps" />
+            <Stat label="Reactions" value={formatNumber(ins.reactions)} />
+            <Stat label="Saves" value={formatNumber(ins.saves)} />
+            <Stat label="Shares" value={formatNumber(ins.shares)} />
+            {link && <Stat label="Smart link views" value={formatNumber(link.views)} />}
+            {link?.fans > 0 && <Stat label="Spotify fans captured" value={formatNumber(link.fans)} />}
+            {video && <Stat label="Video plays" value={formatNumber(video.plays)} />}
+            {video && <Stat label="ThruPlays" value={formatNumber(video.thruplays)} hint="Watched to the end, or at least 15 seconds" />}
+          </div>
 
-        {live.daily?.length > 1 && (
-          <Expand title="Day by day" summary="spend (bars) and link clicks (line)">
-            <Daily rows={live.daily} />
-          </Expand>
-        )}
+          {video && (
+            <Section title="How much of the video people watched">
+              <Bars
+                rows={[['25%', video.p25], ['50%', video.p50], ['75%', video.p75], ['100%', video.p100]]}
+                total={Math.max(video.plays, video.p25)}
+                name={r => `Watched ${r[0]}`}
+                value={r => r[1]}
+              />
+            </Section>
+          )}
 
-        {ins && (
-          <Expand title="Engagement" summary={`${formatNumber(ins.engagements)} total`}>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-              <Stat label="Total" value={formatNumber(ins.engagements)} />
-              <Stat label="Reactions" value={formatNumber(ins.reactions)} />
-              <Stat label="Comments" value={formatNumber(ins.comments)} />
-              <Stat label="Saves" value={formatNumber(ins.saves)} />
-              <Stat label="Shares" value={formatNumber(ins.shares)} />
-            </div>
-          </Expand>
-        )}
-
-        {video && (
-          <Expand title="Video" summary={`${formatNumber(video.plays)} plays · ${formatNumber(video.thruplays)} ThruPlays`}>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-              <Stat label="Plays" value={formatNumber(video.plays)} />
-              <Stat label="ThruPlays" value={formatNumber(video.thruplays)} hint="Watched to the end, or at least 15 seconds" />
-              <Stat label="Avg watch time" value={video.avgWatchSeconds ? `${video.avgWatchSeconds}s` : '–'} />
-            </div>
-            <Bars
-              rows={[['25%', video.p25], ['50%', video.p50], ['75%', video.p75], ['100%', video.p100]]}
-              total={Math.max(video.plays, video.p25)}
-              name={r => `Watched ${r[0]}`}
-              value={r => r[1]}
-            />
-          </Expand>
-        )}
-
-        {br && (br.placement?.length > 0 || br.audience?.length > 0 || br.country?.length > 0) && (
-          <Expand title="Where it ran and who saw it" summary={topPlacement ? `mostly ${placementName(topPlacement)}` : null}>
+          {br && (br.placement?.length > 0 || br.audience?.length > 0 || br.country?.length > 0) && (
             <div className="grid md:grid-cols-3 gap-x-6">
               {br.placement?.length > 0 && (
-                <Section title="Where it ran (impressions)">
+                <Section title="Where it ran">
                   <Bars rows={br.placement.slice(0, 6)} total={br.placement[0].impressions} name={placementName} />
                 </Section>
               )}
@@ -368,20 +369,26 @@ export default function MetaCampaignInsights({ live, link, streams, smartLink, d
                 </Section>
               )}
               {br.country?.length > 0 && (
-                <Section title="Top countries (impressions)">
+                <Section title="Countries">
                   <Bars rows={br.country.slice(0, 6)} total={br.country[0].impressions} name={r => r.country} />
                 </Section>
               )}
             </div>
-          </Expand>
-        )}
+          )}
 
-        {ads?.length > 0 && (
-          <Expand title="Ad quality" summary="Meta's rankings vs. ads competing for the same audience">
-            <Rankings ads={ads} />
-          </Expand>
-        )}
-      </div>
+          {link?.listening && (
+            <Section title="Spotify listening by captured fans">
+              <ListeningStats listening={link.listening} spend={ins.spend || 0} />
+            </Section>
+          )}
+
+          {ads?.length > 0 && (
+            <Section title="Ad quality (Meta's ranking against similar ads)">
+              <Rankings ads={ads} />
+            </Section>
+          )}
+        </Expand>
+      )}
     </div>
   );
 }
