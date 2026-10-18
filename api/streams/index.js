@@ -24,15 +24,17 @@ const bad = (message, status = 400) => Object.assign(new Error(message), { statu
 export default async function handler(req, res) {
   const params = new URL(req.url, 'http://localhost').searchParams;
   try {
+    // The probe only reads Spotify's page, so it works without a database
+    if (req.method === 'GET' && params.get('probe')) {
+      const src = parseSourceUrl(params.get('probe'));
+      if (src?.service !== 'spotify' || src.kind === 'artist') throw bad('Pass a Spotify track or album link.');
+      return res.status(200).json(await probeSpotifyPage(src));
+    }
+
     await ensureStreamTables();
     const uid = await getUid(req);
 
     if (req.method === 'GET') {
-      if (params.get('probe')) {
-        const src = parseSourceUrl(params.get('probe'));
-        if (src?.service !== 'spotify' || src.kind === 'artist') throw bad('Pass a Spotify track or album link.');
-        return res.status(200).json(await probeSpotifyPage(src));
-      }
       if (params.get('preview')) {
         const link = await queryOne('SELECT links FROM smart_links WHERE slug = $1 AND user_id = $2', [params.get('preview'), uid]);
         if (!link) throw bad('Smart link not found', 404);
