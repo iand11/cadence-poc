@@ -206,9 +206,7 @@ function Funnel({ steps }) {
             </div>
             <div className="w-40 md:w-52 shrink-0">
               <p className="text-[11px] text-[#F5F0E8] leading-tight">{s.label}</p>
-              <p className="text-[10px] text-[#6B6560]">
-                {[s.rate != null ? `${pctText(s.rate)} of previous step` : null, s.sub].filter(Boolean).join(' · ')}
-              </p>
+              {s.sub && <p className="text-[10px] text-[#6B6560]">{s.sub}</p>}
             </div>
           </div>
         </div>
@@ -282,10 +280,10 @@ export default function MetaCampaignInsights({ live, link, streams, smartLink })
   const streamTaps = smartLink ? (link ? link.clicks : ins?.dspClicks ?? null) : null;
   const gained = streamGain(streams);
   const steps = ins ? [
-    { value: formatNumber(ins.reach), label: 'saw the ad', sub: `${money((ins.spend / Math.max(1, ins.reach)) * 1000)} per 1,000 people` },
-    { value: formatNumber(ins.linkClicks), label: smartLink ? 'tapped through to the song' : 'tapped the link', sub: `${money(ins.costPerLinkClick)} each`, rate: share(ins.linkClicks, ins.reach) },
-    ...(streamTaps != null ? [{ value: formatNumber(streamTaps), label: 'opened a streaming service', sub: streamTaps ? `${money(ins.spend / streamTaps)} each` : null, rate: share(streamTaps, ins.linkClicks) }] : []),
-    ...(gained ? [{ value: `+${formatNumber(gained.gain)}`, label: 'streams gained', sub: `${gained.services}, all listeners`, color: '#7BAF73' }] : []),
+    { value: formatNumber(ins.reach), label: 'People reached' },
+    { value: formatNumber(ins.linkClicks), label: 'Clicks', sub: ins.costPerLinkClick ? `${money(ins.costPerLinkClick)} per click` : null },
+    ...(streamTaps != null ? [{ value: formatNumber(streamTaps), label: 'Went to a streaming service', sub: streamTaps ? `${money(ins.spend / streamTaps)} each` : null }] : []),
+    ...(gained ? [{ value: `+${formatNumber(gained.gain)}`, label: `Streams gained (${gained.services})`, color: '#7BAF73' }] : []),
   ] : [];
 
   return (
