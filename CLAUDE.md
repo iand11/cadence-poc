@@ -111,7 +111,7 @@ Only services with a public count are tracked: YouTube views via the Data API (`
 days and no "gained" figures unless `YOUTUBE_ANALYTICS_APPROVED=1`, per YouTube Developer Policies III.E.4);
 Spotify plays are entered by hand (the page reader `api/lib/spotify-playcount.js` is off unless
 `SPOTIFY_PLAYCOUNT_SCRAPE=1`; live check 2026-10-18: the count is not in the page HTML, and Prelude won't
-call Spotify's private player API) and can be entered by hand. Apple Music, Deezer, Amazon, TIDAL have no public count. Never scrape YouTube.
+call Spotify's private player API). Apple Music, Deezer, Amazon, TIDAL have no public count. Never scrape YouTube.
 
 Request caching: client GETs go through `src/data/http.js` (`getJson(url, { ttl })` —
 in-flight dedupe + bounded TTL cache; `qs()` sorts `slugs` so the same artist set hits
