@@ -103,6 +103,23 @@ Env: `META_PRELUDE_AD_ACCOUNT_ID`, `META_PRELUDE_BUSINESS_ID`, `META_PRELUDE_TOK
 `STRIPE_WEBHOOK_SECRET`. Details in
 docs/CAMPAIGN_PLAN.md.
 
+Stream tracking (stream-goal campaigns): confirming a "Drive streams" guided campaign creates a
+`stream_trackers` row from the release's smart link (`api/lib/stream-counts.js`, API `api/streams/index.js`,
+client `src/data/streamCounts.js`, UI `StreamCountsPanel` on the campaign page + the confirm step). One
+`stream_counts` row per source per day; daily cron `/api/cron/stream-counts` (`npm run streams:snapshot`).
+Only services with a public count are tracked: YouTube views via the Data API (`YOUTUBE_API_KEY`; kept 30
+days and no "gained" figures unless `YOUTUBE_ANALYTICS_APPROVED=1`, per YouTube Developer Policies III.E.4);
+Spotify plays are read from the public web player page in headless Chromium (`api/lib/spotify-playcount.js`:
+playwright-core + @sparticuz/chromium on Vercel, `CHROMIUM_PATH` locally; no Spotify credentials;
+`SPOTIFY_PLAYCOUNT_SCRAPE=0` turns it off; Spotify's User Guidelines ban this, Ian accepted the risk
+2026-10-18; `GET /api/streams?probe=<spotify url>` checks it against the live page) and can be entered by hand. Apple Music, Deezer, Amazon, TIDAL have no public count. Never scrape YouTube.
+For later analysis/model training: counts keep being read 30 days after a campaign ends (gain is still
+campaign-only), removing a source only hides it (`removed_at`), each tracked campaign's setup is kept in
+`stream_tracker_campaigns` (with its Meta campaign id once launched), and Meta reports are copied daily into
+`campaign_report_snapshots` (`api/lib/campaign-snapshots.js`; on every report read and by the stream-counts
+cron). YouTube counts still expire after 30 days. Meta's Platform Terms 5.b keep each client's Meta data
+separate and only used on their behalf, so pooling it across accounts for a shared model needs client consent in Prelude's terms.
+
 Request caching: client GETs go through `src/data/http.js` (`getJson(url, { ttl })` —
 in-flight dedupe + bounded TTL cache; `qs()` sorts `slugs` so the same artist set hits
 the same cache entry). API responses send `max-age=60` for the browser plus `s-maxage`

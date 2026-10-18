@@ -16,11 +16,13 @@
     "db:refresh-facets": "node scripts/refresh-facets.js",
     "db:rebuild-artist-playlists": "node scripts/rebuild-artist-playlists.js",
     "spotify:sync": "node scripts/sync-spotify-plays.js",
+    "streams:snapshot": "node scripts/snapshot-stream-counts.js",
     "lint": "eslint .",
     "preview": "vite preview"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.91.1",
+    "@sparticuz/chromium": "153.0.0",
     "firebase": "^12.19.0",
     "firebase-admin": "^13.10.0",
     "html-to-image": "^1.11.13",
@@ -30,6 +32,7 @@
     "lucide-react": "^1.11.0",
     "motion": "^12.38.0",
     "pg": "^8.23.0",
+    "playwright-core": "1.63.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "react-grid-layout": "^2.2.3",

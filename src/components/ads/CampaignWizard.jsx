@@ -10,6 +10,7 @@ import {
 import ChatInterface from '../ai/ChatInterface';
 import GuidedConfirm, { GuidedContentStep } from './GuidedConfirm';
 import { fetchSmartLinks, linkTitle } from '../../data/smartLinks';
+import { createStreamTracker } from '../../data/streamCounts';
 import { searchArtists, getArtistAsync } from '../../data/artists';
 import { fetchContentFeed } from '../../data/artistsRemote';
 import { checkMetaLaunch, isMetaDirective } from '../../data/metaAds';
@@ -98,6 +99,9 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, on
   const [smartLinks, setSmartLinks] = useState(null);
   const [destination, setDestination] = useState('');
   const [contentIndex, setContentIndex] = useState(0);
+  // Stream goal: the smart link whose services get a daily stream count (undefined = follow the destination)
+  const [trackLinkSlug, setTrackLinkSlug] = useState(undefined);
+  const [trackYouTube, setTrackYouTube] = useState('');
   // 'confirm' when a content step was opened from the confirmation, so "Done" goes back there
   const [returnTo, setReturnTo] = useState(null);
   const returnToConfirm = returnTo === 'confirm';
@@ -331,6 +335,11 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, on
     setStep('content');
   };
 
+  // Stream goal: the release's smart link (the destination's by default, else the artist's newest)
+  const destinationLink = (smartLinks || []).find(l => l.url === destination);
+  const streamLinkSlug = trackLinkSlug !== undefined ? trackLinkSlug
+    : destinationLink?.slug || (smartLinks || []).find(l => l.artistSlug === selectedArtist?.slug)?.slug || null;
+
   // Confirm: Meta campaigns are checked against the connected ad account (nothing is
   // created); everything that passes is submitted for approval. If some fail, the
   // user can save those as drafts instead.
@@ -355,12 +364,29 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, on
       }
       ready.push({ ...d, status: 'pending_approval' });
     }
-    setConfirming(false);
     if (Object.keys(errors).length && !saveFailedAsDrafts) {
+      setConfirming(false);
       setConfirmErrors(errors);
       return;
     }
-    onConfirm(ready);
+    // Stream goal: start the daily stream count for the release (never blocks the campaigns)
+    const marked = ready.map(d => (plan.goal === 'streams' ? { ...d, goal: 'streams' } : d));
+    if (plan.goal === 'streams' && streamLinkSlug) {
+      const id = `trk-${planCampaigns[0].directive.id}`;
+      try {
+        await createStreamTracker({
+          id, linkSlug: streamLinkSlug, artistSlug: selectedArtist?.slug, artistName: selectedArtist?.name,
+          startDate: plan.schedule.startDate, endDate: plan.schedule.endDate,
+          links: trackYouTube.trim() ? [{ service: 'youtube', url: trackYouTube.trim() }] : [],
+          campaigns: marked,
+        });
+        marked.forEach(d => { d.streamTrackerId = id; });
+      } catch (e) {
+        console.warn('[campaigns] stream tracking not started', e.message);
+      }
+    }
+    setConfirming(false);
+    onConfirm(marked);
     handleClose();
   };
 
@@ -500,6 +526,8 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, on
     postsRef.current = null;
     setContentIndex(0);
     setReturnTo(null);
+    setTrackLinkSlug(undefined);
+    setTrackYouTube('');
     onClose();
   };
 
@@ -642,6 +670,10 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, on
                   destinationLabel={destinationLabel}
                   onEditContent={(i) => editFromConfirm('content', i)}
                   onEditLink={() => editFromConfirm('content', Math.max(firstNewPost, 0))}
+                  streamTracking={{
+                    smartLinks, linkSlug: streamLinkSlug, onLinkSlug: setTrackLinkSlug,
+                    youtubeUrl: trackYouTube, onYoutubeUrl: setTrackYouTube,
+                  }}
                 />
               </motion.div>
             )}

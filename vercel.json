@@ -29,6 +29,10 @@
     {
       "path": "/api/cron/refresh-facets",
       "schedule": "30 6 * * *"
+    },
+    {
+      "path": "/api/cron/stream-counts",
+      "schedule": "0 8 * * *"
     }
   ],
   "functions": {
@@ -37,6 +41,16 @@
     },
     "api/cron/refresh-facets.js": {
       "maxDuration": 60
+    },
+    "api/cron/stream-counts.js": {
+      "maxDuration": 300,
+      "memory": 2048,
+      "includeFiles": "node_modules/@sparticuz/chromium/bin/**"
+    },
+    "api/streams/index.js": {
+      "maxDuration": 60,
+      "memory": 2048,
+      "includeFiles": "node_modules/@sparticuz/chromium/bin/**"
     }
   }
 }
