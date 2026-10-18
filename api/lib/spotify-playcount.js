@@ -13,6 +13,10 @@
 // else the number shown on the page. An album's count is the sum of its tracks'.
 // Spotify changes its pages without notice, so a miss is reported on the source (and by
 // probeSpotify), never guessed at.
+import { existsSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36';
 const ORIGIN = process.env.SPOTIFY_WEB_URL || 'https://open.spotify.com';
 const WAIT_MS = 20_000;
@@ -60,11 +64,41 @@ export function playcountFromJson(blobs, { kind, id }) {
   return null;
 }
 
+// @sparticuz/chromium unpacks the browser to /tmp/chromium on first use and reuses any file
+// already there. Requests running at the same time in one instance, or one cut off while
+// unpacking, could leave a half-written file that fails with "spawn ENOEXEC" on every later
+// launch. So unpacking runs once per instance, a marker is written only once it has finished,
+// and a /tmp/chromium without the marker is deleted and unpacked again.
+const BIN = join(tmpdir(), 'chromium');
+const READY = join(tmpdir(), 'chromium.ready');
+let unpacking;
+
+function serverlessChromium() {
+  unpacking ??= (async () => {
+    const chromium = (await import('@sparticuz/chromium')).default;
+    if (existsSync(BIN) && !existsSync(READY)) rmSync(BIN, { force: true });
+    const path = await chromium.executablePath();
+    writeFileSync(READY, '');
+    return { path, args: chromium.args };
+  })().catch((err) => { unpacking = undefined; throw err; });
+  return unpacking;
+}
+
 async function launch() {
   const { chromium: pw } = await import('playwright-core');
   if (process.env.CHROMIUM_PATH) return pw.launch({ executablePath: process.env.CHROMIUM_PATH, headless: true });
-  const chromium = (await import('@sparticuz/chromium')).default;
-  return pw.launch({ executablePath: await chromium.executablePath(), args: chromium.args, headless: true });
+  const { path, args } = await serverlessChromium();
+  try {
+    return await pw.launch({ executablePath: path, args, headless: true });
+  } catch (err) {
+    if (!/ENOEXEC|EACCES|ETXTBSY/.test(err.message)) throw err;
+    // The unpacked browser is unusable: unpack it again and retry once
+    rmSync(BIN, { force: true });
+    rmSync(READY, { force: true });
+    unpacking = undefined;
+    const fresh = await serverlessChromium();
+    return pw.launch({ executablePath: fresh.path, args: fresh.args, headless: true });
+  }
 }
 
 
