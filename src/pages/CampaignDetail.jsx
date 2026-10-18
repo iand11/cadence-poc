@@ -152,13 +152,14 @@ export default function CampaignDetail() {
       </div>
 
 
+      {/* Results summary first; details expand underneath */}
+      {directive.platformCampaignId && directive.platform === 'meta' && (
+        <MetaCampaignPanel directive={directive} updateDirective={updateDirective} />
+      )}
+
       {/* Streams per service, before the campaign and each day of it */}
       {(directive.streamTrackerId || directive.goal === 'streams' || smartLinkSlug(directive.creative?.trackUrl)) && (
         <StreamCountsPanel directive={directive} updateDirective={updateDirective} />
-      )}
-
-      {directive.platformCampaignId && directive.platform === 'meta' && (
-        <MetaCampaignPanel directive={directive} updateDirective={updateDirective} />
       )}
 
       {/* Campaign Details */}

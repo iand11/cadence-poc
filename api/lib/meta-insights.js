@@ -22,7 +22,7 @@ const TOTAL_FIELDS = [
 ].join(',');
 const ROW_FIELDS = 'spend,impressions,reach,inline_link_clicks';
 const DAILY_FIELDS = `${ROW_FIELDS},actions`;
-const RANK_FIELDS = 'ad_id,ad_name,quality_ranking,engagement_rate_ranking,conversion_rate_ranking';
+const RANK_FIELDS = 'ad_id,ad_name,impressions,quality_ranking,engagement_rate_ranking,conversion_rate_ranking';
 
 // Our smart links send DSPClick as a custom Pixel/CAPI event; Meta reports custom
 // events under this action type (all custom events together, and DSPClick is our only one).
@@ -108,7 +108,11 @@ export function shapeBreakdown(rows, dims) {
     .sort((x, y) => y.impressions - x.impressions);
 }
 
-/** Per-ad status, review feedback and rankings ("UNKNOWN" until ~500 impressions). */
+// Ranking values: ABOVE_AVERAGE, AVERAGE, BELOW_AVERAGE_35/20/10, or UNKNOWN when Meta
+// has not ranked the ad (under ~500 impressions, or an ad/goal it does not rank).
+const rank = (v) => (v ? String(v).toUpperCase() : null);
+
+/** Per-ad status, review feedback, impressions and rankings. */
 export function shapeAds(ads, rankRows) {
   const ranks = new Map((rankRows || []).map(r => [r.ad_id, r]));
   return (ads || []).map(ad => {
@@ -120,9 +124,10 @@ export function shapeAds(ads, rankRows) {
       effectiveStatus: ad.effective_status,
       rejected: Object.entries(feedback).map(([reason, detail]) => ({ reason, detail })),
       issues: (ad.issues_info || []).map(i => i.error_summary || i.error_message).filter(Boolean),
-      quality: r.quality_ranking || null,
-      engagement: r.engagement_rate_ranking || null,
-      conversion: r.conversion_rate_ranking || null,
+      impressions: r.impressions != null ? num(r.impressions) : null,
+      quality: rank(r.quality_ranking),
+      engagement: rank(r.engagement_rate_ranking),
+      conversion: rank(r.conversion_rate_ranking),
     };
   });
 }
