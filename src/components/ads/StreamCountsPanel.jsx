@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine } from 'recharts';
-import { Headphones, RefreshCw, Loader2, AlertTriangle, Info, Plus, ChevronDown, Trash2, ExternalLink } from 'lucide-react';
+import { ResponsiveContainer, LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine } from 'recharts';
+import { Headphones, TrendingUp, TrendingDown, RefreshCw, Loader2, AlertTriangle, Info, Plus, ChevronDown, Trash2, ExternalLink } from 'lucide-react';
 import DspIcon from './DspIcon';
 import {
   fetchStreamTracker, createStreamTracker, recordStreamCount, refreshStreamTracker,
@@ -134,9 +134,11 @@ function SourceRow({ source: s, startDate, busy, onCount, onRemove }) {
       )}
       {s.manual && (!s.auto || s.lastError) && <CountForm busy={busy} onSave={onCount} />}
 
+      {s.showGain && <StreamLift daily={daily} startDate={startDate} />}
+
       {open && (
         <div className="border-t border-[#2C2B28] p-3">
-          {daily.length > 1 && (
+          {!s.showGain && daily.length > 1 && (
             <div className="h-36 mb-3">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={daily} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
@@ -179,6 +181,87 @@ function SourceRow({ source: s, startDate, busy, onCount, onRemove }) {
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+const DAY_MS = 86400000;
+const PHASE_COLOR = { before: '#6B6560', during: '#DA7756', after: '#9B9590' };
+const PHASE_LABEL = { before: 'Before campaign', during: 'During campaign', after: 'After campaign' };
+
+/** Streams per day from consecutive counts (a gap of several days is spread evenly). */
+function perDay(daily, startDate) {
+  const out = [];
+  for (let i = 1; i < daily.length; i++) {
+    const prev = daily[i - 1], cur = daily[i];
+    const days = Math.max(1, Math.round((Date.parse(cur.day) - Date.parse(prev.day)) / DAY_MS));
+    out.push({
+      day: cur.day,
+      streams: Math.max(0, Math.round((cur.count - prev.count) / days)),
+      phase: cur.afterEnd ? 'after' : cur.day < startDate ? 'before' : 'during',
+    });
+  }
+  return out;
+}
+
+const avg = (rows) => (rows.length ? rows.reduce((t, r) => t + r.streams, 0) / rows.length : null);
+
+/**
+ * Streams per day as bars, grey before the campaign and orange during it, with a
+ * headline saying whether daily streams went up compared with before.
+ */
+function StreamLift({ daily, startDate }) {
+  const rows = perDay(daily, startDate);
+  if (!rows.length) return null;
+  const before = avg(rows.filter(r => r.phase === 'before'));
+  const during = avg(rows.filter(r => r.phase === 'during'));
+  const lift = before && during != null ? ((during - before) / before) * 100 : null;
+  const up = lift != null && lift >= 5, down = lift != null && lift <= -5;
+  const color = up ? '#7BAF73' : down ? '#C75F4F' : '#9B9590';
+  const Icon = down ? TrendingDown : TrendingUp;
+  const phases = [...new Set(rows.map(r => r.phase))];
+
+  return (
+    <div className="border-t border-[#2C2B28] p-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-2 mb-2">
+        {lift != null ? (
+          <p className="flex items-center gap-1.5 text-sm" style={{ color }}>
+            <Icon size={14} />
+            <span className="font-mono">{lift >= 0 ? '+' : ''}{Math.round(lift)}%</span>
+            <span className="text-[11px] text-[#9B9590]">
+              streams per day: {formatNumber(Math.round(during))} during vs {formatNumber(Math.round(before))} before
+            </span>
+          </p>
+        ) : (
+          <p className="text-[11px] text-[#9B9590]">
+            {during != null ? `${formatNumber(Math.round(during))} streams per day during the campaign` : 'Streams per day'}
+            {before == null && <span className="text-[#6B6560]"> · no counts from before the campaign to compare</span>}
+          </p>
+        )}
+        <div className="flex gap-3">
+          {phases.map(p => (
+            <span key={p} className="flex items-center gap-1 text-[10px] text-[#9B9590]">
+              <span className="w-2 h-2 rounded-sm" style={{ background: PHASE_COLOR[p] }} />{PHASE_LABEL[p]}
+            </span>
+          ))}
+        </div>
+      </div>
+      <div className="h-32">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={rows} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
+            <CartesianGrid vertical={false} {...GRID_STYLE} />
+            <XAxis dataKey="day" tickFormatter={shortDay} tick={AXIS_STYLE} axisLine={false} tickLine={false} />
+            <YAxis tickFormatter={formatNumber} tick={AXIS_STYLE} axisLine={false} tickLine={false} width={40} allowDecimals={false} />
+            <Tooltip {...TOOLTIP_STYLE} cursor={{ fill: '#F5F0E8', opacity: 0.04 }} labelFormatter={shortDay}
+              formatter={(v, n, item) => [full(v), `Streams (${PHASE_LABEL[item.payload.phase].toLowerCase()})`]} />
+            {before != null && <ReferenceLine y={Math.round(before)} stroke="#9B9590" strokeDasharray="3 3" />}
+            <Bar dataKey="streams" radius={[4, 4, 0, 0]} maxBarSize={36} isAnimationActive={false}>
+              {rows.map(r => <Cell key={r.day} fill={PHASE_COLOR[r.phase]} />)}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+      {before != null && <p className="text-[10px] text-[#6B6560] mt-1">Dashed line: daily average before the campaign.</p>}
     </div>
   );
 }
