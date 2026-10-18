@@ -11,15 +11,15 @@
 //     YOUTUBE_ANALYTICS_APPROVED=1 once approved. Scraping YouTube is banned (III.E.6).
 //   - Spotify: plays per track are public in the app and web player, but no API returns
 //     them and the Spotify User Guidelines ban automated collection. Ian chose to read
-//     them from the public page anyway (api/lib/spotify-playcount.js, no Spotify
-//     credentials); SPOTIFY_PLAYCOUNT_SCRAPE=0 turns that off. A count can always be
+//     them from the public page anyway, in a headless browser (api/lib/spotify-playcount.js,
+//     no Spotify credentials); SPOTIFY_PLAYCOUNT_SCRAPE=0 turns that off. A count can always be
 //     entered by hand, to fill a day the page read failed.
 //   - Apple Music, Deezer, Amazon Music, TIDAL, Pandora: no public count, not tracked.
 //   - SoundCloud: public counts, but its API needs an approved app and its terms ban
 //     scraping; not tracked.
 import { query, queryOne } from './db.js';
 import { parseSourceUrl, norm } from './link-lookup.js';
-import { spotifyPlaycount, spotifyScrapeEnabled } from './spotify-playcount.js';
+import { spotifyPlaycounts, spotifyScrapeEnabled } from './spotify-playcount.js';
 
 const YOUTUBE_API = process.env.YOUTUBE_API_URL || 'https://www.googleapis.com/youtube/v3';
 export const YOUTUBE_RETENTION_DAYS = 30;
@@ -138,23 +138,10 @@ export async function findYouTubeVideo(title, artistName) {
   return official ? `https://www.youtube.com/watch?v=${official.id.videoId}` : null;
 }
 
-const pause = (ms) => new Promise(r => setTimeout(r, ms));
 
 // Services Prelude reads by itself
 const FETCHERS = {
-  spotify: async (sources) => {
-    if (!spotifyScrapeEnabled()) return {};
-    const out = {};
-    for (const [i, s] of sources.entries()) {
-      if (i) await pause(1000); // one page at a time
-      try {
-        out[s.external_id] = { count: (await spotifyPlaycount({ kind: s.kind, id: s.external_id })).count };
-      } catch (err) {
-        out[s.external_id] = { error: err.message };
-      }
-    }
-    return out;
-  },
+  spotify: async (sources) => (spotifyScrapeEnabled() ? spotifyPlaycounts(sources) : {}),
   youtube: async (sources) => {
     if (!youtubeConfigured()) return Object.fromEntries(sources.map(s => [s.external_id, { error: 'YOUTUBE_API_KEY is not set.' }]));
     const views = await youtubeViews(sources.map(s => s.external_id));

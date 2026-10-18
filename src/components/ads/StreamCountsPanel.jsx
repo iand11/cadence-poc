@@ -168,7 +168,7 @@ function SourceRow({ source: s, startDate, busy, onCount, onRemove }) {
                     <td className="py-0.5">{shortDay(d.day)}{d.day < startDate && <span className="text-[#6B6560]"> · before</span>}</td>
                     <td className="text-right text-[#F5F0E8]">{full(d.count)}</td>
                     {s.showGain && <td className={`text-right ${d.change > 0 ? 'text-[#7BAF73]' : ''}`}>{signed(d.change)}</td>}
-                    <td className="text-right">{d.source === 'manual' ? 'by hand' : 'API'}</td>
+                    <td className="text-right">{d.source === 'manual' ? 'by hand' : s.service === 'spotify' ? 'page' : 'API'}</td>
                   </tr>
                 ))}
               </tbody>

@@ -43,7 +43,14 @@
       "maxDuration": 60
     },
     "api/cron/stream-counts.js": {
-      "maxDuration": 60
+      "maxDuration": 300,
+      "memory": 2048,
+      "includeFiles": "node_modules/@sparticuz/chromium/bin/**"
+    },
+    "api/streams/index.js": {
+      "maxDuration": 60,
+      "memory": 2048,
+      "includeFiles": "node_modules/@sparticuz/chromium/bin/**"
     }
   }
 }

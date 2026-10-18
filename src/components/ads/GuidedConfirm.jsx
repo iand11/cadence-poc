@@ -469,7 +469,7 @@ function StreamTrackingSetup({ artist, smartLinks, linkSlug, onLinkSlug, youtube
                 <p key={`${t.service}:${t.externalId}`} className="flex items-center gap-1.5 text-[10px] text-[#9B9590]">
                   <DspIcon service={t.service} size={10} />
                   <span className="text-[#F5F0E8]">{SERVICE_LABELS[t.service]}</span>
-                  {t.service === 'youtube' ? 'views read daily' : 'plays entered by hand each day'}
+                  {t.service === 'youtube' ? 'views read daily' : 'plays read daily from its page'}
                 </p>
               ))}
               {current.skipped.map(s => (

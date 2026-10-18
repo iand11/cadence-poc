@@ -17,18 +17,18 @@ import {
   snapshotTracker, addSources, sourceFromLink,
 } from '../lib/stream-counts.js';
 import { parseSourceUrl } from '../lib/link-lookup.js';
-import { probeSpotifyPage } from '../lib/spotify-playcount.js';
+import { probeSpotify } from '../lib/spotify-playcount.js';
 
 const bad = (message, status = 400) => Object.assign(new Error(message), { status });
 
 export default async function handler(req, res) {
   const params = new URL(req.url, 'http://localhost').searchParams;
   try {
-    // The probe only reads Spotify's page, so it works without a database
+    // The probe only reads Spotify's page (in a headless browser), so it works without a database
     if (req.method === 'GET' && params.get('probe')) {
       const src = parseSourceUrl(params.get('probe'));
       if (src?.service !== 'spotify' || src.kind === 'artist') throw bad('Pass a Spotify track or album link.');
-      return res.status(200).json(await probeSpotifyPage(src));
+      return res.status(200).json(await probeSpotify(src));
     }
 
     await ensureStreamTables();
