@@ -28,7 +28,7 @@ const PLATFORM_COLOR_MAP = {
 
 export default function CampaignDetail() {
   const { id } = useParams();
-  const { directives, updateDirective } = useDirectives();
+  const { directives, updateDirective, loading: directivesLoading } = useDirectives();
   const { applied } = useOptimizations();
 
   const directive = useMemo(() => directives.find(d => d.id === id), [directives, id]);
@@ -80,6 +80,10 @@ export default function CampaignDetail() {
     }
     return lines.join('\n');
   }, [directive, totals, metrics, optimizationHistory]);
+
+  if (!directive && directivesLoading) {
+    return <p className="py-20 text-center text-[10px] font-mono text-[#6B6560]">Loading campaign…</p>;
+  }
 
   if (!directive) {
     return (

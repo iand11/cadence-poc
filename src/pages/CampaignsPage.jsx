@@ -44,6 +44,7 @@ export default function CampaignsPage() {
     directives, connectedPlatforms, counts,
     createDirective, updateDirective, deleteDirective,
     approveDirective, rejectDirective, submitForApproval, executeDirective,
+    loading: directivesLoading, error: directivesError,
   } = useDirectives();
 
   const { metricsById, loading: reportsLoading } = useCampaignReports(directives);
@@ -316,7 +317,7 @@ export default function CampaignsPage() {
           <div>
             <h2 className="text-sm font-medium text-[#F5F0E8]">Campaigns</h2>
             <p className="text-[10px] font-mono text-[#6B6560]">
-              {counts.total} campaign{counts.total !== 1 ? 's' : ''} · {counts.active} active
+              {directivesLoading ? 'Loading campaigns…' : `${counts.total} campaign${counts.total !== 1 ? 's' : ''} · ${counts.active} active`}
             </p>
           </div>
         </div>
@@ -347,6 +348,13 @@ export default function CampaignsPage() {
           <button onClick={() => setMetaNotice(null)} className="text-[#6B6560] hover:text-[#F5F0E8] cursor-pointer">
             <X size={12} />
           </button>
+        </div>
+      )}
+
+      {directivesError && (
+        <div className="flex items-start gap-2 mb-4 p-3 rounded border border-[#C75F4F]/30 bg-[#C75F4F]/10">
+          <AlertTriangle size={12} className="text-[#C75F4F] mt-0.5 shrink-0" />
+          <p className="flex-1 text-[11px] text-[#F5F0E8]">{directivesError}</p>
         </div>
       )}
 
@@ -462,7 +470,7 @@ export default function CampaignsPage() {
               <div className="w-12 h-12 rounded-full bg-[#DA7756]/10 border border-[#DA7756]/20 flex items-center justify-center mb-4">
                 <Megaphone size={20} className="text-[#DA7756]" />
               </div>
-              <p className="text-sm text-[#F5F0E8] mb-1">No campaigns yet</p>
+              <p className="text-sm text-[#F5F0E8] mb-1">{directivesLoading ? 'Loading campaigns…' : 'No campaigns yet'}</p>
               <p className="text-[11px] text-[#6B6560] mb-5 max-w-xs">
                 Create your first ad campaign to promote an artist across connected platforms.
               </p>

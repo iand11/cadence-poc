@@ -10,6 +10,7 @@ import {
 } from 'firebase/auth';
 import { auth, googleProvider } from '../lib/firebase';
 import { flushUserData, cancelUserData } from '../data/userData';
+import { flushCampaignSaves } from './useDirectives';
 
 const AuthContext = createContext(null);
 
@@ -80,7 +81,7 @@ export function AuthProvider({ children }) {
 
   // Flush queued user-data saves first — once signed out they'd have no token.
   const signOut = useCallback(async () => {
-    await flushUserData();
+    await Promise.all([flushUserData(), flushCampaignSaves()]);
     return firebaseSignOut(auth);
   }, []);
 

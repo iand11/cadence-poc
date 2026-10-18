@@ -205,6 +205,7 @@ All routes nested under `<App>` (which renders AppBar + Outlet):
 - No global state library. Pages manage their own state with `useState` + `useMemo`.
 - List pages follow a consistent pattern: query/filter/sort state → `useMemo` for filtered results → `useMemo` for paginated slice. Filter state **must** be in the `useMemo` dependency array or filters won't work.
 - Persistence via localStorage: reports (`musicspace-reports-v1`), favorites, dashboard layout.
+- Campaigns are saved per account in the `campaigns` table (one row per campaign, `api/campaigns/index.js`, `api/lib/campaigns.js`); `useDirectives` loads them for the signed-in user, saves each changed campaign (debounced PUT), and on first load moves any old browser-only campaigns (`musicspace-directives-v2`) into the account.
 - Custom hooks: `useChat`, `useReports`, `useFavorites`, `useDashboardLayout`, `useArtistCustomData`, `useSheets`.
 
 ### Styling
