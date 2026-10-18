@@ -464,6 +464,19 @@ CREATE TABLE IF NOT EXISTS user_data (
 );
 
 -- ---------------------------------------------------------------------------
+-- Saved campaigns, one row per campaign per user (api/lib/campaigns.js). `data`
+-- is the campaign object the app builds (platform, budget, creative, Meta ids…).
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS campaigns (
+  user_id    text NOT NULL,
+  id         text NOT NULL,
+  data       jsonb NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, id)
+);
+
+-- ---------------------------------------------------------------------------
 -- Ad platform connections — one row per user per platform. The access token
 -- is AES-256-GCM encrypted by api/lib/meta.js (AD_TOKEN_KEY) and never leaves
 -- the server. `selection` holds the chosen ad account ({ adAccountId }).

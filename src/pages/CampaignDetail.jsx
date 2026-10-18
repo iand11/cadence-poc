@@ -28,7 +28,7 @@ const PLATFORM_COLOR_MAP = {
 
 export default function CampaignDetail() {
   const { id } = useParams();
-  const { directives, updateDirective } = useDirectives();
+  const { directives, updateDirective, loading: directivesLoading } = useDirectives();
   const { applied } = useOptimizations();
 
   const directive = useMemo(() => directives.find(d => d.id === id), [directives, id]);
@@ -80,6 +80,10 @@ export default function CampaignDetail() {
     }
     return lines.join('\n');
   }, [directive, totals, metrics, optimizationHistory]);
+
+  if (!directive && directivesLoading) {
+    return <p className="py-20 text-center text-[10px] font-mono text-[#6B6560]">Loading campaign…</p>;
+  }
 
   if (!directive) {
     return (
@@ -152,13 +156,14 @@ export default function CampaignDetail() {
       </div>
 
 
+      {/* Results summary first; details expand underneath */}
+      {directive.platformCampaignId && directive.platform === 'meta' && (
+        <MetaCampaignPanel directive={directive} updateDirective={updateDirective} />
+      )}
+
       {/* Streams per service, before the campaign and each day of it */}
       {(directive.streamTrackerId || directive.goal === 'streams' || smartLinkSlug(directive.creative?.trackUrl)) && (
         <StreamCountsPanel directive={directive} updateDirective={updateDirective} />
-      )}
-
-      {directive.platformCampaignId && directive.platform === 'meta' && (
-        <MetaCampaignPanel directive={directive} updateDirective={updateDirective} />
       )}
 
       {/* Campaign Details */}
