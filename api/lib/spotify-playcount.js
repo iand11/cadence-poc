@@ -4,15 +4,16 @@
 // returns it. Its User Guidelines ban collecting it by automated means; reading it anyway
 // was Ian's call (2026-10-17). To keep that apart from Prelude's own Spotify developer app
 // (link lookup, fan capture), this uses no Spotify credentials: a plain page request,
-// once per release per day. SPOTIFY_PLAYCOUNT_SCRAPE=0 turns it off (counts are then
-// entered by hand).
+// once per release per day. Off unless SPOTIFY_PLAYCOUNT_SCRAPE=1: a live check
+// (2026-10-18) found the count is not in the page HTML, so this reads nothing today and
+// counts are entered by hand.
 //
 // The page embeds its data as JSON (sometimes base64-encoded) in <script> tags. Spotify
 // changes this without notice, so a miss is reported on the source, not guessed at.
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36';
 const ORIGIN = process.env.SPOTIFY_WEB_URL || 'https://open.spotify.com';
 
-export const spotifyScrapeEnabled = () => process.env.SPOTIFY_PLAYCOUNT_SCRAPE !== '0';
+export const spotifyScrapeEnabled = () => process.env.SPOTIFY_PLAYCOUNT_SCRAPE === '1';
 
 const fail = (message) => Object.assign(new Error(message), { status: 502 });
 
