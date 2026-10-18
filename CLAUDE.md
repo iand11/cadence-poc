@@ -113,6 +113,12 @@ Spotify plays are read from the public web player page in headless Chromium (`ap
 playwright-core + @sparticuz/chromium on Vercel, `CHROMIUM_PATH` locally; no Spotify credentials;
 `SPOTIFY_PLAYCOUNT_SCRAPE=0` turns it off; Spotify's User Guidelines ban this, Ian accepted the risk
 2026-10-18; `GET /api/streams?probe=<spotify url>` checks it against the live page) and can be entered by hand. Apple Music, Deezer, Amazon, TIDAL have no public count. Never scrape YouTube.
+For later analysis/model training: counts keep being read 30 days after a campaign ends (gain is still
+campaign-only), removing a source only hides it (`removed_at`), each tracked campaign's setup is kept in
+`stream_tracker_campaigns` (with its Meta campaign id once launched), and Meta reports are copied daily into
+`campaign_report_snapshots` (`api/lib/campaign-snapshots.js`; on every report read and by the stream-counts
+cron). YouTube counts still expire after 30 days. Meta's Platform Terms 5.b keep each client's Meta data
+separate and only used on their behalf, so pooling it across accounts for a shared model needs client consent in Prelude's terms.
 
 Request caching: client GETs go through `src/data/http.js` (`getJson(url, { ttl })` —
 in-flight dedupe + bounded TTL cache; `qs()` sorts `slugs` so the same artist set hits

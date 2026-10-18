@@ -378,6 +378,7 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, on
           id, linkSlug: streamLinkSlug, artistSlug: selectedArtist?.slug, artistName: selectedArtist?.name,
           startDate: plan.schedule.startDate, endDate: plan.schedule.endDate,
           links: trackYouTube.trim() ? [{ service: 'youtube', url: trackYouTube.trim() }] : [],
+          campaigns: marked,
         });
         marked.forEach(d => { d.streamTrackerId = id; });
       } catch (e) {

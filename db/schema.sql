@@ -784,3 +784,30 @@ CREATE TABLE IF NOT EXISTS stream_counts (
   FOREIGN KEY (tracker_id, service, external_id)
     REFERENCES stream_tracker_sources (tracker_id, service, external_id) ON DELETE CASCADE
 );
+
+-- Removing a source hides it (removed_at); its counts are kept for later analysis
+ALTER TABLE stream_tracker_sources ADD COLUMN IF NOT EXISTS removed_at timestamptz;
+
+-- Each tracked campaign's setup (platform, objective, budget, schedule, audience, creative ids)
+CREATE TABLE IF NOT EXISTS stream_tracker_campaigns (
+  tracker_id       text NOT NULL REFERENCES stream_trackers (id) ON DELETE CASCADE,
+  directive_id     text NOT NULL,
+  platform         text,
+  objective        text,
+  setup            jsonb NOT NULL,
+  meta_campaign_id text,                         -- set when it launches on Meta
+  created_at       timestamptz NOT NULL DEFAULT now(),
+  updated_at       timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (tracker_id, directive_id)
+);
+
+-- Daily copy of each Meta campaign's report (api/lib/campaign-snapshots.js), per Prelude account
+CREATE TABLE IF NOT EXISTS campaign_report_snapshots (
+  campaign_id  text NOT NULL,
+  day          date NOT NULL,
+  user_id      text NOT NULL,
+  managed      boolean NOT NULL DEFAULT false,  -- ran in Prelude's ad account
+  report       jsonb NOT NULL,
+  recorded_at  timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (campaign_id, day)
+);

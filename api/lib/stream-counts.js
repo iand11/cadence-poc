@@ -23,6 +23,8 @@ import { spotifyPlaycounts, spotifyScrapeEnabled } from './spotify-playcount.js'
 
 const YOUTUBE_API = process.env.YOUTUBE_API_URL || 'https://www.googleapis.com/youtube/v3';
 export const YOUTUBE_RETENTION_DAYS = 30;
+// Counts keep being read this many days after a campaign ends, to see how long the lift lasts
+export const AFTER_CAMPAIGN_DAYS = 30;
 export const youtubeApproved = () => process.env.YOUTUBE_ANALYTICS_APPROVED === '1';
 export const youtubeConfigured = () => !!process.env.YOUTUBE_API_KEY;
 
@@ -68,6 +70,23 @@ export function ensureStreamTables() {
           PRIMARY KEY (tracker_id, service, external_id, day),
           FOREIGN KEY (tracker_id, service, external_id)
             REFERENCES stream_tracker_sources (tracker_id, service, external_id) ON DELETE CASCADE
+        )`);
+      // Removing a source only hides it, so its counts stay for later analysis
+      await query('ALTER TABLE stream_tracker_sources ADD COLUMN IF NOT EXISTS removed_at timestamptz');
+      await query(`
+        CREATE TABLE IF NOT EXISTS stream_tracker_campaigns (
+          tracker_id text NOT NULL REFERENCES stream_trackers (id) ON DELETE CASCADE,
+          directive_id text NOT NULL, platform text, objective text, setup jsonb NOT NULL,
+          meta_campaign_id text, created_at timestamptz NOT NULL DEFAULT now(),
+          updated_at timestamptz NOT NULL DEFAULT now(),
+          PRIMARY KEY (tracker_id, directive_id)
+        )`);
+      await query(`
+        CREATE TABLE IF NOT EXISTS campaign_report_snapshots (
+          campaign_id text NOT NULL, day date NOT NULL, user_id text NOT NULL,
+          managed boolean NOT NULL DEFAULT false, report jsonb NOT NULL,
+          recorded_at timestamptz NOT NULL DEFAULT now(),
+          PRIMARY KEY (campaign_id, day)
         )`);
     })().catch((err) => { tablesReady = undefined; throw err; });
   }
@@ -152,7 +171,7 @@ const FETCHERS = {
 
 /** Take today's count for every automatic source of one tracker. */
 export async function snapshotTracker(trackerId) {
-  const sources = await query('SELECT * FROM stream_tracker_sources WHERE tracker_id = $1', [trackerId]);
+  const sources = await query('SELECT * FROM stream_tracker_sources WHERE tracker_id = $1 AND removed_at IS NULL', [trackerId]);
   const day = today();
   const results = { counted: 0, errors: 0 };
   for (const [service, fetcher] of Object.entries(FETCHERS)) {
@@ -195,11 +214,11 @@ export async function pruneYouTube() {
   return rows.length;
 }
 
-/** Daily job: every tracker whose campaign hasn't ended (plus one day to catch the last day). */
+/** Daily job: every tracker whose campaign hasn't ended or ended in the last AFTER_CAMPAIGN_DAYS days. */
 export async function snapshotDueTrackers() {
   await ensureStreamTables();
   const pruned = await pruneYouTube();
-  const trackers = await query(`SELECT id FROM stream_trackers WHERE end_date >= current_date - 1 ORDER BY created_at`);
+  const trackers = await query(`SELECT id FROM stream_trackers WHERE end_date >= current_date - $1::int ORDER BY created_at`, [AFTER_CAMPAIGN_DAYS + 1]);
   let counted = 0, errors = 0;
   for (const t of trackers) {
     const r = await snapshotTracker(t.id);
@@ -226,10 +245,50 @@ export async function addSources(trackerId, links) {
     if (s.skipped) { skipped.push({ service: s.service, reason: s.skipped }); continue; }
     await query(
       `INSERT INTO stream_tracker_sources (tracker_id, service, external_id, kind, url, label)
-       VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING`,
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (tracker_id, service, external_id) DO UPDATE SET removed_at = NULL`,
       [trackerId, s.service, s.externalId, s.kind, s.url, link.label || null]);
   }
   return skipped;
+}
+
+/**
+ * Keep each campaign's setup (platform, objective, budget, schedule, audience, creative) next
+ * to its stream counts, so results can later be compared against how campaigns were run.
+ * Uploaded image data isn't copied, only its ids.
+ */
+export async function saveCampaigns(trackerId, campaigns) {
+  for (const c of campaigns || []) {
+    if (!c?.id) continue;
+    const setup = {
+      platform: c.platform, objective: c.objective, budget: c.budget, schedule: c.schedule,
+      audience: c.audience, goal: c.goal || null, artistSlug: c.artistSlug || null,
+      creative: c.creative && Object.fromEntries(Object.entries(c.creative)
+        .filter(([, v]) => !(typeof v === 'string' && v.startsWith('data:')))),
+    };
+    await query(
+      `INSERT INTO stream_tracker_campaigns (tracker_id, directive_id, platform, objective, setup, meta_campaign_id)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (tracker_id, directive_id) DO UPDATE SET platform = EXCLUDED.platform, objective = EXCLUDED.objective,
+         setup = EXCLUDED.setup, meta_campaign_id = COALESCE(EXCLUDED.meta_campaign_id, stream_tracker_campaigns.meta_campaign_id),
+         updated_at = now()`,
+      [trackerId, String(c.id), c.platform || null, c.objective || null, JSON.stringify(setup), c.result?.campaignId || null]);
+  }
+}
+
+/** Record the Meta campaign a tracked campaign launched as (its daily results are then saved too). */
+export async function linkMetaCampaign(trackerId, directiveId, campaignId) {
+  if (!/^\d+$/.test(String(campaignId || ''))) throw bad('Invalid campaign id');
+  const row = await queryOne(
+    `UPDATE stream_tracker_campaigns SET meta_campaign_id = $3, updated_at = now()
+     WHERE tracker_id = $1 AND directive_id = $2 RETURNING 1`, [trackerId, String(directiveId), String(campaignId)]);
+  if (!row) throw bad('Campaign not found on this stream tracking', 404);
+}
+
+/** Hide a source from the report and stop reading it; its counts are kept. */
+export async function removeSource(trackerId, service, externalId) {
+  await query('UPDATE stream_tracker_sources SET removed_at = now() WHERE tracker_id = $1 AND service = $2 AND external_id = $3',
+    [trackerId, service, externalId]);
 }
 
 const isoDate = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? String(v) : null);
@@ -238,7 +297,7 @@ const isoDate = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? String(v) 
  * Start tracking. Links come from the release's smart link (linkSlug, the user's own)
  * plus any given; without a YouTube video, one is searched for by title + artist.
  */
-export async function createTracker(uid, { id, title, artistSlug, artistName, linkSlug, startDate, endDate, links = [] }) {
+export async function createTracker(uid, { id, title, artistSlug, artistName, linkSlug, startDate, endDate, links = [], campaigns = [] }) {
   await ensureStreamTables();
   const start = isoDate(startDate);
   const end = isoDate(endDate);
@@ -267,6 +326,7 @@ export async function createTracker(uid, { id, title, artistSlug, artistName, li
     [id, uid, releaseTitle, artistSlug || null, releaseArtist, linkSlug || null, start, end]);
 
   const skipped = await addSources(id, all);
+  await saveCampaigns(id, campaigns);
   const notes = [];
   const hasYouTube = await queryOne(`SELECT 1 FROM stream_tracker_sources WHERE tracker_id = $1 AND service = 'youtube'`, [id]);
   if (!hasYouTube) {
@@ -296,7 +356,7 @@ export async function recordCount(trackerId, { service, externalId, day, count }
   if (!Number.isFinite(n) || n < 0 || !Number.isInteger(n)) throw bad('Enter the count as a whole number.');
   if (d > today()) throw bad("That date hasn't happened yet.");
   if (!TRACKED[service]?.manual) throw bad(`${TRACKED[service]?.label || service} counts can't be entered by hand.`);
-  const src = await queryOne('SELECT 1 FROM stream_tracker_sources WHERE tracker_id = $1 AND service = $2 AND external_id = $3',
+  const src = await queryOne('SELECT 1 FROM stream_tracker_sources WHERE tracker_id = $1 AND service = $2 AND external_id = $3 AND removed_at IS NULL',
     [trackerId, service, externalId]);
   if (!src) throw bad('Source not found', 404);
   await query(
@@ -311,10 +371,13 @@ const dayStr = (v) => (v instanceof Date ? v.toISOString().slice(0, 10) : String
 
 /**
  * Baseline = the last count from before the campaign started (or the first count, flagged,
- * when tracking began after the start). Gains are left out for YouTube until the audit.
+ * when tracking began after the start). The gain runs to the campaign's last day; counts from
+ * the AFTER_CAMPAIGN_DAYS after it show in `daily` (and `latest`) as afterEnd.
+ * Gains are left out for YouTube until the audit.
  */
 export function summarize(tracker, sources, counts) {
   const start = dayStr(tracker.start_date);
+  const end = dayStr(tracker.end_date);
   return sources.map(s => {
     const rows = counts
       .filter(c => c.service === s.service && c.external_id === s.external_id)
@@ -323,25 +386,29 @@ export function summarize(tracker, sources, counts) {
     const before = rows.filter(r => r.day < start);
     const baseline = before.length ? before[before.length - 1] : rows[0] || null;
     const latest = rows[rows.length - 1] || null;
+    const during = rows.filter(r => r.day <= end);
+    const last = during[during.length - 1] || null;
     const showGain = s.service !== 'youtube' || youtubeApproved();
     return {
       service: s.service, externalId: s.external_id, kind: s.kind, url: s.url, label: s.label,
       auto: !!TRACKED[s.service]?.auto, manual: !!TRACKED[s.service]?.manual, lastError: s.last_error || null,
       baseline: baseline ? { ...baseline, afterStart: baseline.day >= start } : null,
       latest,
-      gain: showGain && baseline && latest && latest.day !== baseline.day ? latest.count - baseline.count : null,
+      gain: showGain && baseline && last && last.day !== baseline.day ? last.count - baseline.count : null,
+      gainTo: last?.day || null,
       showGain,
-      daily: rows.map((r, i) => ({ ...r, change: showGain && i > 0 ? r.count - rows[i - 1].count : null })),
+      daily: rows.map((r, i) => ({ ...r, afterEnd: r.day > end, change: showGain && i > 0 ? r.count - rows[i - 1].count : null })),
     };
   });
 }
 
 export async function trackerReport(tracker) {
-  const sources = await query('SELECT * FROM stream_tracker_sources WHERE tracker_id = $1 ORDER BY service, created_at', [tracker.id]);
+  const sources = await query('SELECT * FROM stream_tracker_sources WHERE tracker_id = $1 AND removed_at IS NULL ORDER BY service, created_at', [tracker.id]);
   const counts = await query('SELECT * FROM stream_counts WHERE tracker_id = $1 ORDER BY day', [tracker.id]);
   return {
     id: tracker.id, title: tracker.title, artistName: tracker.artist_name, linkSlug: tracker.link_slug,
     startDate: dayStr(tracker.start_date), endDate: dayStr(tracker.end_date), lastRunAt: tracker.last_run_at,
+    trackedUntil: new Date(Date.parse(dayStr(tracker.end_date)) + AFTER_CAMPAIGN_DAYS * 86400000).toISOString().slice(0, 10),
     sources: summarize(tracker, sources, counts),
     youtube: { configured: youtubeConfigured(), approved: youtubeApproved(), retentionDays: youtubeApproved() ? null : YOUTUBE_RETENTION_DAYS },
   };

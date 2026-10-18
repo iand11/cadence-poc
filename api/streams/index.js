@@ -4,17 +4,19 @@
 //   GET ?id=<tracker id>   → { id, title, startDate, endDate, sources: [{ service, baseline, latest, gain, daily }], youtube, services }
 //   GET ?probe=<Spotify track/album URL> → what the public page contains (checks the play-count reader)
 //   GET ?preview=<link slug> → { tracked: [{ service, url }], skipped: [{ service, reason }] } for a smart link
-//   POST { action: 'create', id, linkSlug?, links?, title?, artistSlug?, artistName?, startDate, endDate }
+//   POST { action: 'create', id, linkSlug?, links?, title?, artistSlug?, artistName?, startDate, endDate, campaigns? }
 //        → starts tracking (takes the first count now); returns the report plus skipped services
 //   POST { action: 'add', id, url }                        → track one more link (another video, say)
 //   POST { action: 'count', id, service, externalId, day?, count } → a count entered by hand
 //   POST { action: 'refresh', id }                         → read the automatic counts now
-//   DELETE ?id=<tracker id>&service=&externalId=           → stop tracking one source
-import { query, queryOne } from '../lib/db.js';
+//   POST { action: 'campaigns', id, campaigns: [directive] } → keep the campaigns' setup with the counts
+//   POST { action: 'meta', id, directiveId, campaignId }   → the Meta campaign a tracked campaign launched as
+//   DELETE ?id=<tracker id>&service=&externalId=           → stop tracking one source (its counts are kept)
+import { queryOne } from '../lib/db.js';
 import { getUid, readBody, sendError } from '../lib/meta.js';
 import {
   ensureStreamTables, createTracker, ownedTracker, trackerReport, recordCount,
-  snapshotTracker, addSources, sourceFromLink,
+  snapshotTracker, addSources, sourceFromLink, saveCampaigns, linkMetaCampaign, removeSource,
 } from '../lib/stream-counts.js';
 import { parseSourceUrl } from '../lib/link-lookup.js';
 import { probeSpotify } from '../lib/spotify-playcount.js';
@@ -67,6 +69,12 @@ export default async function handler(req, res) {
         await recordCount(tracker.id, body);
       } else if (body.action === 'refresh') {
         await snapshotTracker(tracker.id);
+      } else if (body.action === 'campaigns') {
+        await saveCampaigns(tracker.id, Array.isArray(body.campaigns) ? body.campaigns : []);
+        return res.status(200).json({ ok: true });
+      } else if (body.action === 'meta') {
+        await linkMetaCampaign(tracker.id, body.directiveId, body.campaignId);
+        return res.status(200).json({ ok: true });
       } else {
         throw bad('Unknown action');
       }
@@ -75,8 +83,7 @@ export default async function handler(req, res) {
 
     if (req.method === 'DELETE') {
       const tracker = await ownedTracker(uid, params.get('id'));
-      await query('DELETE FROM stream_tracker_sources WHERE tracker_id = $1 AND service = $2 AND external_id = $3',
-        [tracker.id, params.get('service'), params.get('externalId')]);
+      await removeSource(tracker.id, params.get('service'), params.get('externalId'));
       return res.status(200).json(await trackerReport(tracker));
     }
 

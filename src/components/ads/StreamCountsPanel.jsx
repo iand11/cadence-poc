@@ -64,7 +64,7 @@ export default function StreamCountsPanel({ directive, updateDirective }) {
             <Headphones size={12} className="text-[#DA7756]" />Streams
           </h3>
           <p className="text-[10px] text-[#6B6560] mt-0.5">
-            {report ? `${report.title ? `${report.title} · ` : ''}campaign runs ${shortDay(report.startDate)} – ${shortDay(report.endDate)}` : 'Loading…'}
+            {report ? `${report.title ? `${report.title} · ` : ''}campaign runs ${shortDay(report.startDate)} – ${shortDay(report.endDate)}, counted until ${shortDay(report.trackedUntil)}` : 'Loading…'}
           </p>
         </div>
         <button onClick={() => run(() => refreshStreamTracker(trackerId)).catch(() => {})} disabled={busy || !report} className={BTN} title="Read the counts now (normally once a day)">
@@ -118,7 +118,7 @@ function SourceRow({ source: s, startDate, busy, onCount, onRemove }) {
           hint={s.baseline?.afterStart ? 'Tracking started after the campaign began, so this is the first count, not a true before.' : 'The last count from before the campaign started.'} />
         <Figure label="Now" value={full(s.latest?.count)} sub={s.latest ? shortDay(s.latest.day) : '–'} />
         <Figure
-          label="Gained"
+          label="Gained in campaign"
           value={s.showGain ? signed(s.gain) : 'n/a'}
           sub={s.showGain ? '' : 'YouTube rules'}
           positive={s.gain > 0}
@@ -165,7 +165,7 @@ function SourceRow({ source: s, startDate, busy, onCount, onRemove }) {
               <tbody>
                 {[...daily].reverse().map(d => (
                   <tr key={d.day} className="text-[#9B9590]">
-                    <td className="py-0.5">{shortDay(d.day)}{d.day < startDate && <span className="text-[#6B6560]"> · before</span>}</td>
+                    <td className="py-0.5">{shortDay(d.day)}{d.day < startDate && <span className="text-[#6B6560]"> · before</span>}{d.afterEnd && <span className="text-[#6B6560]"> · after</span>}</td>
                     <td className="text-right text-[#F5F0E8]">{full(d.count)}</td>
                     {s.showGain && <td className={`text-right ${d.change > 0 ? 'text-[#7BAF73]' : ''}`}>{signed(d.change)}</td>}
                     <td className="text-right">{d.source === 'manual' ? 'by hand' : s.service === 'spotify' ? 'page' : 'API'}</td>
@@ -273,6 +273,7 @@ function StartTracking({ directive, updateDirective }) {
       await createStreamTracker({
         id, linkSlug: slug, artistSlug: directive.artistSlug, artistName: directive.artistName,
         startDate: directive.schedule?.startDate, endDate: directive.schedule?.endDate,
+        campaigns: [directive],
       });
       updateDirective(directive.id, { streamTrackerId: id });
     } catch (e) {

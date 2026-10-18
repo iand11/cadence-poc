@@ -9,7 +9,7 @@ export const fetchStreamTracker = (id) => request(`/api/streams?id=${encodeURICo
 /** Which of a smart link's services can be counted: { tracked: [{ service, url }], skipped: [{ service, reason }] } */
 export const previewStreamSources = (linkSlug) => request(`/api/streams?preview=${encodeURIComponent(linkSlug)}`);
 
-/** body: { id, linkSlug?, links?, title?, artistSlug?, artistName?, startDate, endDate } */
+/** body: { id, linkSlug?, links?, title?, artistSlug?, artistName?, startDate, endDate, campaigns? (directives) } */
 export const createStreamTracker = (body) => request('/api/streams', { method: 'POST', body: { action: 'create', ...body } });
 
 export const addStreamSource = (id, url) => request('/api/streams', { method: 'POST', body: { action: 'add', id, url } });
@@ -18,6 +18,13 @@ export const recordStreamCount = (id, { service, externalId, day, count }) =>
   request('/api/streams', { method: 'POST', body: { action: 'count', id, service, externalId, day, count } });
 
 export const refreshStreamTracker = (id) => request('/api/streams', { method: 'POST', body: { action: 'refresh', id } });
+
+/** Keep the campaigns' setup with the counts (for comparing results with how campaigns were run). */
+export const saveStreamCampaigns = (id, campaigns) => request('/api/streams', { method: 'POST', body: { action: 'campaigns', id, campaigns } });
+
+/** The Meta campaign a tracked campaign launched as; its daily report is then saved too. */
+export const linkStreamMetaCampaign = (id, directiveId, campaignId) =>
+  request('/api/streams', { method: 'POST', body: { action: 'meta', id, directiveId, campaignId } });
 
 export const removeStreamSource = (id, service, externalId) =>
   request(`/api/streams?${new URLSearchParams({ id, service, externalId })}`, { method: 'DELETE' });

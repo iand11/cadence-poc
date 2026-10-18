@@ -23,6 +23,7 @@ import {
   activateCampaign, setManagedCheckout, markManagedPaid,
 } from '../lib/meta.js';
 import { campaignReport, CAMPAIGN_FIELDS } from '../lib/meta-insights.js';
+import { saveReportSnapshot } from '../lib/campaign-snapshots.js';
 import { prepayEnabled, prepayQuote, createCheckout, getCheckout } from '../lib/stripe.js';
 
 const forbidden = (message) => Object.assign(new Error(message), { status: 403 });
@@ -32,7 +33,7 @@ function checkId(id) {
 }
 
 /** The campaign plus the token that can act on it, or a 403. */
-async function loadCampaign(uid, id) {
+export async function loadCampaign(uid, id) {
   checkId(id);
   const managed = await getManagedCampaign(id);
   if (managed) {
@@ -99,6 +100,9 @@ export default async function handler(req, res) {
         ({ campaign, managed } = await loadCampaign(uid, id));
       }
       const report = await campaignReport(id, token, campaign);
+      // Keep a daily copy for later analysis; never fails the read
+      saveReportSnapshot(managed ? managed.user_id : uid, id, !!managed, { status: campaign.status, effectiveStatus: campaign.effective_status, ...report })
+        .catch(err => console.warn('[meta-campaign] snapshot not saved', err.message));
       return res.status(200).json({
         status: campaign.status,
         effectiveStatus: campaign.effective_status,

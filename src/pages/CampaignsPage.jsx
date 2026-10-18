@@ -11,6 +11,7 @@ import AccountConnector from '../components/ads/AccountConnector';
 import ManagedReviewPanel from '../components/ads/ManagedReviewPanel';
 import { useMetaConnection } from '../hooks/useMetaConnection';
 import { launchMetaCampaign, isMetaDirective, ACCOUNT_FIX_CODES } from '../data/metaAds';
+import { linkStreamMetaCampaign } from '../data/streamCounts';
 import { useDirectives } from '../hooks/useDirectives';
 import { useCampaignReports } from '../hooks/useCampaignReports';
 import { generateDirective, PLATFORM_LABELS } from '../data/directives';
@@ -117,6 +118,11 @@ export default function CampaignsPage() {
         metricsSource: 'meta',
         lastSyncedAt: new Date().toISOString(),
       });
+      // Stream-goal campaigns: save the Meta campaign's daily results with the stream counts
+      if (d.streamTrackerId && result.campaignId) {
+        linkStreamMetaCampaign(d.streamTrackerId, d.id, result.campaignId)
+          .catch(err => console.warn('[campaigns] Meta campaign not linked to stream tracking', err.message));
+      }
       navigate(`/app/campaigns/${id}`);
     } catch (e) {
       if (ACCOUNT_FIX_CODES.has(e.code) || e.code === 'not_configured') {
