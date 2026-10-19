@@ -600,6 +600,9 @@ CREATE INDEX IF NOT EXISTS smart_link_events_event_id_idx ON smart_link_events (
 -- release, and are stored here (one row per link per Spotify user). Prelude does not
 -- keep their Spotify token.
 ALTER TABLE smart_links ADD COLUMN IF NOT EXISTS fan_capture boolean NOT NULL DEFAULT false;
+-- Set when a campaign launch attached a Pixel from Prelude's ad account (Prelude-managed
+-- ads), so Conversions API events use Prelude's token instead of the owner's
+ALTER TABLE smart_links ADD COLUMN IF NOT EXISTS pixel_prelude boolean NOT NULL DEFAULT false;
 
 CREATE TABLE IF NOT EXISTS smart_link_fans (
   slug             text NOT NULL REFERENCES smart_links (slug) ON DELETE CASCADE,

@@ -39,6 +39,7 @@ function shape(req, row, counts = {}) {
     sourceUrl: row.source_url,
     links: row.links || [],
     pixelId: row.pixel_id,
+    pixelPrelude: !!row.pixel_prelude,
     fanCapture: !!row.fan_capture,
     createdAt: row.created_at,
     views: counts.views ?? 0,
@@ -235,12 +236,15 @@ export default async function handler(req, res) {
       const row = await ownedLink(uid, body.slug);
       const links = body.links ? cleanLinks(body.links) : row.links;
       if (!links.length) throw bad('A link needs at least one streaming service.');
-      const pixelId = 'pixelId' in body ? await validPixel(uid, body.pixelId) : row.pixel_id;
+      // The Pixel a campaign launch attached (possibly Prelude's) stays valid as is
+      const keepPixel = !('pixelId' in body) || String(body.pixelId || '') === String(row.pixel_id || '');
+      const pixelId = keepPixel ? row.pixel_id : await validPixel(uid, body.pixelId);
       const updated = await queryOne(
-        `UPDATE smart_links SET title = $3, links = $4, pixel_id = $5, fan_capture = $6, updated_at = now()
+        `UPDATE smart_links SET title = $3, links = $4, pixel_id = $5, fan_capture = $6,
+           pixel_prelude = $7, updated_at = now()
          WHERE slug = $1 AND user_id = $2 RETURNING *`,
         [row.slug, uid, 'title' in body ? String(body.title || '').trim() || null : row.title, JSON.stringify(links), pixelId,
-          'fanCapture' in body ? !!body.fanCapture : row.fan_capture]);
+          'fanCapture' in body ? !!body.fanCapture : row.fan_capture, keepPixel ? !!row.pixel_prelude : false]);
       return res.status(200).json({ link: shape(req, updated) });
     }
 
