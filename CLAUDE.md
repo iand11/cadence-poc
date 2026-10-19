@@ -148,8 +148,12 @@ server-side refusal fallback) makes one model call per step, and the data tools 
 releases, playlist placements, social posts, catalog, campaigns, Meta reports, smart links) run in the browser through
 the existing API adapters, so they only see what the user can see. The loop ends with `render_widget` (metric, bar,
 line, area, pie, radar, table, list or text), rendered by `CustomWidget.jsx`. Widgets are saved per account in
-`dashboard_widgets` (`GET/PUT/DELETE /api/widgets`, `useCustomWidgets`); refresh and edit rebuild them from the request.
-Their order on the Dashboard shares the built-in widgets' layout list as `custom:<id>`. Needs `ANTHROPIC_API_KEY`.
+`dashboard_widgets` (`GET/PUT/DELETE /api/widgets`, `useCustomWidgets`).
+Building happens in `WidgetBuilder` (modal): it shows each step as it runs, a preview, and takes follow-up changes
+(the same model conversation continues) until the user clicks "Add to dashboard"; nothing is saved before that.
+A saved widget keeps `requests` (first ask + each change) for refresh/edit and a `hidden` flag: removing it from the
+dashboard hides it, and it stays under Available Widgets (toggle back on, or delete there). Dashboard order shares the
+built-in widgets' layout list as `custom:<id>`. Needs `ANTHROPIC_API_KEY`.
 
 ### Artist listener geography is never shown
 

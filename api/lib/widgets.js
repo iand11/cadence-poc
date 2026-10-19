@@ -77,6 +77,7 @@ How to work:
 - The context lists the artists the user follows ("my artists", "my roster") and their named groups. Use the other tools for anything else: metric history, tracks, releases, playlist placements, social posts, the wider catalog, the user's campaigns and smart links.
 - Call independent tools in parallel. Most widgets need one to three tool calls.
 - Always finish by calling render_widget. Never answer in plain text.
+- The user sees each render_widget as a preview and may reply with a change. Apply it to the same widget, keeping what they did not ask to change, and fetch more data only when the change needs it.
 - Use only numbers that come from the context or a tool result. Never estimate, invent or extrapolate data. If the data the user asked for does not exist in these sources, render a short "text" widget saying what is missing and, if one exists, the closest thing you can show.
 - Never show where an artist's listeners are (listener cities or countries). If asked, say in a text widget that listener geography is not shown in Prelude. An artist's own home country/city, smart link visitor counts by country and campaign audience breakdowns are fine.
 
@@ -263,7 +264,7 @@ const TOOLS = [{
   },
 }];
 
-const MAX_MESSAGES = 24;
+const MAX_MESSAGES = 40;
 const MAX_REQUEST_BYTES = 600 * 1024;
 
 // Model calls per user per hour (a widget takes ~2–4), per warm instance.

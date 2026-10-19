@@ -205,7 +205,22 @@ async function runTool(block) {
 // ── The loop ─────────────────────────────────────────────────────────────────
 
 const MAX_STEPS = 6;
+// Past this many messages a refinement starts a fresh conversation from the current spec
+const MAX_MESSAGES = 24;
 const TYPES = new Set(['metric', 'bar', 'line', 'area', 'pie', 'radar', 'table', 'list', 'text']);
+
+/** What each data tool is doing, for the progress list. */
+export const TOOL_LABELS = {
+  artist_history: 'Loading metric history',
+  tracks: 'Loading tracks',
+  releases: 'Loading releases',
+  playlist_placements: 'Loading playlist placements',
+  social_posts: 'Loading social posts',
+  catalog_artists: 'Searching the catalog',
+  campaigns: 'Loading campaigns',
+  campaign_report: 'Loading campaign report',
+  smart_links: 'Loading smart links',
+};
 
 /** Keep only what the renderer reads, with sane sizes. */
 function cleanSpec(input) {
@@ -220,44 +235,97 @@ function cleanSpec(input) {
   return spec;
 }
 
+/** The request a saved widget is rebuilt from: the first ask plus each change. */
+export function requestText(requests) {
+  if (!requests?.length) return 'A dashboard widget.';
+  const [first, ...changes] = requests;
+  return changes.length ? `${first}\n\nThen these changes, in order:\n${changes.map(c => `- ${c}`).join('\n')}` : first;
+}
+
 /**
- * Turn a free-form request into a widget spec.
- * @param {string} prompt     what the user asked for
- * @param {object} opts       { groups, previous } previous: the spec being edited, if any
- * @param {function} onStep   called with a short status as the loop progresses
- * @returns {Promise<object>} spec { type, title, subtitle?, data?, series?, … }
+ * A widget being built and refined. `run(text)` sends the first request or a change
+ * to the current preview and resolves to the new spec. Progress events go to onProgress:
+ *   { kind: 'think' } | { kind: 'tools', labels: [string] } | { kind: 'render' }
+ *
+ * @param {object} opts { groups, base } base: a saved widget { requests, spec } to start from
  */
-export async function generateWidget(prompt, { groups, previous } = {}, onStep) {
+export function createWidgetSession({ groups, base } = {}) {
   const context = buildWidgetContext(groups);
-  const ask = previous
-    ? `${prompt}\n\n(This replaces an existing widget titled "${previous.title}" shown as a ${previous.type}. Fetch fresh data.)`
-    : prompt;
-  const messages = [{ role: 'user', content: ask }];
+  let messages = [];
+  let pendingRender = null; // tool_use id of the last render_widget, answered by the next run
+  let spec = base?.spec || null;
+  const requests = [...(base?.requests || [])];
 
-  for (let step = 0; step < MAX_STEPS; step++) {
-    onStep?.(step === 0 ? 'Thinking' : 'Reading data');
-    const { content, stopReason } = await generateStep(messages, context);
-    if (stopReason === 'refusal') throw new Error("Couldn't build that widget");
+  const fromSpec = (change) => [
+    { role: 'user', content: `${requestText(requests)}\n\nThe widget currently looks like this:\n${JSON.stringify(spec)}\n\nChange: ${change}\nFetch fresh data where needed.` },
+  ];
 
-    const render = content.find(b => b.type === 'tool_use' && b.name === 'render_widget');
-    if (render) return cleanSpec(render.input || {});
-
-    const calls = content.filter(b => b.type === 'tool_use');
-    if (!calls.length) {
-      // Answered in text despite the instructions — show it as a text widget
-      const text = content.filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
-      if (text) return cleanSpec({ type: 'text', title: prompt.slice(0, 40), text });
-      throw new Error("Couldn't build that widget");
+  async function run(text, onProgress) {
+    try {
+      return await attempt(text, onProgress);
+    } catch (err) {
+      // Drop the failed turn; the next run starts again from the current spec
+      requests.pop();
+      messages = [];
+      pendingRender = null;
+      throw err;
     }
-
-    // Append the assistant turn unchanged (thinking blocks included), then all results in one message
-    messages.push({ role: 'assistant', content });
-    const results = await Promise.all(calls.map(runTool));
-    const lastStep = step === MAX_STEPS - 2;
-    messages.push({
-      role: 'user',
-      content: lastStep ? [...results, { type: 'text', text: 'Call render_widget now with the data you have.' }] : results,
-    });
   }
-  throw new Error("Couldn't build that widget");
+
+  async function attempt(text, onProgress) {
+    if (!messages.length || messages.length > MAX_MESSAGES) {
+      messages = spec ? fromSpec(text) : [{ role: 'user', content: text }];
+    } else {
+      messages.push({
+        role: 'user',
+        content: [
+          { type: 'tool_result', tool_use_id: pendingRender, content: 'Shown to the user as a preview.' },
+          { type: 'text', text: `Change: ${text}` },
+        ],
+      });
+    }
+    pendingRender = null;
+    requests.push(text);
+
+    for (let step = 0; step < MAX_STEPS; step++) {
+      onProgress?.({ kind: 'think' });
+      const { content, stopReason } = await generateStep(messages, context);
+      if (stopReason === 'refusal') throw new Error("Couldn't build that widget");
+      messages.push({ role: 'assistant', content });
+
+      const render = content.find(b => b.type === 'tool_use' && b.name === 'render_widget');
+      if (render) {
+        pendingRender = render.id;
+        onProgress?.({ kind: 'render' });
+        spec = cleanSpec(render.input || {});
+        return spec;
+      }
+
+      const calls = content.filter(b => b.type === 'tool_use');
+      if (!calls.length) {
+        // Answered in text despite the instructions — show it as a text widget, start over next time
+        const answer = content.filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
+        if (!answer) throw new Error("Couldn't build that widget");
+        messages = [];
+        spec = cleanSpec({ type: 'text', title: text.slice(0, 40), text: answer });
+        return spec;
+      }
+
+      onProgress?.({ kind: 'tools', labels: [...new Set(calls.map(c => TOOL_LABELS[c.name] || 'Loading data'))] });
+      const results = await Promise.all(calls.map(runTool));
+      const lastStep = step === MAX_STEPS - 2;
+      messages.push({
+        role: 'user',
+        content: lastStep ? [...results, { type: 'text', text: 'Call render_widget now with the data you have.' }] : results,
+      });
+    }
+    throw new Error("Couldn't build that widget");
+  }
+
+  return { run, requests: () => [...requests] };
+}
+
+/** Rebuild a saved widget from its requests with fresh data. */
+export function rebuildWidgetSpec(widget, { groups } = {}) {
+  return createWidgetSession({ groups }).run(requestText(widget.requests));
 }

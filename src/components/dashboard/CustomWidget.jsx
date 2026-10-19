@@ -1,7 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router';
 import Markdown from 'react-markdown';
-import { ArrowUp, RotateCcw } from 'lucide-react';
 import { CartesianChart, DonutChart, RadarChartWrapper } from '../ai/ChatChart';
 import { formatNumber, formatCurrency, formatDelta } from '../../utils/formatters';
 
@@ -149,66 +147,20 @@ export function CustomWidgetView({ spec }) {
   }
 }
 
-/** The body of a custom widget card: progress, error or the rendered spec. */
-export function CustomWidgetBody({ widget, onRetry }) {
-  const { spec, status, error } = widget;
-  if (!spec) {
-    return error ? (
-      <div className="py-8 text-center">
-        <p className="text-[11px] text-[#C75F4F]">{error}</p>
-        <button onClick={onRetry} className="mt-2 inline-flex items-center gap-1 text-[10px] text-[#9B9590] hover:text-[#F5F0E8] cursor-pointer">
-          <RotateCcw size={10} /> Retry
-        </button>
-      </div>
-    ) : (
-      <div className="py-10 flex flex-col items-center gap-2">
-        <div className="w-5 h-5 rounded-full border-2 border-[#2C2B28] border-t-[#DA7756] animate-spin" />
-        <p className="text-[10px] text-[#6B6560]">{status || 'Building'}…</p>
-      </div>
-    );
-  }
+/** The body of a custom widget card on the dashboard. */
+export function CustomWidgetBody({ widget }) {
+  const { spec, refreshing, error } = widget;
   return (
     <div className="relative">
-      <div className={status ? 'opacity-30 pointer-events-none' : ''}>
+      <div className={refreshing ? 'opacity-30 pointer-events-none' : ''}>
         <CustomWidgetView spec={spec} />
       </div>
-      {status && (
+      {refreshing && (
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="w-5 h-5 rounded-full border-2 border-[#2C2B28] border-t-[#DA7756] animate-spin" />
         </div>
       )}
-      {error && <p className="mt-2 text-[10px] text-[#C75F4F]">{error}</p>}
+      {error && <p className="mt-2 text-[10px] text-[#C75F4F]">Couldn't refresh: {error}</p>}
     </div>
-  );
-}
-
-/** One-line request box for creating or editing a widget. */
-export function WidgetComposer({ initial = '', submitLabel, onSubmit, onCancel }) {
-  const [text, setText] = useState(initial);
-  const ref = useRef(null);
-  useEffect(() => { ref.current?.focus(); }, []);
-  const submit = (e) => {
-    e.preventDefault();
-    if (text.trim()) onSubmit(text.trim());
-  };
-  return (
-    <form onSubmit={submit} className="flex items-center gap-2 bg-[#171614] border border-[#2C2B28] focus-within:border-[#DA7756]/40 rounded px-3 py-2 transition-colors">
-      <input
-        ref={ref}
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        onKeyDown={(e) => { if (e.key === 'Escape') onCancel?.(); }}
-        placeholder="Describe a widget, e.g. TikTok followers of my artists over 90 days"
-        className="flex-1 bg-transparent text-sm text-[#F5F0E8] placeholder-[#6B6560] outline-none"
-      />
-      <button
-        type="submit"
-        disabled={!text.trim()}
-        title={submitLabel}
-        className="w-7 h-7 rounded bg-[#DA7756] disabled:bg-[#2C2B28] flex items-center justify-center transition-colors cursor-pointer shrink-0"
-      >
-        <ArrowUp size={14} className="text-[#0D0C0B]" />
-      </button>
-    </form>
   );
 }
