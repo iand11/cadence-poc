@@ -179,13 +179,4 @@ export async function campaignReport(id, token, campaign) {
   };
 }
 
-/**
- * The report as the app may show it. Age/gender and country breakdowns are kept in the
- * stored snapshots (campaign_report_snapshots) but never sent to the client.
- */
-export function clientReport(report) {
-  if (!report.breakdowns) return report;
-  return { ...report, breakdowns: { placement: report.breakdowns.placement } };
-}
-
 export const CAMPAIGN_FIELDS = 'id,name,account_id,status,effective_status,objective,issues_info';

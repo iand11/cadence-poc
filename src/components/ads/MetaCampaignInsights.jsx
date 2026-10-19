@@ -75,6 +75,39 @@ function Rank({ title, value }) {
   );
 }
 
+/** Audience by age, with women / men side by side. */
+function Audience({ rows }) {
+  const byAge = new Map();
+  for (const r of rows) {
+    const a = byAge.get(r.age) || { age: r.age, female: 0, male: 0, unknown: 0 };
+    a[r.gender in a ? r.gender : 'unknown'] += r.impressions;
+    byAge.set(r.age, a);
+  }
+  const ages = [...byAge.values()].sort((x, y) => (x.age < y.age ? -1 : 1));
+  const max = Math.max(1, ...ages.map(a => a.female + a.male + a.unknown));
+  return (
+    <div className="space-y-1.5">
+      {ages.map(a => (
+        <div key={a.age} className="flex items-center gap-2">
+          <span className="text-[10px] font-mono text-[#F5F0E8] w-12 shrink-0">{a.age}</span>
+          <div className="flex-1 h-1.5 bg-[#2C2B28] rounded-full overflow-hidden flex">
+            <div className="h-full bg-[#DA7756]" style={{ width: `${(a.female / max) * 100}%` }} />
+            <div className="h-full bg-[#D4A574]" style={{ width: `${(a.male / max) * 100}%` }} />
+            <div className="h-full bg-[#6B6560]" style={{ width: `${(a.unknown / max) * 100}%` }} />
+          </div>
+          <span className="text-[10px] font-mono text-[#9B9590] w-14 text-right">{formatNumber(a.female + a.male + a.unknown)}</span>
+        </div>
+      ))}
+      <p className="text-[9px] font-mono text-[#6B6560] flex gap-3">
+        <span><span className="text-[#DA7756]">■</span> women</span>
+        <span><span className="text-[#D4A574]">■</span> men</span>
+        <span><span className="text-[#6B6560]">■</span> unknown</span>
+        <span>· impressions</span>
+      </p>
+    </div>
+  );
+}
+
 const shortDay = (iso) => new Date(`${iso}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
 
 /** Link taps per day; spend is in the tooltip (one measure per axis). */
@@ -321,10 +354,24 @@ export default function MetaCampaignInsights({ live, link, streams, smartLink })
             </Section>
           )}
 
-          {br?.placement?.length > 0 && (
-            <Section title="Where it ran">
-              <Bars rows={br.placement.slice(0, 6)} total={br.placement[0].impressions} name={placementName} />
-            </Section>
+          {br && (br.placement?.length > 0 || br.audience?.length > 0 || br.country?.length > 0) && (
+            <div className="grid md:grid-cols-3 gap-x-6">
+              {br.placement?.length > 0 && (
+                <Section title="Where it ran">
+                  <Bars rows={br.placement.slice(0, 6)} total={br.placement[0].impressions} name={placementName} />
+                </Section>
+              )}
+              {br.audience?.length > 0 && (
+                <Section title="Who saw it">
+                  <Audience rows={br.audience} />
+                </Section>
+              )}
+              {br.country?.length > 0 && (
+                <Section title="Countries">
+                  <Bars rows={br.country.slice(0, 6)} total={br.country[0].impressions} name={r => r.country} />
+                </Section>
+              )}
+            </div>
           )}
 
           {link?.listening && (

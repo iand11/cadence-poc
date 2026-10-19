@@ -88,7 +88,7 @@ ${spotifyKind(link) === 'artist' ? `<p style="color:#F5F0E8;font-size:16px;margi
   <li>Continuing follows ${esc(artist)}.</li>` : `<p style="color:#F5F0E8;font-size:16px;margin-bottom:10px">Follow ${esc(artist)} and save ${link.title ? `"${esc(link.title)}"` : `this ${esc(spotifyKind(link))}`} on Spotify?</p>
 <ul>
   <li>Continuing follows ${esc(artist)} and adds the ${esc(spotifyKind(link))} to your library.</li>`}
-  <li>${esc(artist)}'s team sees your Spotify name, email, favorite artists and what you listen to.</li>
+  <li>${esc(artist)}'s team sees your Spotify name, email, country, favorite artists and what you listen to.</li>
   <li>You can remove access anytime in your Spotify account under Apps.</li>
 </ul>
 <a class="btn spotify" href="/api/spotify-fan?slug=${encodeURIComponent(link.slug)}${esc(q)}">Continue with Spotify</a>

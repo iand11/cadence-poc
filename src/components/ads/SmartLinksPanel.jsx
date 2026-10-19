@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
-import { Link2, Plus, Copy, Check, ExternalLink, Trash2, Loader2, AlertTriangle, MousePointerClick, Eye, Download, Users, RefreshCw, X, Search } from 'lucide-react';
+import { Link2, Plus, Copy, Check, ExternalLink, Trash2, Loader2, AlertTriangle, MousePointerClick, Eye, Download, Users, RefreshCw, X, Search, Globe } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { useAsync } from '../../hooks/useAsync';
 import { useFollowedArtists } from '../../context/FollowedArtistsContext';
 import { useDirectives } from '../../hooks/useDirectives';
 import {
-  fetchSmartLinks, fetchSmartLink, fetchPixels, createSmartLink, lookupSmartLinks, artistPageSmartLinks, linksList, linksMap, foundSummary, updateSmartLink, linkTitle, deleteSmartLink, fetchLinkFans, fetchFanPlays, syncLinkFans,
+  fetchSmartLinks, fetchSmartLink, fetchPixels, createSmartLink, lookupSmartLinks, artistPageSmartLinks, linksList, linksMap, foundSummary, updateSmartLink, linkTitle, deleteSmartLink, fetchLinkFans, fetchFanPlays, syncLinkFans, fetchLinkAudience,
   SERVICE_LABELS, SERVICE_COLORS,
 } from '../../data/smartLinks';
 import { AXIS_STYLE, TOOLTIP_STYLE } from '../../utils/chartTheme';
@@ -52,7 +52,7 @@ function FanCaptureToggle({ checked, onChange, disabled, spotifyLogin }) {
       <span>
         <span className="text-[11px] text-[#F5F0E8]">Ask Spotify listeners to follow and save</span>
         <span className="block text-[9px] text-[#6B6560]">
-          Before Spotify opens, fans can continue with Spotify to follow the artist and save the release. You get their name, email and top artists. "Just listen" skips it.
+          Before Spotify opens, fans can continue with Spotify to follow the artist and save the release. You get their name, email, country and top artists. "Just listen" skips it.
         </span>
         {checked && spotifyLogin === false && (
           <span className="block text-[9px] text-[#D4A574] mt-0.5">Spotify login isn't configured on the server (SPOTIFY_CLIENT_ID / SECRET), so the button goes straight to Spotify for now.</span>
@@ -63,7 +63,7 @@ function FanCaptureToggle({ checked, onChange, disabled, spotifyLogin }) {
 }
 
 function downloadFansCsv(link, fans) {
-  const cols = ['name', 'email', 'product', 'followed', 'saved', 'releasePlays', 'artistPlays', 'lastReleasePlay', 'topArtists', 'campaign', 'fromAd', 'createdAt'];
+  const cols = ['name', 'email', 'country', 'product', 'followed', 'saved', 'releasePlays', 'artistPlays', 'lastReleasePlay', 'topArtists', 'campaign', 'fromAd', 'createdAt'];
   const cell = (v) => {
     const t = Array.isArray(v) ? v.join('; ') : v == null ? '' : String(v);
     return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
@@ -209,7 +209,7 @@ function FansSection({ link, version, listening, onSynced }) {
               <thead>
                 <tr className="text-left font-mono text-[#6B6560]">
                   <th className="py-1 pr-3 font-normal">Name</th><th className="py-1 pr-3 font-normal">Email</th>
-                  <th className="py-1 pr-3 font-normal">Plan</th>
+                  <th className="py-1 pr-3 font-normal">Country</th><th className="py-1 pr-3 font-normal">Plan</th>
                   <th className="py-1 pr-3 font-normal">Followed</th><th className="py-1 pr-3 font-normal">Saved</th>
                   <th className="py-1 pr-3 font-normal">Streams</th><th className="py-1 pr-3 font-normal">Artist plays</th>
                   <th className="py-1 font-normal">From ad</th>
@@ -221,7 +221,7 @@ function FansSection({ link, version, listening, onSynced }) {
                     title="Show every play Spotify returned for this fan"
                     className={`border-t border-[#2C2B28] text-[#F5F0E8] cursor-pointer hover:bg-[#171614] ${openFan === f.spotifyUserId ? 'bg-[#171614]' : ''}`}>
                     <td className="py-1 pr-3">{f.name || '–'}</td><td className="py-1 pr-3 font-mono">{f.email || '–'}</td>
-                    <td className="py-1 pr-3">{f.product || '–'}</td>
+                    <td className="py-1 pr-3">{f.country || '–'}</td><td className="py-1 pr-3">{f.product || '–'}</td>
                     <td className="py-1 pr-3">{f.followed ? 'Yes' : 'No'}</td><td className="py-1 pr-3">{f.saved ? 'Yes' : 'No'}</td>
                     <td className="py-1 pr-3 font-mono" title={f.syncError ? `Sync failed: ${f.syncError}` : f.lastReleasePlay ? `Last played ${new Date(f.lastReleasePlay).toLocaleString()}` : undefined}>
                       {f.accessRemoved ? 'access removed' : f.syncError ? 'sync failed' : f.lastSyncedAt ? formatNumber(f.releasePlays) : '–'}
@@ -484,6 +484,147 @@ function LinkPreview({ slug, version }) {
   );
 }
 
+// In-app browsers and sources stored as lowercase keys
+const APP_LABELS = {
+  instagram: 'Instagram app', facebook: 'Facebook app', messenger: 'Messenger', tiktok: 'TikTok app', snapchat: 'Snapchat',
+  twitter: 'X app', linkedin: 'LinkedIn app', pinterest: 'Pinterest app', threads: 'Threads app', line: 'LINE',
+  wechat: 'WeChat', whatsapp: 'WhatsApp', telegram: 'Telegram', reddit: 'Reddit app', discord: 'Discord',
+  youtube: 'YouTube app', gsa: 'Google app',
+};
+const appLabel = (v) => APP_LABELS[v] || v;
+// Apple's model identifiers (sent by Instagram/Facebook in-app browsers) → marketing names
+const IPHONES = {
+  '12,1': '11', '12,3': '11 Pro', '12,5': '11 Pro Max', '12,8': 'SE (2nd gen)', '13,1': '12 mini', '13,2': '12',
+  '13,3': '12 Pro', '13,4': '12 Pro Max', '14,2': '13 Pro', '14,3': '13 Pro Max', '14,4': '13 mini', '14,5': '13',
+  '14,6': 'SE (3rd gen)', '14,7': '14', '14,8': '14 Plus', '15,2': '14 Pro', '15,3': '14 Pro Max', '15,4': '15',
+  '15,5': '15 Plus', '16,1': '15 Pro', '16,2': '15 Pro Max', '17,1': '16 Pro', '17,2': '16 Pro Max', '17,3': '16',
+  '17,4': '16 Plus', '17,5': '16e',
+};
+const modelLabel = (v) => {
+  const m = String(v || '').match(/^iPhone(\d+,\d+)$/);
+  return m && IPHONES[m[1]] ? `iPhone ${IPHONES[m[1]]}` : v;
+};
+const cap = (v) => (v ? v.charAt(0).toUpperCase() + v.slice(1) : v);
+const ago = (t) => {
+  const s = Math.max(0, (Date.now() - new Date(t).getTime()) / 1000);
+  if (s < 60) return 'just now';
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  return `${Math.floor(s / 86400)}d ago`;
+};
+
+/** One breakdown: label, a bar sized by views, streaming clicks / views and click rate. */
+function AudienceList({ title, rows, label = (v) => v }) {
+  const max = Math.max(1, ...(rows || []).map(r => r.views || r.clicks));
+  return (
+    <div>
+      <p className={labelCls}>{title}</p>
+      {rows?.length ? rows.map(r => (
+        <div key={r.key} className="py-0.5" title={`${formatNumber(r.views)} views · ${formatNumber(r.clicks)} streaming clicks`}>
+          <div className="flex items-center justify-between text-[10px]">
+            <span className="text-[#F5F0E8] truncate mr-2">{label(r.key)}</span>
+            <span className="font-mono text-[#9B9590] shrink-0">
+              {formatNumber(r.clicks)} / {formatNumber(r.views)}{r.views ? <span className="text-[#6B6560]"> · {pct(Math.min(1, r.clicks / r.views))}</span> : null}
+            </span>
+          </div>
+          <div className="h-1 bg-[#2C2B28] rounded-full overflow-hidden mt-0.5">
+            <div className="h-full rounded-full bg-[#DA7756]" style={{ width: `${((r.views || r.clicks) / max) * 100}%` }} />
+          </div>
+        </div>
+      )) : <p className="text-[10px] text-[#6B6560]">No data yet.</p>}
+    </div>
+  );
+}
+
+/** Who visits the link: totals, places, sources, devices, local hour and the latest visits. */
+export function AudienceSection({ link, version }) {
+  const { data, loading, error } = useAsync(() => fetchLinkAudience(link.slug), [link.slug, version]);
+  if (loading && !data) return <div className="lg:col-span-3 pt-4 border-t border-[#2C2B28]"><p className="flex items-center gap-1.5 text-[10px] text-[#6B6560]"><Loader2 size={10} className="animate-spin" /> Loading audience…</p></div>;
+  if (error) return <div className="lg:col-span-3 pt-4 border-t border-[#2C2B28]"><p className="text-[10px] text-[#C75F4F]">{error.message}</p></div>;
+  if (!data) return null;
+  const t = data.totals;
+  const stat = (label, value, hint) => (
+    <div className="bg-[#171614] border border-[#2C2B28] rounded px-3 py-2" title={hint}>
+      <p className="text-[9px] font-mono text-[#6B6560]">{label}</p>
+      <p className="text-sm font-mono text-[#F5F0E8]">{value}</p>
+    </div>
+  );
+  const hourLabel = (h) => `${(h % 12) || 12}${h < 12 ? 'a' : 'p'}`;
+  return (
+    <div className="lg:col-span-3 pt-4 border-t border-[#2C2B28] space-y-4">
+      <p className="flex items-center gap-1.5 text-[10px] font-mono text-[#9B9590]"><Globe size={10} /> Audience</p>
+      {!t.views && !t.clicks ? (
+        <p className="text-[10px] text-[#6B6560]">No visits yet.</p>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {stat('Unique visitors', formatNumber(t.visitors), 'Counted by a first-party cookie. EU/UK visitors who decline cookies are not counted.')}
+            {stat('Returning visitors', formatNumber(t.returning), 'Visited on more than one day')}
+            {stat('Visitors who clicked', t.visitors ? `${formatNumber(t.clickingVisitors)} · ${pct(Math.min(1, t.clickingVisitors / t.visitors))}` : '–', 'Unique visitors who clicked through to a streaming service')}
+            {stat('Median time to click', t.medianSecondsToClick == null ? '–' : `${t.medianSecondsToClick}s`, 'Time on the landing page before a streaming click')}
+          </div>
+          <p className="text-[9px] text-[#6B6560]">Lists show streaming clicks / views · click rate.{t.detailedViews < t.views ? ` ${formatNumber(t.views - t.detailedViews)} older views have no device or place detail.` : ''}</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            <AudienceList title="Cities" rows={data.cities} />
+            <AudienceList title="Countries" rows={data.countries} />
+            <AudienceList title="Sources" rows={data.sources} label={appLabel} />
+            <AudienceList title="Opened in" rows={data.apps} label={appLabel} />
+            <AudienceList title="Devices" rows={data.devices} label={cap} />
+            <AudienceList title="Operating systems" rows={data.os} />
+            <AudienceList title="Phone models" rows={data.models} label={modelLabel} />
+            <AudienceList title="Languages" rows={data.languages} />
+          </div>
+          <div>
+            <p className={labelCls}>Visitor's local time</p>
+            <div className="h-24">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={data.byHour}>
+                  <XAxis dataKey="hour" {...AXIS_STYLE} tickFormatter={hourLabel} interval={2} />
+                  <YAxis {...AXIS_STYLE} width={28} allowDecimals={false} />
+                  <Tooltip {...TOOLTIP_STYLE} labelFormatter={hourLabel} />
+                  <Bar dataKey="views" fill="#6B6560" name="Views" />
+                  <Bar dataKey="clicks" fill="#DA7756" name="Streaming clicks" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <p className={labelCls}>Latest visits</p>
+            <table className="w-full text-[10px]">
+              <thead>
+                <tr className="text-left font-mono text-[#6B6560]">
+                  <th className="py-1 pr-3 font-normal">When</th><th className="py-1 pr-3 font-normal">Action</th>
+                  <th className="py-1 pr-3 font-normal">Place</th><th className="py-1 pr-3 font-normal">Device</th>
+                  <th className="py-1 pr-3 font-normal">Opened in</th><th className="py-1 pr-3 font-normal">Source</th>
+                  <th className="py-1 pr-3 font-normal">Time on page</th><th className="py-1 font-normal">Fan</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.recent.map((r, i) => (
+                  <tr key={i} className="border-t border-[#2C2B28] text-[#F5F0E8]">
+                    <td className="py-1 pr-3 font-mono text-[#9B9590]" title={new Date(r.at).toLocaleString()}>{ago(r.at)}</td>
+                    <td className="py-1 pr-3">
+                      {r.kind === 'click'
+                        ? <span className="flex items-center gap-1"><DspIcon service={r.service} size={10} />{SERVICE_LABELS[r.service] || r.service}</span>
+                        : <span className="text-[#9B9590]">Viewed</span>}
+                    </td>
+                    <td className="py-1 pr-3">{r.place || '–'}</td>
+                    <td className="py-1 pr-3">{[modelLabel(r.model), r.os].filter(Boolean).join(' · ') || cap(r.device) || '–'}</td>
+                    <td className="py-1 pr-3">{r.app ? appLabel(r.app) : '–'}</td>
+                    <td className="py-1 pr-3">{r.source ? appLabel(r.source) : '–'}</td>
+                    <td className="py-1 pr-3 font-mono">{r.secondsOnPage == null ? '–' : `${r.secondsOnPage}s`}</td>
+                    <td className="py-1">{r.fan || '–'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function LinkDetail({ slug, pixels, spotifyLogin, onChanged, onDeleted }) {
   const [version, setVersion] = useState(0);
   const { data, loading, error } = useAsync(() => fetchSmartLink(slug), [slug, version]);
@@ -574,6 +715,7 @@ function LinkDetail({ slug, pixels, spotifyLogin, onChanged, onDeleted }) {
         </button>
         {actionError && <p className="text-[10px] text-[#C75F4F]">{actionError}</p>}
       </div>
+      <AudienceSection link={link} version={version} />
       <FansSection link={link} version={version} listening={listening} onSynced={() => setVersion(v => v + 1)} />
       </div>
     </div>
