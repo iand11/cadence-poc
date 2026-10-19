@@ -16,6 +16,7 @@ import {
   trackRowToUI,
   albumRowToUI,
   filterAndDedupeTracks,
+  withoutListenerGeography,
 } from '../lib/artist-shape.js';
 
 export default async function handler(req, res) {
@@ -85,7 +86,7 @@ export default async function handler(req, res) {
       result.history = snapRows.map((s) => ({
         capturedAt: s.captured_at,
         source: s.source,
-        metrics: s.metrics,
+        metrics: withoutListenerGeography(s.metrics),
       }));
     }
 

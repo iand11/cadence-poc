@@ -1,7 +1,7 @@
 // /api/campaign/meta-campaign — read or change a Meta campaign Prelude created.
 //
 //   GET ?id=<campaignId>             → { status, effectiveStatus, objective, issues, budget, insights,
-//                                        daily, breakdowns, ads, managed?, review? } (lib/meta-insights.js)
+//                                        daily, breakdowns (placement only), ads, managed?, review? } (lib/meta-insights.js)
 //   POST { id, status: 'ACTIVE' }    → go live (campaign, ad sets and ads)
 //   POST { id, status: 'PAUSED' }    → pause the campaign
 //
@@ -22,7 +22,7 @@ import {
   getManagedCampaign, setManagedReview, listManagedReviews, preludeAccount, isAdmin,
   activateCampaign, setManagedCheckout, markManagedPaid,
 } from '../lib/meta.js';
-import { campaignReport, CAMPAIGN_FIELDS } from '../lib/meta-insights.js';
+import { campaignReport, clientReport, CAMPAIGN_FIELDS } from '../lib/meta-insights.js';
 import { saveReportSnapshot } from '../lib/campaign-snapshots.js';
 import { prepayEnabled, prepayQuote, createCheckout, getCheckout } from '../lib/stripe.js';
 
@@ -113,7 +113,7 @@ export default async function handler(req, res) {
           paid: managed.paid_at ? { cents: managed.paid_cents, at: managed.paid_at } : null,
           quote: prepayEnabled() && !managed.paid_at ? safeQuote(managed) : null,
         } : {}),
-        ...report,
+        ...clientReport(report),
       });
     }
 

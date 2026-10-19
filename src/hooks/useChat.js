@@ -5,12 +5,11 @@ import { useFollowedArtists } from './useFollowedArtists';
 
 const welcomeMessage = {
   role: 'ai',
-  text: "Hi, I'm Prelude. I'm watching the artists you follow across all major platforms including Spotify, Apple Music, TikTok, Instagram, and YouTube. Ask me anything about the artists you follow — from breakout signals to tour routing to revenue projections. I can also build custom reports for you.",
+  text: "Hi, I'm Prelude. I'm watching the artists you follow across all major platforms including Spotify, Apple Music, TikTok, Instagram, and YouTube. Ask me anything about the artists you follow — from breakout signals to playlist placements to revenue projections. I can also build custom reports for you.",
   isStreaming: false,
 };
 
 const suggestedPrompts = [
-  "Which city should we route our next tour?",
   "Show me breakout signals across the artists I follow",
   "Predict streams for the next release cycle",
   "What's our sync licensing opportunity?",
@@ -32,15 +31,13 @@ function getArtistContext() {
 
   const stats = getAggregateStats();
   const lines = roster.map(a => {
-    const topCities = a.spotify.topCities.slice(0, 3)
-      .map(c => `${c.city}(${fmt(c.listeners)})`).join(', ');
     return [
       `#${a.rank} ${a.name}`,
       `${a.genres?.primary?.name || ''} | ${a.label} | ${a.country}/${a.city}`,
       `Spotify:${fmt(a.spotify.monthlyListeners)}mo/${fmt(a.spotify.followers)}fol/pop${a.spotify.popularity}`,
       `IG=${fmt(a.social.instagram)} TT=${fmt(a.social.tiktok)} YT=${fmt(a.social.youtube)} X=${fmt(a.social.twitter)}`,
       `Playlists:${a.playlists.spotify.total}(${a.playlists.spotify.editorial}ed) reach=${fmt(a.playlists.spotify.reach)}`,
-      `Shazam:${fmt(a.engagement.shazam)} Cities:${topCities || 'N/A'}`,
+      `Shazam:${fmt(a.engagement.shazam)}`,
     ].join(' | ');
   });
 

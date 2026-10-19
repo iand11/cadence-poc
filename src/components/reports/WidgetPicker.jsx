@@ -1,11 +1,10 @@
 import { useState, useRef } from 'react';
-import { BarChart3, TrendingUp, PieChart, Globe, Users, Zap, Radio, LayoutList, GripVertical } from 'lucide-react';
+import { BarChart3, TrendingUp, PieChart, Users, Zap, Radio, LayoutList, GripVertical } from 'lucide-react';
 
 const availableWidgets = [
   { id: 'artist-comparison', label: 'Artist Comparison', icon: LayoutList, category: 'Overview' },
   { id: 'streaming-trends', label: 'Streaming Trends', icon: TrendingUp, category: 'Streaming' },
   { id: 'revenue-breakdown', label: 'Revenue Breakdown', icon: PieChart, category: 'Revenue' },
-  { id: 'geography', label: 'Geographic Distribution', icon: Globe, category: 'Audience' },
   { id: 'social-growth', label: 'Social Growth', icon: Users, category: 'Social' },
   { id: 'forecast', label: 'Stream Forecast', icon: Zap, category: 'AI' },
   { id: 'playlists', label: 'Playlist Performance', icon: Radio, category: 'Playlists' },

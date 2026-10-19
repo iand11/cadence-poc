@@ -2,6 +2,10 @@ import { useState, useCallback } from 'react';
 
 const STORAGE_KEY = 'musicspace-reports-v1';
 
+// Widgets that no longer exist; dropped from saved and incoming reports
+const REMOVED_WIDGETS = new Set(['geography']);
+export const availableWidgetIds = (widgets) => (widgets || []).filter(w => !REMOVED_WIDGETS.has(w));
+
 const DEFAULT_REPORTS = [
   {
     id: 'default-1',
@@ -31,7 +35,7 @@ const DEFAULT_REPORTS = [
     id: 'default-4',
     name: 'Latin Music Pulse',
     artists: ['bad-bunny', 'shakira', 'j-balvin', 'karol-g', 'peso-pluma'],
-    widgets: ['artist-comparison', 'streaming-trends', 'geography', 'social-growth'],
+    widgets: ['artist-comparison', 'streaming-trends', 'social-growth'],
     createdAt: '2026-04-04T00:00:00.000Z',
     updatedAt: '2026-04-16T00:00:00.000Z',
   },
@@ -39,7 +43,7 @@ const DEFAULT_REPORTS = [
     id: 'default-5',
     name: 'Taylor Swift Deep Dive',
     artists: ['taylor-swift'],
-    widgets: ['streaming-trends', 'revenue-breakdown', 'social-growth', 'geography', 'forecast', 'playlists', 'benchmarks'],
+    widgets: ['streaming-trends', 'revenue-breakdown', 'social-growth', 'forecast', 'playlists', 'benchmarks'],
     createdAt: '2026-04-05T00:00:00.000Z',
     updatedAt: '2026-04-15T00:00:00.000Z',
   },
@@ -47,7 +51,7 @@ const DEFAULT_REPORTS = [
     id: 'default-6',
     name: 'K-Pop & Global Crossover',
     artists: ['bts', 'blackpink', 'arijit-singh'],
-    widgets: ['artist-comparison', 'social-growth', 'geography', 'playlists'],
+    widgets: ['artist-comparison', 'social-growth', 'playlists'],
     createdAt: '2026-04-06T00:00:00.000Z',
     updatedAt: '2026-04-14T00:00:00.000Z',
   },
@@ -73,7 +77,7 @@ function load() {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored === null) return DEFAULT_REPORTS;
-    return JSON.parse(stored) || [];
+    return (JSON.parse(stored) || []).map(r => ({ ...r, widgets: availableWidgetIds(r.widgets) }));
   } catch {
     return DEFAULT_REPORTS;
   }
@@ -91,7 +95,7 @@ export function useReports() {
       id: 'report-' + Date.now(),
       name: report.name || 'Untitled Report',
       artists: report.artists || [],
-      widgets: report.widgets || ['artist-comparison', 'streaming-trends'],
+      widgets: report.widgets ? availableWidgetIds(report.widgets) : ['artist-comparison', 'streaming-trends'],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -106,7 +110,7 @@ export function useReports() {
   const updateReport = useCallback((id, updates) => {
     setReports(prev => {
       const next = prev.map(r =>
-        r.id === id ? { ...r, ...updates, updatedAt: new Date().toISOString() } : r
+        r.id === id ? { ...r, ...updates, ...(updates.widgets ? { widgets: availableWidgetIds(updates.widgets) } : {}), updatedAt: new Date().toISOString() } : r
       );
       save(next);
       return next;

@@ -12,7 +12,6 @@ import StreamingTrendChart from '../components/charts/StreamingTrendChart';
 import SocialGrowthChart from '../components/charts/SocialGrowthChart';
 import RevenueDonutChart from '../components/charts/RevenueDonutChart';
 import ForecastChart from '../components/charts/ForecastChart';
-import GeographyHeatMap from '../components/charts/GeographyHeatMap';
 import BenchmarkRadarChart from '../components/charts/BenchmarkRadarChart';
 import PlatformBreakdownChart from '../components/charts/PlatformBreakdownChart';
 import ChatMessage from '../components/ai/ChatMessage';
@@ -51,7 +50,6 @@ const WIDGET_CATALOG = [
   { id: 'revenue',               title: 'Revenue Breakdown',     subtitle: 'Estimated revenue split' },
   { id: 'social',                title: 'Social Growth',         subtitle: '90-day follower trends' },
   { id: 'forecast',              title: 'Stream Forecast',       subtitle: '60d actual + 30d predicted' },
-  { id: 'geography',             title: 'Audience Geography',    subtitle: 'Listener hotspots map' },
   { id: 'platform-breakdown',    title: 'Platform Breakdown',    subtitle: 'Streams by platform' },
   { id: 'benchmark',             title: 'Benchmark Radar',       subtitle: 'Artist vs followed-artist average' },
   { id: 'trending',              title: 'Trending Artists',      subtitle: 'High popularity artists' },
@@ -304,18 +302,6 @@ function aggRevenue(artists) {
   });
 }
 
-function aggGeography(artists) {
-  const cityMap = {};
-  artists.forEach(a => {
-    (a.spotify.topCities || []).forEach(c => {
-      const key = `${c.city}-${c.country}`;
-      if (!cityMap[key]) cityMap[key] = { city: c.city, country: c.country, listeners: 0 };
-      cityMap[key].listeners += c.listeners || 0;
-    });
-  });
-  return Object.values(cityMap).sort((a, b) => b.listeners - a.listeners).slice(0, 20);
-}
-
 function aggForecast(artists) {
   const all = artists.map(a => generateForecast(a));
   return all[0].map((_, i) => {
@@ -418,21 +404,6 @@ function RevenueWidget({ dragProps, followedArtists, options }) {
     <WidgetCard id="revenue" title="Revenue Breakdown" subtitle={`${label} — ${formatCurrency(total)}`}
       headerRight={<ArtistMultiSelect value={slugs} onChange={setSlugs} options={options} />} {...dragProps}>
       <RevenueDonutChart data={data} totalRevenue={total} />
-      <WidgetInsight insight={insight} />
-    </WidgetCard>
-  );
-}
-
-function GeographyWidget({ dragProps, followedArtists, options }) {
-  const [slugs, setSlugs] = useState(['__all__']);
-  const { artists, label } = useArtistSelection(slugs, followedArtists);
-  const data = useMemo(() => aggGeography(artists), [artists]);
-  const insight = useMemo(() => generateInsights(artists[0]).geography[0], [artists]);
-
-  return (
-    <WidgetCard id="geography" title="Audience Geography" subtitle={`${label} — listener hotspots`}
-      headerRight={<ArtistMultiSelect value={slugs} onChange={setSlugs} options={options} />} {...dragProps}>
-      <GeographyHeatMap data={data} />
       <WidgetInsight insight={insight} />
     </WidgetCard>
   );
@@ -905,7 +876,6 @@ export default function Dashboard() {
     'social': <SocialWidget dragProps={dragProps} {...widgetArtistProps} />,
     'revenue': <RevenueWidget dragProps={dragProps} {...widgetArtistProps} />,
     'forecast': <ForecastWidget dragProps={dragProps} {...widgetArtistProps} />,
-    'geography': <GeographyWidget dragProps={dragProps} {...widgetArtistProps} />,
     'benchmark': <BenchmarkWidget dragProps={dragProps} {...widgetArtistProps} />,
     'platform-breakdown': <PlatformWidget dragProps={dragProps} {...widgetArtistProps} />,
     'leaderboard-listeners': (

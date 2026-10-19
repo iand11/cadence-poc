@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams, useParams, useNavigate, Link } from 'react-router';
 import { motion } from 'motion/react';
 import { FileText, Download, Eye, Pencil, Link2, Check, X, ArrowLeft } from 'lucide-react';
-import { useReports } from '../hooks/useReports';
+import { useReports, availableWidgetIds } from '../hooks/useReports';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import ArtistSelector from '../components/reports/ArtistSelector';
@@ -14,7 +14,6 @@ import StreamingTrendChart from '../components/charts/StreamingTrendChart';
 import RevenueDonutChart from '../components/charts/RevenueDonutChart';
 import ForecastChart from '../components/charts/ForecastChart';
 import SocialGrowthChart from '../components/charts/SocialGrowthChart';
-import GeographyHeatMap from '../components/charts/GeographyHeatMap';
 import BenchmarkRadarChart from '../components/charts/BenchmarkRadarChart';
 import {
   getTopArtists,
@@ -134,9 +133,9 @@ export default function ReportCenter() {
   }, [id, existingReport, searchParams, rosterLoading, followedArtists]);
 
   const [selected, setSelected] = useState(() => {
-    if (existingReport) return existingReport.widgets;
+    if (existingReport) return availableWidgetIds(existingReport.widgets);
     const paramWidgets = searchParams.get('widgets');
-    if (paramWidgets) return paramWidgets.split(',');
+    if (paramWidgets) return availableWidgetIds(paramWidgets.split(','));
     return ['artist-comparison', 'streaming-trends', 'revenue-breakdown', 'social-growth'];
   });
 
@@ -166,7 +165,7 @@ export default function ReportCenter() {
     if (id) return; // Skip URL param sync when editing a saved report
     const paramWidgets = searchParams.get('widgets');
     if (paramWidgets) {
-      setSelected(paramWidgets.split(','));
+      setSelected(availableWidgetIds(paramWidgets.split(',')));
     }
     if (searchParams.get('view') === 'true') {
       setViewMode(true);
@@ -346,19 +345,6 @@ export default function ReportCenter() {
     }));
   }, [selectedArtists]);
 
-  const geographyData = useMemo(() => {
-    if (selectedArtists.length === 0) return [];
-    const allCities = {};
-    selectedArtists.forEach(a => {
-      a.spotify.topCities.forEach(c => {
-        const key = `${c.city}-${c.country}`;
-        if (!allCities[key]) allCities[key] = { ...c, listeners: 0 };
-        allCities[key].listeners += c.listeners;
-      });
-    });
-    return Object.values(allCities).sort((a, b) => b.listeners - a.listeners);
-  }, [selectedArtists]);
-
   const forecastData = useMemo(() => {
     if (selectedArtists.length === 0) return [];
     return generateForecast(selectedArtists[0]);
@@ -407,11 +393,6 @@ export default function ReportCenter() {
     'social-growth': () => (
       <ChartCard title="Social Growth" subtitle={`Combined follower trends (90 days) — ${artistNames}`}>
         <SocialGrowthChart data={socialData} />
-      </ChartCard>
-    ),
-    'geography': () => (
-      <ChartCard title="Geographic Distribution" subtitle={`Listeners by city — ${artistNames}`}>
-        <GeographyHeatMap data={geographyData} />
       </ChartCard>
     ),
     'forecast': () => (

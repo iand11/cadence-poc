@@ -23,7 +23,6 @@ const WIDGET_LABELS = {
   'streaming-trends': 'Streaming',
   'revenue-breakdown': 'Revenue',
   'social-growth': 'Social',
-  'geography': 'Geography',
   'forecast': 'Forecast',
   'playlists': 'Playlists',
   'benchmarks': 'Benchmarks',

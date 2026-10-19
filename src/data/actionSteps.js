@@ -113,42 +113,6 @@ const STEP_TEMPLATES = {
     { text: 'PR: Target Apple Music editorial blogs and curators with upcoming release', category: 'assignment' },
   ],
 
-  // ── Geography ──────────────────────────────────────────
-  'geography:warning:concentration': [
-    { text: 'Launch geo-targeted Spotify ad campaigns in top 3 secondary markets', category: 'tactical' },
-    { text: 'Pitch to local editorial playlists in 5 underrepresented cities', category: 'playbook' },
-    { text: 'Marketing: Allocate 30% of ad budget to geographic diversification campaigns', category: 'assignment' },
-    { text: 'Social team: Create location-tagged content for emerging markets', category: 'assignment' },
-  ],
-  'geography:success:diversity': [
-    { text: 'Plan multi-city tour routing based on listener concentration data', category: 'tactical' },
-    { text: 'Create region-specific social content (local references, language, culture)', category: 'playbook' },
-    { text: 'Touring: Price and hold dates for top 8 listener cities', category: 'assignment' },
-    { text: 'PR: Build city-specific press lists for each major market', category: 'assignment' },
-  ],
-  'geography:success:global': [
-    { text: 'Translate social media bios and key posts for top 3 international markets', category: 'tactical' },
-    { text: 'Partner with local influencers in top international cities for cross-promotion', category: 'playbook' },
-    { text: 'Marketing: Research local playlist curators and press contacts in each country', category: 'assignment' },
-    { text: 'Licensing: Explore sub-publishing deals in territories with strong listener base', category: 'assignment' },
-  ],
-  'geography:info:limited': [
-    { text: 'Run test Spotify ad campaigns in 2 emerging markets (Brazil, Mexico, India)', category: 'tactical' },
-    { text: 'Add translated metadata (song descriptions, bios) for target international markets', category: 'playbook' },
-    { text: 'A&R: Identify collaboration opportunity with artist from target market', category: 'assignment' },
-  ],
-  'geography:success:emerging': [
-    { text: 'Invest in local playlist pitching for top emerging market cities', category: 'tactical' },
-    { text: 'Set up social media presence on regional platforms (e.g. VK, Line, Weibo)', category: 'playbook' },
-    { text: 'Touring: Research festival opportunities in emerging market countries', category: 'assignment' },
-    { text: 'Marketing: Allocate dedicated budget for emerging market growth campaigns', category: 'assignment' },
-  ],
-  'geography:info:emerging': [
-    { text: 'Run $500 test Spotify ad campaign in Brazil and Mexico targeting genre fans', category: 'tactical' },
-    { text: 'Collaborate with artist from target emerging market to test audience crossover', category: 'playbook' },
-    { text: 'Marketing: Research streaming trends and platform preferences in top 3 emerging markets', category: 'assignment' },
-  ],
-
   // ── Revenue ────────────────────────────────────────────
   'revenue:info:overview': [
     { text: 'Audit current revenue split and identify the single largest growth opportunity', category: 'tactical' },
@@ -217,25 +181,6 @@ function getTemplateKey(action) {
     }
     if (text.includes('reach efficiency') || text.includes('Reach')) {
       return `playlists:${insightType}:reach`;
-    }
-  }
-
-  if (dataType === 'geography') {
-    if (text.includes('concentration') || text.includes('Heavy reliance')) {
-      return 'geography:warning:concentration';
-    }
-    if (text.includes('Well-distributed') || text.includes('diversity')) {
-      return 'geography:success:diversity';
-    }
-    if (text.includes('Global reach') || text.includes('countries')) {
-      if (insightType === 'success') return 'geography:success:global';
-      return 'geography:info:limited';
-    }
-    if (text.includes('emerging market')) {
-      return `geography:${insightType}:emerging`;
-    }
-    if (text.includes('concentrated in')) {
-      return 'geography:info:limited';
     }
   }
 

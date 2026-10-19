@@ -4,7 +4,6 @@ import { generateSteps } from './actionSteps';
 
 const PLATFORM_MAP = {
   streaming: 'spotify',
-  geography: 'spotify',
   revenue: 'revenue',
 };
 
@@ -112,7 +111,6 @@ export const DATA_TYPE_LABELS = {
   streaming: 'Streaming',
   social: 'Social',
   playlists: 'Playlists',
-  geography: 'Geography',
   revenue: 'Revenue',
   general: 'General',
 };

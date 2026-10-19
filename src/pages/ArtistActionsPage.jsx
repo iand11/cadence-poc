@@ -13,7 +13,7 @@ import { draftFromActions, templateFromDraft } from '../data/actionPlans';
 import { DATA_TYPE_LABELS } from '../data/actions';
 
 // Section order for grouping actions (mirrors campaign phases).
-const SECTION_ORDER = ['streaming', 'social', 'playlists', 'geography', 'revenue', 'general'];
+const SECTION_ORDER = ['streaming', 'social', 'playlists', 'revenue', 'general'];
 
 export default function ArtistActionsPage() {
   const { artistSlug } = useParams();
@@ -62,7 +62,8 @@ export default function ArtistActionsPage() {
   const sections = useMemo(() => {
     const map = new Map();
     for (const a of checklistActions) {
-      const key = a.dataType || 'general';
+      // Older actions tagged 'geography' (no longer a section) fall under General
+      const key = a.dataType && SECTION_ORDER.includes(a.dataType) ? a.dataType : 'general';
       if (!map.has(key)) map.set(key, []);
       map.get(key).push(a);
     }

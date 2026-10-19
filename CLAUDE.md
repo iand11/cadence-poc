@@ -80,12 +80,12 @@ Campaign → Ad Set → Ad in that ad account: a boost (`creative.postId`, post 
 permalink shortcode) or a new image ad (`creative.igUserId` "Run as" account + `creative.images`,
 uploaded in the builder via `AdImagesField` → `/api/ad-images` (Postgres `ad_images`), 2–10 make a carousel in that order, + `trackUrl` destination and CTA). `check: true` validates
 without creating anything and gates "Submit for Approval". `api/campaign/meta-campaign.js` reads status/insights and goes live or
-pauses; its GET report (totals, video, daily series, age/gender/country/placement breakdowns, ad rankings,
-budget, rejections) is built in `api/lib/meta-insights.js` and shown by `MetaCampaignInsights`. The client side is `src/data/metaAds.js`, `useMetaConnection`, `AccountConnector`
+pauses; its GET report (totals, video, daily series, placement breakdown, ad rankings,
+budget, rejections) is built in `api/lib/meta-insights.js` (age/gender/country breakdowns are fetched and kept in `campaign_report_snapshots`, but `clientReport` strips them from the response) and shown by `MetaCampaignInsights`. The client side is `src/data/metaAds.js`, `useMetaConnection`, `AccountConnector`
 and `MetaCampaignPanel`. Smart links (Links page `/app/links`, `LinksPage` → `SmartLinksPanel`): public
 landing page `/l/:slug` (`api/l.js`) with a button per streaming service, tracked redirect
 `/go/:slug/:service` (`api/go.js`), API `api/links/index.js`, helpers `api/lib/smartlinks.js`,
-tables `smart_links` / `smart_link_events` (each event stores visitor detail from headers, URL, first-party `pl_vid` cookie and a page beacon; EU/UK consent bar gates cookies, Pixel and CAPI — `api/lib/visitor.js`; the open link's Audience section shows it via `GET /api/links?audience=<slug>`, `api/lib/link-audience.js` — counts only, never IPs or cookie ids). The Links page previews each landing page in a phone frame (`/l/:slug?preview=1` records nothing); service logos come from `api/lib/dsp-icons.js` (shared with `DspIcon`). A new Meta ad whose destination is a smart link
+tables `smart_links` / `smart_link_events` (each event stores visitor detail from headers, URL, first-party `pl_vid` cookie and a page beacon; EU/UK consent bar gates cookies, Pixel and CAPI — `api/lib/visitor.js`; stored only, never shown in the app). The Links page previews each landing page in a phone frame (`/l/:slug?preview=1` records nothing); service logos come from `api/lib/dsp-icons.js` (shared with `DspIcon`). A new Meta ad whose destination is a smart link
 gets `?c=<directive id>` so streaming clicks are attributed per campaign, and clicks go to
 Meta as `DSPClick` (Pixel + Conversions API). Launching such an ad gives the link the ad account's Pixel if it has none (`attachCampaignPixel`; the account's first Pixel, or a new one; Prelude-managed links get Prelude's Pixel, `pixel_prelude`, sent with Prelude's token). Ads still optimize for link clicks. With fan capture on, the Spotify button opens a consent page
 (`/l/:slug/spotify`); "Continue with Spotify" (`api/spotify-fan.js`) logs the fan in, follows
@@ -139,6 +139,15 @@ triggers on `playlist_entries` / `playlists` and built with `npm run db:rebuild-
 (`api/lib/artist-playlists.js`); until built, the handler falls back to the GIN query. The unfiltered
 `/api/artists` total comes from the stored facets, not a per-request count.
 `npm run db:diagnose [-- --apply-indexes]` checks indexes and times every handler against the DB.
+
+### Audience and geography are never shown
+
+Audience and geography data (listener cities `sp_where_people_listen`, smart-link visitor
+place/device detail, captured fans' country, Meta age/gender/country breakdowns) stays in the
+DB but must not be displayed anywhere in the app or returned by the API to the client
+(Ian, 2026-10-19). `api/lib/artist-shape.js` drops listener cities (`withoutListenerGeography`
+for metric history). Ad targeting settings (locations, ages a user picks for a campaign) are
+campaign settings, not audience data, and stay.
 
 ### Data Modules (`src/data/`)
 
@@ -221,7 +230,7 @@ Tailwind CSS 4 via `@tailwindcss/vite` plugin (no tailwind.config — uses v4 CS
 
 ### Reports (`src/pages/ReportCenter.jsx`)
 
-Reports are composed of selectable widget components (8 available: artist-comparison, streaming-trends, revenue-breakdown, geography, social-growth, forecast, playlists, benchmarks). The `selected` array controls both visibility and render order. Widget ordering uses drag-and-drop in `WidgetPicker`. Reports auto-save with 500ms debounce. PDF export captures each `[data-pdf-section]` element individually for section-aware pagination.
+Reports are composed of selectable widget components (7 available: artist-comparison, streaming-trends, revenue-breakdown, social-growth, forecast, playlists, benchmarks; saved `geography` widgets are dropped by `availableWidgetIds`). The `selected` array controls both visibility and render order. Widget ordering uses drag-and-drop in `WidgetPicker`. Reports auto-save with 500ms debounce. PDF export captures each `[data-pdf-section]` element individually for section-aware pagination.
 
 ### Utilities (`src/utils/`)
 
@@ -232,8 +241,7 @@ Reports are composed of selectable widget components (8 available: artist-compar
 
 ### Key Libraries
 
-- **Recharts** for all charts (streaming, forecast, revenue, geography, benchmarks)
-- **Leaflet / react-leaflet** for geography heat maps
+- **Recharts** for all charts (streaming, forecast, revenue, benchmarks)
 - **html2canvas + jsPDF** for PDF export
 - **Motion** (Framer Motion) for animations
 - **lucide-react** for icons

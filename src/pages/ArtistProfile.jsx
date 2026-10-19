@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router';
 import { motion } from 'motion/react';
-import { Music, TrendingUp, Users, DollarSign, Radio, Globe, Disc3, MapPin, Tag, Star, ListMusic, FileText, Headphones } from 'lucide-react';
+import { Music, TrendingUp, Users, DollarSign, Radio, Disc3, MapPin, Tag, Star, ListMusic, FileText, Headphones } from 'lucide-react';
 import Badge from '../components/shared/Badge';
 import ProfileLayout from '../components/profile/ProfileLayout';
 import CollapsibleSection from '../components/profile/CollapsibleSection';
@@ -11,7 +11,6 @@ import KpiCard from '../components/shared/KpiCard';
 import StreamingTrendChart from '../components/charts/StreamingTrendChart';
 import SocialGrowthChart from '../components/charts/SocialGrowthChart';
 import RevenueDonutChart from '../components/charts/RevenueDonutChart';
-import GeographyHeatMap from '../components/charts/GeographyHeatMap';
 import BenchmarkRadarChart from '../components/charts/BenchmarkRadarChart';
 import ForecastChart from '../components/charts/ForecastChart';
 import PlaylistDistributionChart from '../components/charts/PlaylistDistributionChart';
@@ -93,7 +92,6 @@ export default function ArtistProfile() {
     );
   }
 
-  const geographyData = artist.spotify.topCities;
   const totalRevenue = revenueData.reduce((sum, r) => sum + r.amount, 0);
 
   const primaryGenre = artist.genres?.primary?.name || 'Artist';
@@ -399,48 +397,16 @@ export default function ArtistProfile() {
         </div>
       </CollapsibleSection>
 
-      {/* Audience & Geography */}
-      <CollapsibleSection title="Audience & Geography" icon={Globe}>
-        <div className="space-y-6">
-          {geographyData.length > 0 && (
-            <ChartCard title="Geographic Distribution" subtitle="Listeners by city">
-              <GeographyHeatMap data={geographyData} />
-              {/* City list */}
-              <div className="mt-4 pt-4 border-t border-[#2C2B28]">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6">
-                  {geographyData.map((c, i) => {
-                    const pct = geographyData[0]?.listeners > 0
-                      ? (c.listeners / geographyData[0].listeners) * 100 : 0;
-                    return (
-                      <div key={`${c.city}-${c.country}`} className="flex items-center gap-3 py-2 border-b border-[#2C2B28]/50 last:border-0">
-                        <span className="text-[10px] font-mono text-[#6B6560] w-5 text-right shrink-0">{i + 1}</span>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-baseline gap-1.5">
-                            <span className="text-sm text-[#F5F0E8] truncate">{c.city}</span>
-                            <span className="text-[10px] text-[#6B6560]">{getCountryName(c.country)}</span>
-                          </div>
-                          <div className="mt-1 h-1 bg-[#2C2B28] rounded-full overflow-hidden">
-                            <div className="h-full bg-[#DA7756] rounded-full" style={{ width: `${Math.max(pct, 2)}%`, opacity: 0.4 + (pct / 100) * 0.6 }} />
-                          </div>
-                        </div>
-                        <span className="text-xs font-mono text-[#9B9590] shrink-0">{formatNumber(c.listeners)}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </ChartCard>
-          )}
-          <ChartCard title="Benchmark Comparison" subtitle="vs average across all artists">
-            <BenchmarkRadarChart
-              artist={benchmarkData.artist}
-              benchmark={benchmarkData.benchmark}
-              dimensions={benchmarkData.dimensions}
-              artistName={artist.name}
-            />
-            <InsightCallout insights={insights.geography} />
-          </ChartCard>
-        </div>
+      {/* Benchmarks */}
+      <CollapsibleSection title="Benchmarks" icon={Star}>
+        <ChartCard title="Benchmark Comparison" subtitle="vs average across all artists">
+          <BenchmarkRadarChart
+            artist={benchmarkData.artist}
+            benchmark={benchmarkData.benchmark}
+            dimensions={benchmarkData.dimensions}
+            artistName={artist.name}
+          />
+        </ChartCard>
       </CollapsibleSection>
 
       {/* AI Forecasting */}

@@ -218,70 +218,6 @@ function playlistInsights(a) {
   return insights.slice(0, 3);
 }
 
-function geographyInsights(a) {
-  const insights = [];
-  const cities = a.spotify.topCities;
-  if (cities.length === 0) return insights;
-
-  const totalListeners = cities.reduce((s, c) => s + c.listeners, 0);
-
-  // Concentration
-  const topCity = cities[0];
-  const topCityPct = totalListeners > 0 ? (topCity.listeners / totalListeners) * 100 : 0;
-  if (topCityPct > 30) {
-    insights.push({
-      type: 'warning',
-      text: `High geographic concentration — ${topCity.city} accounts for ${topCityPct.toFixed(0)}% of tracked listeners (${fmt(topCity.listeners)}). Heavy reliance on a single market creates vulnerability if that market shifts.`,
-      action: `Diversify with geo-targeted ad campaigns in secondary markets. Consider playlist placements in local editorial playlists and social content in the language/culture of emerging markets.`,
-    });
-  } else if (topCityPct < 15 && cities.length >= 5) {
-    insights.push({
-      type: 'success',
-      text: `Well-distributed audience — no single city exceeds ${topCityPct.toFixed(0)}% of listeners. This geographic diversity provides resilience and multiple markets to activate for touring.`,
-      action: 'Use this breadth strategically: plan multi-city tours, tailor social content for different regions, and leverage local radio/press in each key market.',
-    });
-  }
-
-  // Country count
-  const countries = new Set(cities.map(c => c.country));
-  if (countries.size >= 8) {
-    insights.push({
-      type: 'success',
-      text: `Global reach across ${countries.size} countries — the music resonates across cultural boundaries. International audiences are often the fastest-growing segment for established artists.`,
-      action: 'Consider localized marketing: translated social posts, region-specific playlists, and partnerships with local influencers in the top 3-4 international markets.',
-    });
-  } else if (countries.size <= 3) {
-    insights.push({
-      type: 'info',
-      text: `Audience is concentrated in ${countries.size} ${countries.size === 1 ? 'country' : 'countries'}. While this may reflect genre or language specificity, there is significant room for international expansion.`,
-      action: 'Test international markets through playlist seeding, translated metadata, and cross-cultural collaborations. Markets like Brazil, Mexico, India, and Indonesia have rapidly growing streaming audiences.',
-    });
-  }
-
-  // Emerging market presence
-  const emergingCodes = new Set(['BR', 'MX', 'ID', 'IN', 'PH', 'NG', 'TH', 'VN', 'CO', 'AR']);
-  const emergingCities = cities.filter(c => emergingCodes.has(c.country));
-  const emergingListeners = emergingCities.reduce((s, c) => s + c.listeners, 0);
-  const emergingPct = totalListeners > 0 ? (emergingListeners / totalListeners) * 100 : 0;
-
-  if (emergingPct > 20) {
-    const topEmerging = emergingCities[0];
-    insights.push({
-      type: 'success',
-      text: `Strong emerging market presence — ${emergingPct.toFixed(0)}% of listeners are in high-growth markets like ${topEmerging?.city}. These markets have rapidly expanding streaming populations and less competition for attention.`,
-      action: 'Invest in these markets early: local playlist pitching, social media presence in regional platforms, and consider live shows or virtual events targeting these audiences.',
-    });
-  } else if (emergingPct < 5 && totalListeners > 100000) {
-    insights.push({
-      type: 'info',
-      text: 'Minimal presence in emerging streaming markets (Brazil, Mexico, India, Indonesia, Philippines). These markets represent the fastest-growing listener populations globally.',
-      action: 'Test entry with targeted Spotify ad campaigns in 1-2 emerging markets. Collaborate with local artists or create content that bridges cultural contexts.',
-    });
-  }
-
-  return insights.slice(0, 3);
-}
-
 function revenueInsights(a) {
   const insights = [];
   const streamingRev = Math.round(a.spotify.monthlyListeners * 0.004 * 12);
@@ -334,7 +270,6 @@ export function generateInsights(artist) {
     streaming: streamingInsights(artist),
     social: socialInsights(artist),
     playlists: playlistInsights(artist),
-    geography: geographyInsights(artist),
     revenue: revenueInsights(artist),
   };
 }

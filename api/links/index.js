@@ -19,7 +19,6 @@ import {
 import { spotifyLoginConfigured } from '../lib/spotify-fans.js';
 import { artistPageLinks } from '../lib/link-lookup.js';
 import { ensureSyncTables, listeningStats, releaseFilter, syncListener } from '../lib/spotify-sync.js';
-import { linkAudience } from '../lib/link-audience.js';
 
 /** Plays by this link's fans (null when it has never captured a fan). */
 async function linkListening(row) {
@@ -108,7 +107,7 @@ export default async function handler(req, res) {
         await ensureSyncTables();
         const release = releaseFilter(row);
         const fans = await query(
-          `SELECT f.spotify_user_id, f.display_name, f.email, f.country, f.product, f.followed, f.saved,
+          `SELECT f.spotify_user_id, f.display_name, f.email, f.product, f.followed, f.saved,
                   f.top_artists, f.campaign, f.from_ad, f.created_at, l.last_synced_at, l.revoked, l.sync_error,
                   (SELECT count(*)::int FROM spotify_plays p WHERE p.spotify_user_id = f.spotify_user_id
                      AND p.played_at >= f.created_at AND ${release}) AS release_plays,
@@ -120,7 +119,7 @@ export default async function handler(req, res) {
            WHERE f.slug = $1 ORDER BY f.created_at DESC LIMIT 5000`, [row.slug, row.spotify_artist_ids || []]);
         return res.status(200).json({
           fans: fans.map(f => ({
-            spotifyUserId: f.spotify_user_id, name: f.display_name, email: f.email, country: f.country,
+            spotifyUserId: f.spotify_user_id, name: f.display_name, email: f.email,
             product: f.product, followed: f.followed, saved: f.saved, topArtists: f.top_artists || [],
             campaign: f.campaign, fromAd: f.from_ad, createdAt: f.created_at,
             releasePlays: f.release_plays, artistPlays: f.artist_plays, lastReleasePlay: f.last_release_play,
@@ -143,12 +142,6 @@ export default async function handler(req, res) {
           link: linkRow,
         }) : null;
         return res.status(200).json({ ...stats, listening });
-      }
-
-      // Who visits a link: places, devices, sources, hours and recent visits
-      if (params.get('audience')) {
-        const row = await ownedLink(uid, params.get('audience'));
-        return res.status(200).json(await linkAudience(row.slug));
       }
 
       if (params.get('slug')) {

@@ -210,75 +210,6 @@ export function mapInsightToCampaign(insight, dataType, artist) {
     }
   }
 
-  // --- Geography insights ---
-  if (dataType === 'geography') {
-    // High concentration
-    if (text.includes('geographic concentration') && type === 'warning') {
-      const topCity = artist.spotify?.topCities?.[0];
-      return {
-        title: 'Expand to New Markets',
-        platform: 'meta',
-        objective: 'awareness',
-        dataPoints: topCity
-          ? [`${topCity.city} dominates listenership`, `${formatNumber(topCity.listeners)} listeners in top city`]
-          : ['High geographic concentration'],
-      };
-    }
-
-    // Well-distributed audience
-    if (text.includes('well-distributed audience') && type === 'success') {
-      return {
-        title: 'Activate Multi-Market Strategy',
-        platform: 'meta',
-        objective: 'awareness',
-        dataPoints: [
-          `${artist.spotify?.topCities?.length || 0} cities tracked`,
-          'Well-distributed audience',
-        ],
-      };
-    }
-
-    // Global reach
-    if (text.includes('global reach') && type === 'success') {
-      const countries = new Set(artist.spotify?.topCities?.map(c => c.country) || []);
-      return {
-        title: 'Scale International Growth',
-        platform: 'meta',
-        objective: 'awareness',
-        dataPoints: [
-          `${countries.size} countries`,
-          `${formatNumber(artist.spotify?.monthlyListeners)} monthly listeners`,
-        ],
-      };
-    }
-
-    // Concentrated in few countries
-    if (text.includes('concentrated in') && type === 'info') {
-      return {
-        title: 'Expand International Reach',
-        platform: 'meta',
-        objective: 'awareness',
-        dataPoints: [
-          `${formatNumber(artist.spotify?.monthlyListeners)} monthly listeners`,
-          'Limited international presence',
-        ],
-      };
-    }
-
-    // Emerging market presence
-    if (text.includes('emerging market') && (type === 'success' || type === 'info')) {
-      return {
-        title: type === 'success' ? 'Invest in Emerging Markets' : 'Enter Emerging Markets',
-        platform: 'meta',
-        objective: 'awareness',
-        dataPoints: [
-          `${formatNumber(artist.spotify?.monthlyListeners)} monthly listeners`,
-          'Target: Brazil, Mexico, India, Indonesia',
-        ],
-      };
-    }
-  }
-
   // --- Revenue insights ---
   if (dataType === 'revenue') {
     // High Shazam
@@ -339,7 +270,6 @@ export function mapInsightToCampaign(insight, dataType, artist) {
     streaming: { title: 'Boost Streams', platform: 'spotify', objective: 'streams' },
     social: { title: 'Grow Social Following', platform: 'meta', objective: 'awareness' },
     playlists: { title: 'Increase Playlist Reach', platform: 'spotify', objective: 'streams' },
-    geography: { title: 'Expand Audience Reach', platform: 'meta', objective: 'awareness' },
     revenue: { title: 'Drive Revenue Growth', platform: 'spotify', objective: 'streams' },
   };
   return fallbacks[dataType] || null;
