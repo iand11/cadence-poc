@@ -477,6 +477,20 @@ CREATE TABLE IF NOT EXISTS campaigns (
 );
 
 -- ---------------------------------------------------------------------------
+-- Custom dashboard widgets, one row per widget per user (api/lib/widgets.js).
+-- `data` is { id, prompt, spec, createdAt, updatedAt }; spec is the rendered
+-- widget (type, title, data…) the model built from the user's request.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS dashboard_widgets (
+  user_id    text NOT NULL,
+  id         text NOT NULL,
+  data       jsonb NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, id)
+);
+
+-- ---------------------------------------------------------------------------
 -- Ad platform connections — one row per user per platform. The access token
 -- is AES-256-GCM encrypted by api/lib/meta.js (AD_TOKEN_KEY) and never leaves
 -- the server. `selection` holds the chosen ad account ({ adAccountId }).

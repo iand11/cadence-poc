@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   Star, Sparkles, ArrowUp, Music, GripVertical,
   RotateCcw, MessageSquare, X, TrendingUp,
-  Plus, LayoutGrid, Check, ListMusic, ListChecks, Users, ArrowRight, FolderTree,
+  Plus, LayoutGrid, Check, ListMusic, ListChecks, Users, ArrowRight, FolderTree, Pencil, Trash2,
 } from 'lucide-react';
 import KpiCard from '../components/shared/KpiCard';
 import DataTable from '../components/shared/DataTable';
@@ -19,6 +19,8 @@ import TypingIndicator from '../components/ai/TypingIndicator';
 import FollowArtistPicker from '../components/FollowArtistPicker';
 import GroupsManager from '../components/groups/GroupsManager';
 import GroupsSidebarList from '../components/groups/GroupsSidebarList';
+import { CustomWidgetBody } from '../components/dashboard/CustomWidget';
+import WidgetBuilder from '../components/dashboard/WidgetBuilder';
 import {
   getArtist,
   generateStreamingTrend,
@@ -37,10 +39,13 @@ import { useChat } from '../hooks/useChat';
 import { useFavorites } from '../hooks/useFavorites';
 import { useFollowedArtists } from '../hooks/useFollowedArtists';
 import { useActions } from '../hooks/useActions';
-import { formatNumber, formatCurrency } from '../utils/formatters';
+import { useCustomWidgets } from '../hooks/useCustomWidgets';
+import { formatNumber, formatCurrency, formatAgo } from '../utils/formatters';
 
 const STORAGE_KEY = 'musicspace-widgets-v3';
 const DEFAULT_ACTIVE = ['top-artists', 'streaming', 'revenue', 'social'];
+// Custom widgets (saved per account) take part in the same ordering as `custom:<id>`.
+const CUSTOM_PREFIX = 'custom:';
 
 const WIDGET_CATALOG = [
   { id: 'top-artists',           title: 'Top Artists',           subtitle: 'by overall rank' },
@@ -592,6 +597,10 @@ export default function Dashboard() {
   const [entered, setEntered] = useState(false);
   const [dragId, setDragId] = useState(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  // Widget builder: null = closed, { widget: null } = new widget, { widget } = editing it
+  const [builder, setBuilder] = useState(null);
+  const [justAdded, setJustAdded] = useState(null);
+  const { widgets: customWidgets, saveWidget, setHidden, refreshWidget, deleteWidget } = useCustomWidgets();
   // Following modal: null = closed, else { tab: 'artists' | 'groups', groupId }
   const [manage, setManage] = useState(null);
   const manageOpen = manage !== null;
@@ -724,9 +733,19 @@ export default function Dashboard() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
   }, []);
 
+  // Built-in widgets the user turned on, plus custom widgets not hidden (new ones go last)
+  const customIds = useMemo(() => customWidgets.filter(w => !w.hidden).map(w => CUSTOM_PREFIX + w.id), [customWidgets]);
+  const withCustom = useCallback((list) => {
+    const known = new Set(customIds);
+    const kept = list.filter(id => !id.startsWith(CUSTOM_PREFIX) || known.has(id));
+    return [...kept, ...customIds.filter(id => !kept.includes(id))];
+  }, [customIds]);
+  const order = useMemo(() => withCustom(activeWidgets), [withCustom, activeWidgets]);
+
   const handleDragOver = useCallback((targetId) => {
     if (!dragId || dragId === targetId) return;
-    setActiveWidgets(prev => {
+    setActiveWidgets(prevList => {
+      const prev = withCustom(prevList);
       const fromIdx = prev.indexOf(dragId);
       const toIdx = prev.indexOf(targetId);
       if (fromIdx === -1 || toIdx === -1) return prev;
@@ -735,7 +754,7 @@ export default function Dashboard() {
       next.splice(toIdx, 0, dragId);
       return next;
     });
-  }, [dragId]);
+  }, [dragId, withCustom]);
 
   const handleDrop = useCallback(() => {
     setDragId(null);
@@ -748,12 +767,30 @@ export default function Dashboard() {
   }, [persist]);
 
   const removeWidget = useCallback((id) => {
+    // Custom widgets come off the dashboard but stay under Available Widgets
+    if (id.startsWith(CUSTOM_PREFIX)) setHidden(id.slice(CUSTOM_PREFIX.length), true);
     setActiveWidgets(prev => {
       const next = prev.filter(w => w !== id);
       persist(next);
       return next;
     });
-  }, [persist]);
+  }, [persist, setHidden]);
+
+  const saveBuilt = (built) => {
+    const id = saveWidget(built);
+    setBuilder(null);
+    if (id) setJustAdded(id);
+  };
+
+  // Bring a widget just added from the builder into view
+  useEffect(() => {
+    if (!justAdded) return;
+    const t = setTimeout(() => {
+      document.getElementById(`widget-${CUSTOM_PREFIX}${justAdded}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setJustAdded(null);
+    }, 100);
+    return () => clearTimeout(t);
+  }, [justAdded]);
 
   const addWidget = useCallback((id) => {
     setActiveWidgets(prev => {
@@ -946,6 +983,33 @@ export default function Dashboard() {
     'playlist-overview': <PlaylistWidget dragProps={dragProps} followedArtists={followedArtists} />,
     'track-intelligence': <TrackIntelligenceWidget dragProps={dragProps} trackedSlugs={followed} />,
   };
+  for (const w of customWidgets) {
+    if (w.hidden) continue;
+    const id = CUSTOM_PREFIX + w.id;
+    widgets[id] = (
+      <WidgetCard
+        id={id}
+        title={w.spec.title}
+        subtitle={[w.spec.subtitle, formatAgo(w.updatedAt)].filter(Boolean).join(' · ')}
+        headerRight={(
+          <div className="flex items-center shrink-0">
+            <button onClick={() => refreshWidget(w.id)} disabled={w.refreshing} title="Refresh"
+              className="p-1 text-[#3D3B37] hover:text-[#9B9590] disabled:opacity-40 transition-colors cursor-pointer">
+              <RotateCcw size={11} />
+            </button>
+            <button onClick={() => setBuilder({ widget: w })} disabled={w.refreshing} title="Edit"
+              className="p-1 text-[#3D3B37] hover:text-[#9B9590] disabled:opacity-40 transition-colors cursor-pointer">
+              <Pencil size={11} />
+            </button>
+          </div>
+        )}
+        {...dragProps}
+      >
+        <CustomWidgetBody widget={w} />
+      </WidgetCard>
+    );
+  }
+
 
   // --- Wait for the persisted slug list + roster summaries before deciding what to render ---
   if (loading) {
@@ -977,7 +1041,7 @@ export default function Dashboard() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-light text-[#F5F0E8]">Dashboard</h1>
-            <p className="text-xs text-[#9B9590] mt-1">Following {followedArtists.length} artists — {activeWidgets.length} of {WIDGET_CATALOG.length} widgets active</p>
+            <p className="text-xs text-[#9B9590] mt-1">Following {followedArtists.length} artists — {order.length} of {WIDGET_CATALOG.length + customWidgets.length} widgets active</p>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -986,6 +1050,13 @@ export default function Dashboard() {
             >
               <Users size={10} />
               Following
+            </button>
+            <button
+              onClick={() => setBuilder({ widget: null })}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] text-[#DA7756] border border-[#DA7756]/20 hover:border-[#DA7756]/40 rounded transition-colors cursor-pointer"
+            >
+              <Sparkles size={10} />
+              Create widget
             </button>
             <button
               onClick={() => setPickerOpen(!pickerOpen)}
@@ -1046,6 +1117,47 @@ export default function Dashboard() {
                       </button>
                     );
                   })}
+                  {customWidgets.map((w) => {
+                    const isActive = !w.hidden;
+                    return (
+                      <div key={w.id} className="group relative">
+                        <button
+                          onClick={() => setHidden(w.id, isActive)}
+                          className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded border text-left transition-all cursor-pointer ${
+                            isActive
+                              ? 'border-[#DA7756]/30 bg-[#DA7756]/5'
+                              : 'border-[#2C2B28] hover:border-[#3D3B37] bg-transparent'
+                          }`}
+                        >
+                          <div className={`w-5 h-5 rounded flex items-center justify-center shrink-0 ${
+                            isActive ? 'bg-[#DA7756] text-[#0D0C0B]' : 'bg-[#2C2B28] text-[#6B6560]'
+                          }`}>
+                            {isActive ? <Check size={10} /> : <Sparkles size={10} />}
+                          </div>
+                          <div className="min-w-0 pr-4">
+                            <p className={`text-[11px] font-medium truncate ${isActive ? 'text-[#F5F0E8]' : 'text-[#9B9590]'}`}>{w.spec.title}</p>
+                            <p className="text-[9px] text-[#6B6560] truncate">Custom · {w.requests[0]}</p>
+                          </div>
+                        </button>
+                        <button
+                          onClick={() => { if (window.confirm(`Delete "${w.spec.title}"?`)) deleteWidget(w.id); }}
+                          title="Delete widget"
+                          className="absolute top-1.5 right-1.5 p-1 text-[#3D3B37] hover:text-[#C75F4F] opacity-0 group-hover:opacity-100 focus:opacity-100 transition-all cursor-pointer"
+                        >
+                          <Trash2 size={11} />
+                        </button>
+                      </div>
+                    );
+                  })}
+                  <button
+                    onClick={() => setBuilder({ widget: null })}
+                    className="flex items-center gap-2.5 px-3 py-2.5 rounded border border-dashed border-[#3D3B37] hover:border-[#DA7756]/40 text-left transition-all cursor-pointer"
+                  >
+                    <div className="w-5 h-5 rounded flex items-center justify-center shrink-0 bg-[#2C2B28] text-[#DA7756]">
+                      <Plus size={10} />
+                    </div>
+                    <p className="text-[11px] font-medium text-[#DA7756]">Create widget</p>
+                  </button>
                 </div>
               </div>
             </motion.div>
@@ -1063,10 +1175,10 @@ export default function Dashboard() {
         </div>
 
         {/* Widget Grid — CSS grid, drag to reorder */}
-        {activeWidgets.length > 0 ? (
+        {order.length > 0 ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-            {activeWidgets.map(id => widgets[id] ? (
-              <div key={id} className={dragId === id ? 'opacity-50' : ''}>
+            {order.map(id => widgets[id] ? (
+              <div key={id} id={`widget-${id}`} className={dragId === id ? 'opacity-50' : ''}>
                 {widgets[id]}
               </div>
             ) : null)}
@@ -1197,6 +1309,13 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* Custom widget builder */}
+      <AnimatePresence>
+        {builder && (
+          <WidgetBuilder widget={builder.widget} groups={groups} onSave={saveBuilt} onClose={() => setBuilder(null)} />
+        )}
+      </AnimatePresence>
 
       {/* Manage followed artists + groups modal */}
       <AnimatePresence>

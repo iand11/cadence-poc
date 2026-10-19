@@ -36,3 +36,12 @@ export function formatDate(dateStr) {
   const d = new Date(dateStr);
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
+
+/** Short age for the card subtitle: "now", "5m ago", "3h ago", "2d ago". */
+export function formatAgo(iso) {
+  const ms = Date.now() - Date.parse(iso);
+  if (!Number.isFinite(ms) || ms < 60e3) return 'now';
+  if (ms < 3600e3) return `${Math.floor(ms / 60e3)}m ago`;
+  if (ms < 86400e3) return `${Math.floor(ms / 3600e3)}h ago`;
+  return `${Math.floor(ms / 86400e3)}d ago`;
+}

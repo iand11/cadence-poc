@@ -140,6 +140,21 @@ triggers on `playlist_entries` / `playlists` and built with `npm run db:rebuild-
 `/api/artists` total comes from the stored facets, not a per-request count.
 `npm run db:diagnose [-- --apply-indexes]` checks indexes and times every handler against the DB.
 
+### Custom dashboard widgets
+
+"Create widget" on the Dashboard takes a free-form request and builds a widget from it. `src/data/customWidgets.js`
+runs a short tool-use loop: `POST /api/widgets {action:'generate'}` (`api/lib/widgets.js`, Claude Opus 5.5 with
+server-side refusal fallback) makes one model call per step, and the data tools it asks for (metric history, tracks,
+releases, playlist placements, social posts, catalog, campaigns, Meta reports, smart links) run in the browser through
+the existing API adapters, so they only see what the user can see. The loop ends with `render_widget` (metric, bar,
+line, area, pie, radar, table, list or text), rendered by `CustomWidget.jsx`. Widgets are saved per account in
+`dashboard_widgets` (`GET/PUT/DELETE /api/widgets`, `useCustomWidgets`).
+Building happens in `WidgetBuilder` (modal): it shows each step as it runs, a preview, and takes follow-up changes
+(the same model conversation continues) until the user clicks "Add to dashboard"; nothing is saved before that.
+A saved widget keeps `requests` (first ask + each change) for refresh/edit and a `hidden` flag: removing it from the
+dashboard hides it, and it stays under Available Widgets (toggle back on, or delete there). Dashboard order shares the
+built-in widgets' layout list as `custom:<id>`. Needs `ANTHROPIC_API_KEY`.
+
 ### Artist listener geography is never shown
 
 Artist listener geography (`sp_where_people_listen`: listener cities/countries) stays in the DB
