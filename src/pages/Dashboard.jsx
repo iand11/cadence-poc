@@ -1052,13 +1052,6 @@ export default function Dashboard() {
               Following
             </button>
             <button
-              onClick={() => setBuilder({ widget: null })}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] text-[#DA7756] border border-[#DA7756]/20 hover:border-[#DA7756]/40 rounded transition-colors cursor-pointer"
-            >
-              <Sparkles size={10} />
-              Create widget
-            </button>
-            <button
               onClick={() => setPickerOpen(!pickerOpen)}
               className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] text-[#9B9590] border border-[#2C2B28] hover:border-[#3D3B37] rounded transition-colors cursor-pointer"
             >
