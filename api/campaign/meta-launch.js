@@ -23,6 +23,8 @@
 // recorded in meta_managed_campaigns and only go live after Prelude approves them. Campaign → Ad Set →
 // Ad Creative → Ad are all created paused; nothing spends until the user goes live
 // through /api/campaign/meta-campaign. If any step fails, what was created is deleted.
+// When the destination is the user's smart link, the link gets the ad account's Meta Pixel
+// (created if the account has none) so its views and streaming taps reach Meta.
 import {
   graph, graphUpload, getUid, requireConnection, readBody, sendError, needs, adAccountFor, findInstagramPost,
   listInstagramAccounts, isManaged, preludeAccount, saveManagedCampaign, MANAGED_ACCOUNT_NAME,
@@ -30,6 +32,7 @@ import {
 import { adImageId, getAdImage } from '../lib/ad-images.js';
 import { prepayEnabled } from '../lib/stripe.js';
 import { adVideoId, getAdVideo, getAdVideoInfo, setMetaVideoId } from '../lib/ad-videos.js';
+import { attachCampaignPixel } from '../lib/smartlinks.js';
 
 // Server-side ceiling per campaign (account currency, major units)
 const MAX_BUDGET = Number(process.env.META_MAX_BUDGET || 10000);
@@ -335,6 +338,9 @@ export default async function handler(req, res) {
       status: 'PAUSED',
     });
 
+    // 7. Pixel on the smart link, so Meta sees the landing page's views and streaming taps
+    const pixelId = destination ? await attachCampaignPixel({ uid, url: destination, act, token, managed }) : null;
+
     if (managed) {
       await saveManagedCampaign({
         campaignId: campaign.id, userId: uid, directiveId: directive.id || null,
@@ -352,6 +358,7 @@ export default async function handler(req, res) {
       platformCreativeId: creative.id,
       adAccountId: act,
       igUsername: account.username || null,
+      pixelId,
     });
   } catch (err) {
     // Roll back partial work so a failed launch never leaves objects in the ad account.

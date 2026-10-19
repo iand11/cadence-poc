@@ -33,10 +33,13 @@ function CopyButton({ text }) {
   );
 }
 
-function PixelSelect({ value, onChange, pixels, disabled }) {
+function PixelSelect({ value, onChange, pixels, disabled, prelude }) {
+  // A Pixel attached at campaign launch may not be in the list (e.g. Prelude's ad account)
+  const listed = !value || (pixels || []).some(p => p.id === value);
   return (
     <select value={value || ''} onChange={e => onChange(e.target.value || null)} disabled={disabled} className={inputCls}>
       <option value="">No Meta Pixel (Prelude tracking only)</option>
+      {!listed && <option value={value}>{prelude ? "Prelude's Pixel" : `Pixel ${value}`} · added by a campaign</option>}
       {(pixels || []).map(p => <option key={p.id} value={p.id}>{p.name} · {p.adAccountId}</option>)}
     </select>
   );
@@ -690,6 +693,7 @@ function LinkDetail({ slug, pixels, spotifyLogin, onChanged, onDeleted }) {
           <p className={labelCls}>Meta Pixel</p>
           <PixelSelect
             value={link.pixelId}
+            prelude={link.pixelPrelude}
             pixels={pixels}
             disabled={busy}
             onChange={(pixelId) => run(async () => { await updateSmartLink(slug, { pixelId }); setVersion(v => v + 1); onChanged(); })}

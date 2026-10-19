@@ -10,7 +10,7 @@
 //   META_TEST_EVENT_CODE — optional; sends Conversions API events to Events Manager's Test Events
 import crypto from 'node:crypto';
 import { query, queryOne } from './db.js';
-import { graph, loadConnection } from './meta.js';
+import { graph, graphList, loadConnection, managedConfigured, preludeAccount } from './meta.js';
 import { lookupRelease } from './link-lookup.js';
 import {
   cookies, clientIp, geo, parseUserAgent, language, trackingParams, consentState, mayTrack, gpc, visitorId,
@@ -71,6 +71,7 @@ export function ensureTables() {
       await query('CREATE INDEX IF NOT EXISTS smart_link_events_visitor_idx ON smart_link_events (visitor_id, created_at) WHERE visitor_id IS NOT NULL');
       await query('CREATE INDEX IF NOT EXISTS smart_link_events_event_id_idx ON smart_link_events (event_id) WHERE event_id IS NOT NULL');
       await query('ALTER TABLE smart_links ADD COLUMN IF NOT EXISTS fan_capture boolean NOT NULL DEFAULT false');
+      await query('ALTER TABLE smart_links ADD COLUMN IF NOT EXISTS pixel_prelude boolean NOT NULL DEFAULT false');
       await query('ALTER TABLE smart_links ALTER COLUMN title DROP NOT NULL'); // title is optional
       await query(`
         CREATE TABLE IF NOT EXISTS smart_link_fans (
@@ -207,11 +208,14 @@ export async function sendMetaEvent(req, link, { eventName, eventId, service, ca
   // Nothing goes to Meta without consent (EU/UK) or with a Global Privacy Control opt-out
   if (!link.pixel_id || isBot(req) || !mayTrack(req) || gpc(req)) return;
   try {
-    const conn = await loadConnection(link.user_id);
-    if (!conn) return;
+    // A Pixel in Prelude's ad account (Prelude-managed ads) is sent with Prelude's token
+    const token = link.pixel_prelude
+      ? (managedConfigured() ? preludeAccount().token : null)
+      : (await loadConnection(link.user_id))?.token;
+    if (!token) return;
     const c = cookies(req);
     const fbc = c._fbc || (fbclid ? `fb.1.${Date.now()}.${fbclid}` : undefined);
-    await graph('POST', `${link.pixel_id}/events`, conn.token, {
+    await graph('POST', `${link.pixel_id}/events`, token, {
       data: [{
         event_name: eventName,
         event_time: Math.floor(Date.now() / 1000),
@@ -234,6 +238,52 @@ export async function sendMetaEvent(req, link, { eventName, eventId, service, ca
     });
   } catch (err) {
     console.error('[smartlinks] Conversions API event failed', err.message, err.meta || '');
+  }
+}
+
+/** The slug of a Prelude smart link URL (/l/:slug), or null for any other URL. */
+export function smartLinkSlug(url) {
+  try {
+    return new URL(url).pathname.match(/^\/l\/([\w-]+)\/?$/)?.[1] || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * When a campaign launches with one of the user's smart links as its destination, give
+ * the link a Meta Pixel from the ad account the ad runs in, so the landing page's views
+ * and streaming taps (DSPClick) reach Meta for that ad. A Pixel the user already chose
+ * is kept. Uses the account's first Pixel, or creates one. Returns the link's Pixel id,
+ * or null. Never throws: a launch doesn't depend on it.
+ */
+export async function attachCampaignPixel({ uid, url, act, token, managed = false }) {
+  const slug = smartLinkSlug(url);
+  if (!slug) return null;
+  try {
+    await ensureTables();
+    const link = await queryOne('SELECT pixel_id FROM smart_links WHERE slug = $1 AND user_id = $2', [slug, uid]);
+    if (!link) return null;
+    if (link.pixel_id) return link.pixel_id;
+    let pixelId = (await graphList(`${act}/adspixels`, token, { fields: 'id' }, 1))[0]?.id;
+    if (!pixelId) {
+      const made = await graph('POST', `${act}/adspixels`, token, { name: 'Prelude smart links' }).catch(async (err) => {
+        // Created in the meantime (Meta allows one per ad account in some cases): use that one
+        const again = await graphList(`${act}/adspixels`, token, { fields: 'id' }, 1).catch(() => []);
+        if (again[0]?.id) return again[0];
+        throw err;
+      });
+      pixelId = made?.id;
+    }
+    if (!pixelId) return null;
+    const row = await queryOne(
+      `UPDATE smart_links SET pixel_id = $3, pixel_prelude = $4, updated_at = now()
+       WHERE slug = $1 AND user_id = $2 AND pixel_id IS NULL RETURNING pixel_id`,
+      [slug, uid, String(pixelId), !!managed]);
+    return row?.pixel_id || (await queryOne('SELECT pixel_id FROM smart_links WHERE slug = $1', [slug]))?.pixel_id || null;
+  } catch (err) {
+    console.error('[smartlinks] attaching Pixel failed', err.message, err.meta || '');
+    return null;
   }
 }
 
