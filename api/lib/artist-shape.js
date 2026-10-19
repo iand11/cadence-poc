@@ -3,6 +3,17 @@
 // the static JSON (allArtists entries, normalizeTrack, normalizeAlbum), so
 // components can consume API responses with zero reshaping.
 
+// Listener geography stays in the DB but is never sent to the app.
+const LISTENER_GEOGRAPHY_KEYS = ['sp_where_people_listen'];
+
+/** A stats/metrics object without listener geography. */
+export function withoutListenerGeography(metrics) {
+  if (!metrics || typeof metrics !== 'object') return metrics;
+  const out = { ...metrics };
+  for (const k of LISTENER_GEOGRAPHY_KEYS) delete out[k];
+  return out;
+}
+
 export function artistRowToSummary(row) {
   const s = row.stats || {};
   return {
@@ -38,11 +49,6 @@ export function artistRowToSummary(row) {
       followersRank: s.sp_followers_rank,
       listenersRank: s.sp_monthly_listeners_rank,
       popularityRank: s.sp_popularity_rank,
-      topCities: (s.sp_where_people_listen || []).map((c) => ({
-        city: c.name,
-        country: (c.code2 || '').toUpperCase(),
-        listeners: c.listeners,
-      })),
     },
 
     social: {

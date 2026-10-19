@@ -96,20 +96,6 @@ export function buildAISummary(artist) {
     parts.push(`Playlist reach of ${fmt(a.playlists.spotify.reach)} is underweight relative to listener count — there's significant upside in securing additional editorial placements to convert casual discovery into sustained streams.`);
   }
 
-  const cities = a.spotify.topCities || [];
-  if (cities.length > 0) {
-    const countries = new Set(cities.map(c => c.country));
-    const topCity = cities[0];
-    const totalCityListeners = cities.reduce((s, c) => s + c.listeners, 0);
-    const topCityPct = totalCityListeners > 0 ? (topCity.listeners / totalCityListeners * 100) : 0;
-
-    if (countries.size >= 8 && topCityPct < 20) {
-      parts.push(`Audience spans ${countries.size} countries with no single city exceeding ${topCityPct.toFixed(0)}% — strong geographic diversification that supports international touring and reduces market risk.`);
-    } else if (countries.size <= 2) {
-      parts.push(`Audience is geographically concentrated in ${countries.size === 1 ? '1 market' : '2 markets'}, led by ${topCity.city} — international expansion could unlock significant new listener growth.`);
-    }
-  }
-
   const text = parts.join(' ');
 
   const keyMetrics = [

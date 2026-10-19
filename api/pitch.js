@@ -64,7 +64,7 @@ const PITCH_DATA = {
   solution: {
     heading: 'The platform around the engine',
     pillars: [
-      { icon: 'BarChart3', accent: '#7BAF73', title: 'Unified Analytics', body: 'Streaming, social, playlist, geography, and revenue signals across every major platform — normalized and always current.' },
+      { icon: 'BarChart3', accent: '#7BAF73', title: 'Unified Analytics', body: 'Streaming, social, playlist, and revenue signals across every major platform — normalized and always current.' },
       { icon: 'MessageSquare', accent: '#DA7756', title: 'AI Copilot', body: 'Ask anything about the roster in plain English. Get answers with live charts, and generate full reports from a single prompt.' },
       { icon: 'ListChecks', accent: '#D4A574', title: 'Prioritized Actions', body: 'The platform surfaces what matters and turns it into a ranked, trackable to-do list per artist — high, medium, low.' },
       { icon: 'Sheet', accent: '#9B7ED8', title: 'Branded Artist Pages', body: 'Shareable, editable one-pagers with live data and one-click PDF export — no design tools required.' },

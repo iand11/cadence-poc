@@ -140,6 +140,14 @@ triggers on `playlist_entries` / `playlists` and built with `npm run db:rebuild-
 `/api/artists` total comes from the stored facets, not a per-request count.
 `npm run db:diagnose [-- --apply-indexes]` checks indexes and times every handler against the DB.
 
+### Artist listener geography is never shown
+
+Artist listener geography (`sp_where_people_listen`: listener cities/countries) stays in the DB
+but is not displayed anywhere in the app or returned to the client (Ian, 2026-10-19).
+`api/lib/artist-shape.js` drops it (`withoutListenerGeography` for metric history). This rule
+covers artist data only: the smart link Audience section, captured fans' country and Meta
+campaign age/gender/country breakdowns stay.
+
 ### Data Modules (`src/data/`)
 
 The app is scoped to the artists a user **follows** (user-facing copy never says "roster" or
@@ -221,7 +229,7 @@ Tailwind CSS 4 via `@tailwindcss/vite` plugin (no tailwind.config — uses v4 CS
 
 ### Reports (`src/pages/ReportCenter.jsx`)
 
-Reports are composed of selectable widget components (8 available: artist-comparison, streaming-trends, revenue-breakdown, geography, social-growth, forecast, playlists, benchmarks). The `selected` array controls both visibility and render order. Widget ordering uses drag-and-drop in `WidgetPicker`. Reports auto-save with 500ms debounce. PDF export captures each `[data-pdf-section]` element individually for section-aware pagination.
+Reports are composed of selectable widget components (7 available: artist-comparison, streaming-trends, revenue-breakdown, social-growth, forecast, playlists, benchmarks; saved `geography` widgets are dropped by `availableWidgetIds`). The `selected` array controls both visibility and render order. Widget ordering uses drag-and-drop in `WidgetPicker`. Reports auto-save with 500ms debounce. PDF export captures each `[data-pdf-section]` element individually for section-aware pagination.
 
 ### Utilities (`src/utils/`)
 
@@ -232,8 +240,7 @@ Reports are composed of selectable widget components (8 available: artist-compar
 
 ### Key Libraries
 
-- **Recharts** for all charts (streaming, forecast, revenue, geography, benchmarks)
-- **Leaflet / react-leaflet** for geography heat maps
+- **Recharts** for all charts (streaming, forecast, revenue, benchmarks)
 - **html2canvas + jsPDF** for PDF export
 - **Motion** (Framer Motion) for animations
 - **lucide-react** for icons

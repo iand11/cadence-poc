@@ -28,7 +28,7 @@ export const GOAL_DATA_TYPES = {
   streaming: ['streaming', 'playlists'],
   social: ['social'],
   playlists: ['playlists', 'streaming'],
-  touring: ['geography', 'social'],
+  touring: ['social'],
   revenue: ['revenue', 'streaming'],
 };
 
@@ -425,16 +425,6 @@ const LIBRARY = [
 
   // Touring
   {
-    id: 't-routing', goals: ['touring'], at: 0, owner: 'Management', priority: 'high', dataType: 'geography',
-    action: 'Match routing to listener demand',
-    text: 'Route the tour through the cities where {artist} is already being streamed.',
-    steps: [
-      ['Pull the top 20 cities from the geography data', T],
-      ['Compare them against the agent\'s proposed routing', A],
-      ['Flag high-demand markets that are missing from the routing', P],
-    ],
-  },
-  {
     id: 't-announce', goals: ['touring'], at: 0.2, owner: 'Marketing', priority: 'high', dataType: 'social',
     action: 'Roll out the tour announcement',
     text: 'Stagger the announce, presale and on-sale to keep momentum.',
@@ -453,7 +443,7 @@ const LIBRARY = [
     ],
   },
   {
-    id: 't-ads', goals: ['touring'], minBudget: 1, at: 0.5, owner: 'Marketing', priority: 'medium', dataType: 'geography',
+    id: 't-ads', goals: ['touring'], minBudget: 1, at: 0.5, owner: 'Marketing', priority: 'medium', dataType: 'social',
     action: 'Run geo-targeted ticket ads',
     text: 'Spend the most on the dates with the weakest ticket sales.',
     steps: [

@@ -106,7 +106,7 @@ Rules:
 
         const tools = [{
           name: 'create_report',
-          description: 'Create a custom analytics report. Use when the user asks to build/create/generate a report. Widget IDs: artist-comparison, streaming-trends, revenue-breakdown, social-growth, geography, forecast, playlists, benchmarks. Artist slugs are lowercase-hyphenated (e.g. "taylor-swift", "bad-bunny").',
+          description: 'Create a custom analytics report. Use when the user asks to build/create/generate a report. Widget IDs: artist-comparison, streaming-trends, revenue-breakdown, social-growth, forecast, playlists, benchmarks. Artist slugs are lowercase-hyphenated (e.g. "taylor-swift", "bad-bunny").',
           input_schema: {
             type: 'object',
             properties: {
@@ -183,7 +183,7 @@ Rules:
               },
               dataType: {
                 type: 'string',
-                enum: ['streaming', 'social', 'playlists', 'geography', 'revenue', 'general'],
+                enum: ['streaming', 'social', 'playlists', 'revenue', 'general'],
                 description: 'Data category this action relates to',
               },
               text: {

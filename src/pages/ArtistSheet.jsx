@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   FileText, Download, Eye, Link2, Check, X, ArrowLeft,
   Music, TrendingUp, Users, DollarSign, Radio, Globe, Disc3, ListMusic,
-  MapPin, Tag, Palette, Pipette, Headphones, BarChart3, Sheet, Plus, GripVertical,
+  MapPin, Tag, Star, Palette, Pipette, Headphones, BarChart3, Sheet, Plus, GripVertical,
   Trash2, RefreshCw, ExternalLink, EyeOff, ChevronDown, Settings, Lock, PanelLeftClose, PanelLeftOpen, Image as ImageIcon,
 } from 'lucide-react';
 import { toPng } from 'html-to-image';
@@ -17,7 +17,6 @@ import SocialPostModal from '../components/shared/SocialPostModal';
 import StreamingTrendChart from '../components/charts/StreamingTrendChart';
 import SocialGrowthChart from '../components/charts/SocialGrowthChart';
 import RevenueDonutChart from '../components/charts/RevenueDonutChart';
-import GeographyHeatMap from '../components/charts/GeographyHeatMap';
 import BenchmarkRadarChart from '../components/charts/BenchmarkRadarChart';
 import ForecastChart from '../components/charts/ForecastChart';
 import PlaylistDistributionChart from '../components/charts/PlaylistDistributionChart';
@@ -47,7 +46,8 @@ const BLOCK_DEFS = [
   { id: 'custom_fields',  label: 'Custom Fields',         icon: BarChart3 },
   { id: 'live_metrics',   label: 'Live Metrics',          icon: Sheet },
   { id: 'platform',       label: 'Platform Analytics',    icon: Radio },
-  { id: 'geography',      label: 'Audience & Geography',  icon: Globe },
+  // Kept as 'geography' so saved sheets keep their order; it shows benchmarks only
+  { id: 'geography',      label: 'Benchmarks',            icon: Star },
   { id: 'forecast',       label: 'AI Forecasting',        icon: Disc3 },
   { id: 'revenue',        label: 'Revenue Estimate',      icon: DollarSign },
 ];
@@ -356,7 +356,6 @@ function ArtistSheetContent({ artist }) {
   const forecastData = generateForecast(artist);
   const revenueData = generateRevenue(artist);
   const benchmarkData = getBenchmarkComparison(artist);
-  const geographyData = artist.spotify.topCities;
   const totalRevenue = revenueData.reduce((sum, r) => sum + r.amount, 0);
   const aiSummary = buildAISummary(artist);
   const primaryGenre = artist.genres?.primary?.name || 'Artist';
@@ -370,7 +369,6 @@ function ArtistSheetContent({ artist }) {
   const maxTracks = blockSettings.tracks?.maxItems || 12;
   const maxAlbums = blockSettings.discography?.maxItems || 24;
   const maxPlaylists = blockSettings.platform?.maxItems || 15;
-  const maxCities = blockSettings.geography?.maxItems || 0;
   const extraMetrics = blockSettings.overview?.extraMetrics || [];
 
   // ─── Block actions ──────────────────────────────────────────────────────────
@@ -777,51 +775,15 @@ function ArtistSheetContent({ artist }) {
       );
     },
 
-    geography: () => {
-      const cities = maxCities > 0 ? geographyData.slice(0, maxCities) : geographyData;
-      return (
-        <div className="space-y-6">
-          {cities.length > 0 && (
-            <ChartCard
-              title={editableTitle('geography', 'chartTitle', 'Geographic Distribution')}
-              subtitle={editableTitle('geography', 'chartSubtitle', 'Listeners by city')}
-              colors={colors}
-            >
-              {dragIdx === null && <GeographyHeatMap data={cities} />}
-              {dragIdx !== null && (
-                <div className="flex items-center justify-center rounded border border-[#2C2B28]" style={{ height: 340, background: '#0D0C0B' }}>
-                  <span className="text-xs text-[#6B6560]">Map paused during reorder</span>
-                </div>
-              )}
-              <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${colors.border}` }}>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6">
-                  {cities.map((c, i) => {
-                    const pct = cities[0]?.listeners > 0 ? (c.listeners / cities[0].listeners) * 100 : 0;
-                    return (
-                      <div key={`${c.city}-${c.country}`} className="flex items-center gap-3 py-2 last:border-0" style={{ borderBottom: `1px solid ${colors.border}50` }}>
-                        <span className="text-[10px] font-mono w-5 text-right shrink-0" style={{ color: colors.textMuted }}>{i + 1}</span>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-baseline gap-1.5"><span className="text-sm truncate" style={{ color: colors.textPrimary }}>{c.city}</span><span className="text-[10px]" style={{ color: colors.textMuted }}>{getCountryName(c.country)}</span></div>
-                          <div className="mt-1 h-1 rounded-full overflow-hidden" style={{ backgroundColor: colors.border }}><div className="h-full rounded-full" style={{ width: `${Math.max(pct, 2)}%`, backgroundColor: accentColor, opacity: 0.4 + (pct / 100) * 0.6 }} /></div>
-                        </div>
-                        <span className="text-xs font-mono shrink-0" style={{ color: colors.textSecondary }}>{formatNumber(c.listeners)}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </ChartCard>
-          )}
-          <ChartCard
-            title={editableTitle('geography', 'benchTitle', 'Benchmark Comparison')}
-            subtitle={editableTitle('geography', 'benchSubtitle', 'vs average across all artists')}
-            colors={colors}
-          >
-            <BenchmarkRadarChart artist={benchmarkData.artist} benchmark={benchmarkData.benchmark} dimensions={benchmarkData.dimensions} artistName={artist.name} />
-          </ChartCard>
-        </div>
-      );
-    },
+    geography: () => (
+      <ChartCard
+        title={editableTitle('geography', 'benchTitle', 'Benchmark Comparison')}
+        subtitle={editableTitle('geography', 'benchSubtitle', 'vs average across all artists')}
+        colors={colors}
+      >
+        <BenchmarkRadarChart artist={benchmarkData.artist} benchmark={benchmarkData.benchmark} dimensions={benchmarkData.dimensions} artistName={artist.name} />
+      </ChartCard>
+    ),
 
     forecast: () => (
       <ChartCard
@@ -1037,14 +999,10 @@ function ArtistSheetContent({ artist }) {
 
     geography: () => (
       <>
-        <SInput label="Section Title" value={getRaw('geography', 'title')} onChange={v => updateBlockSetting('geography', 'title', v)} placeholder="Audience & Geography" />
+        <SInput label="Section Title" value={getRaw('geography', 'title')} onChange={v => updateBlockSetting('geography', 'title', v)} placeholder="Benchmarks" />
         <SDivider />
-        <SInput label="Map Title" value={getRaw('geography', 'chartTitle')} onChange={v => updateBlockSetting('geography', 'chartTitle', v)} placeholder="Geographic Distribution" />
-        <SInput label="Map Subtitle" value={getRaw('geography', 'chartSubtitle')} onChange={v => updateBlockSetting('geography', 'chartSubtitle', v)} placeholder="Listeners by city" />
         <SInput label="Benchmark Title" value={getRaw('geography', 'benchTitle')} onChange={v => updateBlockSetting('geography', 'benchTitle', v)} placeholder="Benchmark Comparison" />
         <SInput label="Benchmark Subtitle" value={getRaw('geography', 'benchSubtitle')} onChange={v => updateBlockSetting('geography', 'benchSubtitle', v)} placeholder="vs average across all artists" />
-        <SSelect label="Cities to Show" value={blockSettings.geography?.maxItems || 0} onChange={v => updateBlockSetting('geography', 'maxItems', Number(v))}
-          options={[{ value: 0, label: 'All cities' }, { value: 5, label: '5 cities' }, { value: 10, label: '10 cities' }, { value: 20, label: '20 cities' }]} />
       </>
     ),
 

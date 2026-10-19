@@ -150,7 +150,7 @@ const SHEET_CAPABILITIES = [
   { icon: Edit3, label: 'Editable Fields', desc: 'Click any text to override with your own copy' },
   { icon: Download, label: 'PDF Export', desc: 'One-click export to a polished, print-ready PDF' },
   { icon: Link2, label: 'Shareable Links', desc: 'Generate a public link anyone can view — no login needed' },
-  { icon: Eye, label: 'Toggle Blocks', desc: 'Show or hide any section — overview, charts, tracks, geography' },
+  { icon: Eye, label: 'Toggle Blocks', desc: 'Show or hide any section — overview, charts, tracks, playlists' },
   { icon: Music, label: 'Spotify Embed', desc: 'Embed any Spotify artist, album, or track directly in the page' },
 ];
 
@@ -268,7 +268,7 @@ function MockArtistSheet() {
           </div>
 
           {/* Charts row */}
-          <div className="px-5 py-4 grid grid-cols-2 gap-3">
+          <div className="px-5 py-4 grid grid-cols-1 gap-3">
             {/* Streaming chart mock */}
             <div className="rounded-lg p-4 h-36" style={{ backgroundColor: '#1D1C19', border: '1px solid #2C2B28' }}>
               <div className="text-[9px] text-[#6B6560] uppercase tracking-wider mb-3">Streaming Trends</div>
@@ -283,34 +283,6 @@ function MockArtistSheet() {
                     viewport={{ once: true }}
                     transition={{ duration: 0.4, delay: 0.4 + i * 0.01 }}
                   />
-                ))}
-              </div>
-            </div>
-
-            {/* Geography mock */}
-            <div className="rounded-lg p-4 h-36" style={{ backgroundColor: '#1D1C19', border: '1px solid #2C2B28' }}>
-              <div className="text-[9px] text-[#6B6560] uppercase tracking-wider mb-3">Audience Geography</div>
-              <div className="space-y-2 mt-2">
-                {[
-                  { city: 'Mexico City', pct: 82 },
-                  { city: 'Jakarta', pct: 68 },
-                  { city: 'London', pct: 61 },
-                  { city: 'São Paulo', pct: 49 },
-                ].map((row) => (
-                  <div key={row.city} className="flex items-center gap-2">
-                    <span className="text-[9px] text-[#9B9590] w-16 truncate">{row.city}</span>
-                    <div className="flex-1 h-2 rounded-full bg-[#0D0C0B] overflow-hidden">
-                      <motion.div
-                        className="h-full rounded-full"
-                        style={{ backgroundColor: '#DA7756' }}
-                        initial={{ width: 0 }}
-                        whileInView={{ width: `${row.pct}%` }}
-                        viewport={{ once: true }}
-                        transition={{ duration: 0.6, delay: 0.5 }}
-                      />
-                    </div>
-                    <span className="text-[9px] font-mono text-[#6B6560] w-8 text-right">{row.pct}%</span>
-                  </div>
                 ))}
               </div>
             </div>
@@ -604,7 +576,7 @@ export default function Landing() {
             {[
               { icon: Sheet, accent: '#9B7ED8', title: 'Artist Pages', body: 'Branded one-pagers for every artist you follow. Drag blocks, pick colors, edit any field inline, embed Spotify players, and export to PDF — or share a live link with anyone.' },
               { icon: MessageSquare, accent: '#DA7756', title: 'AI Chat', body: 'Ask anything about the artists you follow in plain English. Prelude answers with live data, renders charts inline, and can build full reports from a single prompt.' },
-              { icon: BarChart3, accent: '#7BAF73', title: 'Analytics', body: 'Streaming trends, social growth, playlist intelligence, audience geography, and revenue estimates across Spotify, Apple Music, TikTok, YouTube, Instagram, and Shazam.' },
+              { icon: BarChart3, accent: '#7BAF73', title: 'Analytics', body: 'Streaming trends, social growth, playlist intelligence, and revenue estimates across Spotify, Apple Music, TikTok, YouTube, Instagram, and Shazam.' },
               { icon: FileText, accent: '#4A90D9', title: 'Reports', body: 'Compose reports from 8 widget types. Drag to reorder, select artists, and export. Reports auto-save and can be shared via link.' },
               { icon: ListChecks, accent: '#D4A574', title: 'Action Items', body: 'Prelude turns every signal into prioritized, per-artist next steps — ranked high to low with guided, checkable playbooks so nothing slips.' },
               { icon: Megaphone, accent: '#DA7756', title: 'Marketing', body: 'Launch ad campaigns natively across Spotify, Meta, Google, YouTube, TikTok, and X. Prelude drafts the objective, budget split, audience, and creative — you approve.' },
