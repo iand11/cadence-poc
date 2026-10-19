@@ -313,13 +313,7 @@ function Notes({ report }) {
   if (report.sources.some(s => s.service === 'youtube') && !report.youtube.configured) {
     notes.push('YouTube views can’t be read until YOUTUBE_API_KEY is set on the server.');
   }
-  if (!report.youtube.approved) {
-    notes.push(`YouTube’s API rules allow keeping view counts for ${report.youtube.retentionDays} days and no calculated figures (like views gained) until Prelude passes YouTube’s analytics audit.`);
-  }
-  notes.push(report.sources.some(s => s.service === 'spotify' && s.auto)
-    ? 'Spotify counts are read from its public page, which Spotify can change at any time; if a day fails, enter that day’s count by hand.'
-    : 'Spotify has no API for play counts, so enter the count shown in the Spotify app each day.');
-  notes.push('Apple Music, Deezer, Amazon Music and TIDAL show no public counts.');
+  if (!notes.length) return null;
   return (
     <div className="mt-3 space-y-1">
       {notes.map(n => (
