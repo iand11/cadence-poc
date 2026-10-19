@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   Star, Sparkles, ArrowUp, Music, GripVertical,
   RotateCcw, MessageSquare, X, TrendingUp,
-  Plus, LayoutGrid, Check, ListMusic, ListChecks, Users, ArrowRight, FolderTree,
+  Plus, LayoutGrid, Check, ListMusic, ListChecks, Users, ArrowRight, FolderTree, Pencil,
 } from 'lucide-react';
 import KpiCard from '../components/shared/KpiCard';
 import DataTable from '../components/shared/DataTable';
@@ -19,6 +19,7 @@ import TypingIndicator from '../components/ai/TypingIndicator';
 import FollowArtistPicker from '../components/FollowArtistPicker';
 import GroupsManager from '../components/groups/GroupsManager';
 import GroupsSidebarList from '../components/groups/GroupsSidebarList';
+import { CustomWidgetBody, WidgetComposer } from '../components/dashboard/CustomWidget';
 import {
   getArtist,
   generateStreamingTrend,
@@ -37,10 +38,13 @@ import { useChat } from '../hooks/useChat';
 import { useFavorites } from '../hooks/useFavorites';
 import { useFollowedArtists } from '../hooks/useFollowedArtists';
 import { useActions } from '../hooks/useActions';
-import { formatNumber, formatCurrency } from '../utils/formatters';
+import { useCustomWidgets } from '../hooks/useCustomWidgets';
+import { formatNumber, formatCurrency, formatAgo } from '../utils/formatters';
 
 const STORAGE_KEY = 'musicspace-widgets-v3';
 const DEFAULT_ACTIVE = ['top-artists', 'streaming', 'revenue', 'social'];
+// Custom widgets (saved per account) take part in the same ordering as `custom:<id>`.
+const CUSTOM_PREFIX = 'custom:';
 
 const WIDGET_CATALOG = [
   { id: 'top-artists',           title: 'Top Artists',           subtitle: 'by overall rank' },
@@ -592,6 +596,9 @@ export default function Dashboard() {
   const [entered, setEntered] = useState(false);
   const [dragId, setDragId] = useState(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  // Widget request box: null = closed, { id: null } = new widget, { id } = editing that widget
+  const [composer, setComposer] = useState(null);
+  const { widgets: customWidgets, createWidget, rebuildWidget, deleteWidget } = useCustomWidgets();
   // Following modal: null = closed, else { tab: 'artists' | 'groups', groupId }
   const [manage, setManage] = useState(null);
   const manageOpen = manage !== null;
@@ -724,9 +731,19 @@ export default function Dashboard() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
   }, []);
 
+  // Built-in widgets the user turned on, plus every custom widget (new ones go last)
+  const customIds = useMemo(() => customWidgets.map(w => CUSTOM_PREFIX + w.id), [customWidgets]);
+  const withCustom = useCallback((list) => {
+    const known = new Set(customIds);
+    const kept = list.filter(id => !id.startsWith(CUSTOM_PREFIX) || known.has(id));
+    return [...kept, ...customIds.filter(id => !kept.includes(id))];
+  }, [customIds]);
+  const order = useMemo(() => withCustom(activeWidgets), [withCustom, activeWidgets]);
+
   const handleDragOver = useCallback((targetId) => {
     if (!dragId || dragId === targetId) return;
-    setActiveWidgets(prev => {
+    setActiveWidgets(prevList => {
+      const prev = withCustom(prevList);
       const fromIdx = prev.indexOf(dragId);
       const toIdx = prev.indexOf(targetId);
       if (fromIdx === -1 || toIdx === -1) return prev;
@@ -735,7 +752,7 @@ export default function Dashboard() {
       next.splice(toIdx, 0, dragId);
       return next;
     });
-  }, [dragId]);
+  }, [dragId, withCustom]);
 
   const handleDrop = useCallback(() => {
     setDragId(null);
@@ -748,12 +765,22 @@ export default function Dashboard() {
   }, [persist]);
 
   const removeWidget = useCallback((id) => {
+    if (id.startsWith(CUSTOM_PREFIX)) {
+      if (!window.confirm('Delete this widget?')) return;
+      deleteWidget(id.slice(CUSTOM_PREFIX.length));
+    }
     setActiveWidgets(prev => {
       const next = prev.filter(w => w !== id);
       persist(next);
       return next;
     });
-  }, [persist]);
+  }, [persist, deleteWidget]);
+
+  const submitComposer = (prompt) => {
+    if (composer?.id) rebuildWidget(composer.id, prompt);
+    else createWidget(prompt);
+    setComposer(null);
+  };
 
   const addWidget = useCallback((id) => {
     setActiveWidgets(prev => {
@@ -946,6 +973,37 @@ export default function Dashboard() {
     'playlist-overview': <PlaylistWidget dragProps={dragProps} followedArtists={followedArtists} />,
     'track-intelligence': <TrackIntelligenceWidget dragProps={dragProps} trackedSlugs={followed} />,
   };
+  for (const w of customWidgets) {
+    const id = CUSTOM_PREFIX + w.id;
+    const busy = !!w.status;
+    widgets[id] = (
+      <WidgetCard
+        id={id}
+        title={w.spec?.title || w.prompt}
+        subtitle={[w.spec?.subtitle, w.spec && formatAgo(w.updatedAt)].filter(Boolean).join(' · ')}
+        headerRight={w.spec && (
+          <div className="flex items-center shrink-0">
+            <button onClick={() => rebuildWidget(w.id)} disabled={busy} title="Refresh"
+              className="p-1 text-[#3D3B37] hover:text-[#9B9590] disabled:opacity-40 transition-colors cursor-pointer">
+              <RotateCcw size={11} />
+            </button>
+            <button onClick={() => setComposer({ id: w.id })} disabled={busy} title="Edit"
+              className="p-1 text-[#3D3B37] hover:text-[#9B9590] disabled:opacity-40 transition-colors cursor-pointer">
+              <Pencil size={11} />
+            </button>
+          </div>
+        )}
+        {...dragProps}
+      >
+        {composer?.id === w.id && (
+          <div className="mb-3">
+            <WidgetComposer initial={w.prompt} submitLabel="Update widget" onSubmit={submitComposer} onCancel={() => setComposer(null)} />
+          </div>
+        )}
+        <CustomWidgetBody widget={w} onRetry={() => rebuildWidget(w.id)} />
+      </WidgetCard>
+    );
+  }
 
   // --- Wait for the persisted slug list + roster summaries before deciding what to render ---
   if (loading) {
@@ -988,6 +1046,13 @@ export default function Dashboard() {
               Following
             </button>
             <button
+              onClick={() => setComposer(composer && !composer.id ? null : { id: null })}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] text-[#DA7756] border border-[#DA7756]/20 hover:border-[#DA7756]/40 rounded transition-colors cursor-pointer"
+            >
+              <Sparkles size={10} />
+              Create widget
+            </button>
+            <button
               onClick={() => setPickerOpen(!pickerOpen)}
               className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] text-[#9B9590] border border-[#2C2B28] hover:border-[#3D3B37] rounded transition-colors cursor-pointer"
             >
@@ -1003,6 +1068,11 @@ export default function Dashboard() {
             </button>
           </div>
         </div>
+
+        {/* New custom widget */}
+        {composer && !composer.id && (
+          <WidgetComposer submitLabel="Create widget" onSubmit={submitComposer} onCancel={() => setComposer(null)} />
+        )}
 
         {/* Widget Picker */}
         <AnimatePresence>
@@ -1063,9 +1133,9 @@ export default function Dashboard() {
         </div>
 
         {/* Widget Grid — CSS grid, drag to reorder */}
-        {activeWidgets.length > 0 ? (
+        {order.length > 0 ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-            {activeWidgets.map(id => widgets[id] ? (
+            {order.map(id => widgets[id] ? (
               <div key={id} className={dragId === id ? 'opacity-50' : ''}>
                 {widgets[id]}
               </div>

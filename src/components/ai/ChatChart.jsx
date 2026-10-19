@@ -15,12 +15,12 @@ function getColor(i) {
   return DEFAULT_COLORS[i % DEFAULT_COLORS.length];
 }
 
-function CartesianChart({ chartType, data, series, xKey, unit }) {
+export function CartesianChart({ chartType, data, series, xKey, unit, height = 280 }) {
   const ChartComponent = chartType === 'bar' ? BarChart : chartType === 'area' ? AreaChart : LineChart;
   const fmtValue = (v) => unit ? `${formatNumber(v)} ${unit}` : formatNumber(v);
 
   return (
-    <ResponsiveContainer width="100%" height={280}>
+    <ResponsiveContainer width="100%" height={height}>
       <ChartComponent data={data} margin={{ top: 5, right: 5, bottom: 5, left: unit ? 10 : 5 }}>
         <CartesianGrid {...GRID_STYLE} />
         <XAxis dataKey={xKey} {...AXIS_STYLE} />
@@ -42,13 +42,13 @@ function CartesianChart({ chartType, data, series, xKey, unit }) {
   );
 }
 
-function DonutChart({ data, series, unit }) {
+export function DonutChart({ data, series, unit, height = 280 }) {
   const nameKey = series[0]?.key || 'name';
   const valueKey = series[1]?.key || 'value';
   const fmtValue = (v) => unit ? `${formatNumber(v)} ${unit}` : formatNumber(v);
 
   return (
-    <ResponsiveContainer width="100%" height={280}>
+    <ResponsiveContainer width="100%" height={height}>
       <PieChart>
         <Pie
           data={data}
@@ -70,12 +70,12 @@ function DonutChart({ data, series, unit }) {
   );
 }
 
-function RadarChartWrapper({ data, series }) {
+export function RadarChartWrapper({ data, series, height = 280 }) {
   const angleKey = series[0]?.key || 'label';
   const valueKeys = series.slice(1);
 
   return (
-    <ResponsiveContainer width="100%" height={280}>
+    <ResponsiveContainer width="100%" height={height}>
       <RadarChart data={data}>
         <PolarGrid stroke="#3D3B37" />
         <PolarAngleAxis dataKey={angleKey} {...AXIS_STYLE} />
