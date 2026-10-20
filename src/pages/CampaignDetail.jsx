@@ -9,6 +9,7 @@ import ChatInterface from '../components/ai/ChatInterface';
 import OptimizationRow from '../components/ads/OptimizationRow';
 import MetaCampaignPanel from '../components/ads/MetaCampaignPanel';
 import StreamCountsPanel from '../components/ads/StreamCountsPanel';
+import FollowersPanel from '../components/ads/FollowersPanel';
 import { smartLinkSlug } from '../data/streamCounts';
 import { useDirectives } from '../hooks/useDirectives';
 import { useOptimizations } from '../hooks/useOptimizations';
@@ -165,6 +166,9 @@ export default function CampaignDetail() {
       {(directive.streamTrackerId || directive.goal === 'streams' || smartLinkSlug(directive.creative?.trackUrl)) && (
         <StreamCountsPanel directive={directive} updateDirective={updateDirective} />
       )}
+
+      {/* Instagram / TikTok followers and YouTube subscribers, before the campaign and each day of it */}
+      <FollowersPanel directive={directive} updateDirective={updateDirective} />
 
       {/* Campaign Details */}
       <div className="bg-[#171614] border border-[#2C2B28] rounded p-4">

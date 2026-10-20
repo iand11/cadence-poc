@@ -17,7 +17,7 @@ import { existsSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36';
+export const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36';
 const ORIGIN = process.env.SPOTIFY_WEB_URL || 'https://open.spotify.com';
 const WAIT_MS = 20_000;
 
@@ -84,7 +84,7 @@ function serverlessChromium() {
   return unpacking;
 }
 
-async function launch() {
+export async function launchBrowser() {
   const { chromium: pw } = await import('playwright-core');
   if (process.env.CHROMIUM_PATH) return pw.launch({ executablePath: process.env.CHROMIUM_PATH, headless: true });
   const { path, args } = await serverlessChromium();
@@ -138,7 +138,7 @@ export async function spotifyPlaycounts(sources) {
   if (!sources.length) return out;
   let browser;
   try {
-    browser = await launch();
+    browser = await launchBrowser();
   } catch (err) {
     for (const s of sources) out[s.external_id] = { error: `Couldn't start the browser that reads Spotify (${err.message.split('\n')[0]}).` };
     return out;
@@ -164,7 +164,7 @@ export async function probeSpotify(src) {
   const started = Date.now();
   let browser;
   try {
-    browser = await launch();
+    browser = await launchBrowser();
   } catch (err) {
     return { ok: false, step: 'browser', error: err.message.split('\n')[0] };
   }

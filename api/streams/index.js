@@ -3,12 +3,15 @@
 //
 //   GET ?id=<tracker id>   → { id, title, startDate, endDate, sources: [{ service, baseline, latest, gain, daily }], youtube, services }
 //   GET ?probe=<Spotify track/album URL> → what the public page contains (checks the play-count reader)
+//   GET ?probeProfile=<Instagram/TikTok/YouTube channel URL> → today's follower count read live (checks the follower readers)
 //   GET ?preview=<link slug> → { tracked: [{ service, url }], skipped: [{ service, reason }] } for a smart link
 //   POST { action: 'create', id, linkSlug?, links?, title?, artistSlug?, artistName?, startDate, endDate, campaigns? }
 //        → starts tracking (takes the first count now); returns the report plus skipped services
-//   POST { action: 'add', id, url }                        → track one more link (another video, say)
+//   POST { action: 'add', id, url }                        → track one more link (another video, say), or the
+//                                                             artist's Instagram/TikTok/YouTube channel (replaces the old one)
+//   POST { action: 'followers', id }                       → look up the artist's profiles and read their followers
 //   POST { action: 'count', id, service, externalId, day?, count } → a count entered by hand
-//   POST { action: 'refresh', id }                         → read the automatic counts now
+//   POST { action: 'refresh', id, services? }              → read the automatic counts now (all, or these services)
 //   POST { action: 'campaigns', id, campaigns: [directive] } → keep the campaigns' setup with the counts
 //   POST { action: 'meta', id, directiveId, campaignId }   → the Meta campaign a tracked campaign launched as
 //   DELETE ?id=<tracker id>&service=&externalId=           → stop tracking one source (its counts are kept)
@@ -20,6 +23,7 @@ import {
 } from '../lib/stream-counts.js';
 import { parseSourceUrl } from '../lib/link-lookup.js';
 import { probeSpotify } from '../lib/spotify-playcount.js';
+import { FOLLOWER_SERVICES, followerServiceOf, addProfile, addFollowerSources, probeProfile } from '../lib/follower-counts.js';
 
 const bad = (message, status = 400) => Object.assign(new Error(message), { status });
 
@@ -31,6 +35,9 @@ export default async function handler(req, res) {
       const src = parseSourceUrl(params.get('probe'));
       if (src?.service !== 'spotify' || src.kind === 'artist') throw bad('Pass a Spotify track or album link.');
       return res.status(200).json(await probeSpotify(src));
+    }
+    if (req.method === 'GET' && params.get('probeProfile')) {
+      return res.status(200).json(await probeProfile(params.get('probeProfile')));
     }
 
     await ensureStreamTables();
@@ -61,14 +68,20 @@ export default async function handler(req, res) {
         return res.status(200).json({ ...(await trackerReport(tracker)), skipped, notes });
       }
       const tracker = await ownedTracker(uid, body.id);
-      if (body.action === 'add') {
+      if (body.action === 'add' && followerServiceOf(body.url)) {
+        const service = await addProfile(tracker.id, String(body.url).trim());
+        await snapshotTracker(tracker.id, { services: [service] });
+      } else if (body.action === 'followers') {
+        await addFollowerSources(tracker);
+        await snapshotTracker(tracker.id, { services: Object.keys(FOLLOWER_SERVICES) });
+      } else if (body.action === 'add') {
         const skipped = await addSources(tracker.id, [{ service: null, url: String(body.url || '').trim() }]);
         if (skipped.length) throw bad(skipped[0].reason);
         await snapshotTracker(tracker.id);
       } else if (body.action === 'count') {
         await recordCount(tracker.id, body);
       } else if (body.action === 'refresh') {
-        await snapshotTracker(tracker.id);
+        await snapshotTracker(tracker.id, Array.isArray(body.services) ? { services: body.services.map(String) } : {});
       } else if (body.action === 'campaigns') {
         await saveCampaigns(tracker.id, Array.isArray(body.campaigns) ? body.campaigns : []);
         return res.status(200).json({ ok: true });

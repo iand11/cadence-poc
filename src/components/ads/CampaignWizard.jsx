@@ -384,6 +384,18 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, on
       } catch (e) {
         console.warn('[campaigns] stream tracking not started', e.message);
       }
+    } else if (selectedArtist?.slug && plan.schedule?.startDate && plan.schedule?.endDate) {
+      // Every campaign tracks the artist's followers from today, so there is a before to compare with
+      const id = `trk-${planCampaigns[0].directive.id}`;
+      try {
+        await createStreamTracker({
+          id, artistSlug: selectedArtist.slug, artistName: selectedArtist.name,
+          startDate: plan.schedule.startDate, endDate: plan.schedule.endDate, campaigns: marked,
+        });
+        marked.forEach(d => { d.streamTrackerId = id; });
+      } catch (e) {
+        console.warn('[campaigns] follower tracking not started', e.message);
+      }
     }
     setConfirming(false);
     onConfirm(marked);

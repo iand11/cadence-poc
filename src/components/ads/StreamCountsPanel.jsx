@@ -4,7 +4,7 @@ import { Headphones, TrendingUp, TrendingDown, RefreshCw, Loader2, AlertTriangle
 import DspIcon from './DspIcon';
 import {
   fetchStreamTracker, createStreamTracker, recordStreamCount, refreshStreamTracker,
-  addStreamSource, removeStreamSource, smartLinkSlug,
+  addStreamSource, removeStreamSource, smartLinkSlug, SERVICE_INFO, STREAM_SERVICES,
 } from '../../data/streamCounts';
 import { fetchSmartLinks, linkTitle } from '../../data/smartLinks';
 import { formatNumber } from '../../utils/formatters';
@@ -18,7 +18,9 @@ const SOURCE_LABELS = {
   spotify: { track: 'Spotify track', album: 'Spotify album' },
   youtube: { video: 'YouTube video' },
 };
-const sourceLabel = (s) => SOURCE_LABELS[s.service]?.[s.kind] || s.service;
+const sourceLabel = (s) => SOURCE_LABELS[s.service]?.[s.kind]
+  || (SERVICE_INFO[s.service]?.label ? `${SERVICE_INFO[s.service].label} ${s.service === 'youtubeChannel' && !s.externalId.startsWith('@') ? 'channel' : `${s.externalId.startsWith('@') ? '' : '@'}${s.externalId}`}` : s.service);
+const READ_FROM = { api: 'API', page: 'page', page_rounded: 'page, rounded', manual: 'by hand' };
 const shortDay = (iso) => new Date(`${iso}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
 const full = (n) => (n == null ? '–' : Number(n).toLocaleString('en-US'));
 const signed = (n) => (n == null ? '–' : `${n >= 0 ? '+' : ''}${Number(n).toLocaleString('en-US')}`);
@@ -55,6 +57,13 @@ export default function StreamCountsPanel({ directive, updateDirective }) {
   };
 
   if (!trackerId) return <StartTracking directive={directive} updateDirective={updateDirective} />;
+  const sources = report ? report.sources.filter(s => STREAM_SERVICES.includes(s.service)) : [];
+  // A tracker started for followers only: offer stream tracking where the campaign has a release
+  if (report && !sources.length && !report.linkSlug) {
+    return directive.goal === 'streams' || smartLinkSlug(directive.creative?.trackUrl)
+      ? <StartTracking directive={directive} updateDirective={updateDirective} trackerId={trackerId} onStarted={setReport} />
+      : null;
+  }
 
   return (
     <div className="bg-[#171614] border border-[#2C2B28] rounded p-4 mb-4">
@@ -67,7 +76,7 @@ export default function StreamCountsPanel({ directive, updateDirective }) {
             {report ? `${report.title ? `${report.title} · ` : ''}campaign runs ${shortDay(report.startDate)} – ${shortDay(report.endDate)}, counted until ${shortDay(report.trackedUntil)}` : 'Loading…'}
           </p>
         </div>
-        <button onClick={() => run(() => refreshStreamTracker(trackerId)).catch(() => {})} disabled={busy || !report} className={BTN} title="Read the counts now (normally once a day)">
+        <button onClick={() => run(() => refreshStreamTracker(trackerId, STREAM_SERVICES)).catch(() => {})} disabled={busy || !report} className={BTN} title="Read the counts now (normally once a day)">
           {busy ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />}Update
         </button>
       </div>
@@ -78,11 +87,11 @@ export default function StreamCountsPanel({ directive, updateDirective }) {
 
       {report && (
         <>
-          {report.sources.length === 0 && (
+          {sources.length === 0 && (
             <p className="text-[10px] text-[#9B9590] mb-3">No links with a public count yet. Add the release's Spotify or YouTube link below.</p>
           )}
           <div className="space-y-3">
-            {report.sources.map(s => (
+            {sources.map(s => (
               <SourceRow
                 key={`${s.service}:${s.externalId}`}
                 source={s}
@@ -101,18 +110,19 @@ export default function StreamCountsPanel({ directive, updateDirective }) {
   );
 }
 
-function SourceRow({ source: s, startDate, busy, onCount, onRemove }) {
+export function SourceRow({ source: s, startDate, busy, onCount, onRemove }) {
   const [open, setOpen] = useState(false);
   const daily = s.daily || [];
+  const info = SERVICE_INFO[s.service] || { unit: 'Count', perDay: 'count' };
   return (
     <div className="bg-[#0D0C0B] border border-[#2C2B28] rounded">
       <div className="flex items-center gap-3 p-3">
-        <DspIcon service={s.service} size={14} />
+        <DspIcon service={info.icon || s.service} color={info.color} size={14} />
         <div className="min-w-0 flex-1">
           <a href={s.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[11px] text-[#F5F0E8] hover:text-[#DA7756]">
             {sourceLabel(s)}<ExternalLink size={9} />
           </a>
-          <p className="text-[9px] font-mono text-[#6B6560]">{!s.auto ? 'Entered by hand' : s.service === 'youtube' ? 'Read daily from the YouTube API' : 'Read daily from the Spotify page'}</p>
+          <p className="text-[9px] font-mono text-[#6B6560]">{!s.auto ? 'Entered by hand' : info.how}</p>
         </div>
         <Figure label={s.baseline?.afterStart ? 'First count' : 'Before'} value={full(s.baseline?.count)} sub={s.baseline ? shortDay(s.baseline.day) : 'none yet'}
           hint={s.baseline?.afterStart ? 'Tracking started after the campaign began, so this is the first count, not a true before.' : 'The last count from before the campaign started.'} />
@@ -122,7 +132,7 @@ function SourceRow({ source: s, startDate, busy, onCount, onRemove }) {
           value={s.showGain ? signed(s.gain) : 'n/a'}
           sub={s.showGain ? '' : 'YouTube rules'}
           positive={s.gain > 0}
-          hint={s.showGain ? undefined : "YouTube's API rules don't allow calculated figures like views gained until Prelude passes YouTube's analytics audit. Compare the daily views instead."}
+          hint={s.showGain ? undefined : `YouTube's API rules don't allow calculated figures like ${info.perDay} gained until Prelude passes YouTube's analytics audit. Compare the daily counts instead.`}
         />
         <button onClick={() => setOpen(o => !o)} className="p-1 text-[#6B6560] hover:text-[#F5F0E8] cursor-pointer" title="Daily counts">
           <ChevronDown size={12} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
@@ -132,9 +142,9 @@ function SourceRow({ source: s, startDate, busy, onCount, onRemove }) {
       {s.lastError && (
         <p className="flex items-start gap-1.5 text-[10px] text-[#D4A574] px-3 pb-2"><AlertTriangle size={10} className="mt-0.5 shrink-0" />{s.lastError}</p>
       )}
-      {s.manual && (!s.auto || s.lastError) && <CountForm busy={busy} onSave={onCount} />}
+      {s.manual && (!s.auto || s.lastError) && <CountForm busy={busy} onSave={onCount} placeholder={`${info.unit} today, e.g. 1,204,331`} />}
 
-      {s.showGain && <StreamLift daily={daily} startDate={startDate} />}
+      {s.showGain && <StreamLift daily={daily} startDate={startDate} noun={info.perDay} canDrop={!STREAM_SERVICES.includes(s.service)} />}
 
       {open && (
         <div className="border-t border-[#2C2B28] p-3">
@@ -145,7 +155,7 @@ function SourceRow({ source: s, startDate, busy, onCount, onRemove }) {
                   <CartesianGrid {...GRID_STYLE} vertical={false} />
                   <XAxis dataKey="day" tickFormatter={shortDay} tick={AXIS_STYLE} axisLine={false} tickLine={false} />
                   <YAxis tickFormatter={formatNumber} tick={AXIS_STYLE} axisLine={false} tickLine={false} width={48} domain={['auto', 'auto']} />
-                  <Tooltip {...TOOLTIP_STYLE} labelFormatter={shortDay} formatter={(v) => [full(v), s.service === 'youtube' ? 'Views' : 'Plays']} />
+                  <Tooltip {...TOOLTIP_STYLE} labelFormatter={shortDay} formatter={(v) => [full(v), info.unit]} />
                   <ReferenceLine x={daily.find(d => d.day >= startDate)?.day} stroke="#DA7756" strokeDasharray="3 3" label={{ value: 'Start', fill: '#DA7756', fontSize: 9, position: 'insideTopLeft' }} />
                   <Line type="monotone" dataKey="count" stroke="#DA7756" strokeWidth={1.5} dot={{ r: 2 }} isAnimationActive={false} />
                 </LineChart>
@@ -159,7 +169,7 @@ function SourceRow({ source: s, startDate, busy, onCount, onRemove }) {
               <thead>
                 <tr className="text-[#6B6560]">
                   <th className="text-left font-normal pb-1">Day</th>
-                  <th className="text-right font-normal pb-1">{s.service === 'youtube' ? 'Views' : 'Plays'}</th>
+                  <th className="text-right font-normal pb-1">{info.unit}</th>
                   {s.showGain && <th className="text-right font-normal pb-1">Change</th>}
                   <th className="text-right font-normal pb-1">Source</th>
                 </tr>
@@ -170,14 +180,14 @@ function SourceRow({ source: s, startDate, busy, onCount, onRemove }) {
                     <td className="py-0.5">{shortDay(d.day)}{d.day < startDate && <span className="text-[#6B6560]"> · before</span>}{d.afterEnd && <span className="text-[#6B6560]"> · after</span>}</td>
                     <td className="text-right text-[#F5F0E8]">{full(d.count)}</td>
                     {s.showGain && <td className={`text-right ${d.change > 0 ? 'text-[#7BAF73]' : ''}`}>{signed(d.change)}</td>}
-                    <td className="text-right">{d.source === 'manual' ? 'by hand' : s.service === 'spotify' ? 'page' : 'API'}</td>
+                    <td className="text-right">{d.source === 'api' && s.service === 'spotify' ? 'page' : READ_FROM[d.source] || d.source}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           )}
           <button onClick={onRemove} disabled={busy} className="mt-3 inline-flex items-center gap-1 text-[9px] font-mono text-[#6B6560] hover:text-[#C75F4F] cursor-pointer">
-            <Trash2 size={9} />Stop tracking this link
+            <Trash2 size={9} />{STREAM_SERVICES.includes(s.service) ? 'Stop tracking this link' : 'Stop tracking this profile'}
           </button>
         </div>
       )}
@@ -189,15 +199,15 @@ const DAY_MS = 86400000;
 const PHASE_COLOR = { before: '#6B6560', during: '#DA7756', after: '#9B9590' };
 const PHASE_LABEL = { before: 'Before campaign', during: 'During campaign', after: 'After campaign' };
 
-/** Streams per day from consecutive counts (a gap of several days is spread evenly). */
-function perDay(daily, startDate) {
+/** Streams per day from consecutive counts (a gap of several days is spread evenly). Followers can drop. */
+function perDay(daily, startDate, canDrop) {
   const out = [];
   for (let i = 1; i < daily.length; i++) {
     const prev = daily[i - 1], cur = daily[i];
     const days = Math.max(1, Math.round((Date.parse(cur.day) - Date.parse(prev.day)) / DAY_MS));
     out.push({
       day: cur.day,
-      streams: Math.max(0, Math.round((cur.count - prev.count) / days)),
+      streams: canDrop ? Math.round((cur.count - prev.count) / days) : Math.max(0, Math.round((cur.count - prev.count) / days)),
       phase: cur.afterEnd ? 'after' : cur.day < startDate ? 'before' : 'during',
     });
   }
@@ -210,12 +220,12 @@ const avg = (rows) => (rows.length ? rows.reduce((t, r) => t + r.streams, 0) / r
  * Streams per day as bars, grey before the campaign and orange during it, with a
  * headline saying whether daily streams went up compared with before.
  */
-function StreamLift({ daily, startDate }) {
-  const rows = perDay(daily, startDate);
+function StreamLift({ daily, startDate, noun = 'streams', canDrop = false }) {
+  const rows = perDay(daily, startDate, canDrop);
   if (!rows.length) return null;
   const before = avg(rows.filter(r => r.phase === 'before'));
   const during = avg(rows.filter(r => r.phase === 'during'));
-  const lift = before && during != null ? ((during - before) / before) * 100 : null;
+  const lift = before > 0 && during != null ? ((during - before) / before) * 100 : null;
   const up = lift != null && lift >= 5, down = lift != null && lift <= -5;
   const color = up ? '#7BAF73' : down ? '#C75F4F' : '#9B9590';
   const Icon = down ? TrendingDown : TrendingUp;
@@ -229,12 +239,12 @@ function StreamLift({ daily, startDate }) {
             <Icon size={14} />
             <span className="font-mono">{lift >= 0 ? '+' : ''}{Math.round(lift)}%</span>
             <span className="text-[11px] text-[#9B9590]">
-              streams per day: {formatNumber(Math.round(during))} during vs {formatNumber(Math.round(before))} before
+              {noun} per day: {formatNumber(Math.round(during))} during vs {formatNumber(Math.round(before))} before
             </span>
           </p>
         ) : (
           <p className="text-[11px] text-[#9B9590]">
-            {during != null ? `${formatNumber(Math.round(during))} streams per day during the campaign` : 'Streams per day'}
+            {during != null ? `${formatNumber(Math.round(during))} ${noun} per day during the campaign` : `${noun[0].toUpperCase()}${noun.slice(1)} per day`}
             {before == null && <span className="text-[#6B6560]"> · no counts from before the campaign to compare</span>}
           </p>
         )}
@@ -252,8 +262,9 @@ function StreamLift({ daily, startDate }) {
             <CartesianGrid vertical={false} {...GRID_STYLE} />
             <XAxis dataKey="day" tickFormatter={shortDay} tick={AXIS_STYLE} axisLine={false} tickLine={false} />
             <YAxis tickFormatter={formatNumber} tick={AXIS_STYLE} axisLine={false} tickLine={false} width={40} allowDecimals={false} />
+            {canDrop && <ReferenceLine y={0} stroke="#3D3B37" />}
             <Tooltip {...TOOLTIP_STYLE} cursor={{ fill: '#F5F0E8', opacity: 0.04 }} labelFormatter={shortDay}
-              formatter={(v, n, item) => [full(v), `Streams (${PHASE_LABEL[item.payload.phase].toLowerCase()})`]} />
+              formatter={(v, n, item) => [signed(v), `${noun[0].toUpperCase()}${noun.slice(1)} (${PHASE_LABEL[item.payload.phase].toLowerCase()})`]} />
             {before != null && <ReferenceLine y={Math.round(before)} stroke="#9B9590" strokeDasharray="3 3" />}
             <Bar dataKey="streams" radius={[4, 4, 0, 0]} maxBarSize={36} isAnimationActive={false}>
               {rows.map(r => <Cell key={r.day} fill={PHASE_COLOR[r.phase]} />)}
@@ -276,7 +287,7 @@ function Figure({ label, value, sub, positive, hint }) {
   );
 }
 
-function CountForm({ busy, onSave }) {
+function CountForm({ busy, onSave, placeholder = 'Play count, e.g. 1,204,331' }) {
   const [day, setDay] = useState(todayIso);
   const [count, setCount] = useState('');
   const save = (e) => {
@@ -287,7 +298,7 @@ function CountForm({ busy, onSave }) {
   return (
     <form onSubmit={save} className="flex flex-wrap items-center gap-2 px-3 pb-3">
       <input type="date" value={day} max={todayIso()} onChange={e => setDay(e.target.value)} className={inputCls} />
-      <input value={count} onChange={e => setCount(e.target.value)} inputMode="numeric" placeholder="Play count, e.g. 1,204,331" className={`${inputCls} flex-1 min-w-[160px]`} />
+      <input value={count} onChange={e => setCount(e.target.value)} inputMode="numeric" placeholder={placeholder} className={`${inputCls} flex-1 min-w-[160px]`} />
       <button type="submit" disabled={busy || !count.trim()} className={BTN}>Save count</button>
     </form>
   );
@@ -324,7 +335,7 @@ function Notes({ report }) {
 }
 
 // A campaign saved without stream tracking: start it from the release's smart link.
-function StartTracking({ directive, updateDirective }) {
+function StartTracking({ directive, updateDirective, trackerId, onStarted }) {
   const [open, setOpen] = useState(false);
   const [links, setLinks] = useState(null);
   const [slug, setSlug] = useState(() => smartLinkSlug(directive.creative?.trackUrl) || '');
@@ -346,13 +357,14 @@ function StartTracking({ directive, updateDirective }) {
     setBusy(true);
     setError(null);
     try {
-      const id = `trk-${directive.id}`;
-      await createStreamTracker({
+      const id = trackerId || `trk-${directive.id}`;
+      const report = await createStreamTracker({
         id, linkSlug: slug, artistSlug: directive.artistSlug, artistName: directive.artistName,
         startDate: directive.schedule?.startDate, endDate: directive.schedule?.endDate,
         campaigns: [directive],
       });
-      updateDirective(directive.id, { streamTrackerId: id });
+      if (trackerId) onStarted?.(report);
+      else updateDirective(directive.id, { streamTrackerId: id });
     } catch (e) {
       setError(e.message);
     } finally {

@@ -20,6 +20,10 @@
 import { query, queryOne } from './db.js';
 import { parseSourceUrl, norm } from './link-lookup.js';
 import { spotifyPlaycounts, spotifyScrapeEnabled } from './spotify-playcount.js';
+import {
+  FOLLOWER_SERVICES, isFollowerService, addFollowerSources, readFollowers,
+  instagramScrapeEnabled, tiktokScrapeEnabled,
+} from './follower-counts.js';
 
 const YOUTUBE_API = process.env.YOUTUBE_API_URL || 'https://www.googleapis.com/youtube/v3';
 export const YOUTUBE_RETENTION_DAYS = 30;
@@ -32,7 +36,10 @@ export const youtubeConfigured = () => !!process.env.YOUTUBE_API_KEY;
 export const TRACKED = {
   spotify: { label: 'Spotify', get auto() { return spotifyScrapeEnabled(); }, manual: true },
   youtube: { label: 'YouTube', auto: true, manual: false },
+  // The artist's followers (api/lib/follower-counts.js)
+  ...FOLLOWER_SERVICES,
 };
+const isYouTube = (service) => service === 'youtube' || service === 'youtubeChannel';
 
 /** Why each other smart-link service isn't tracked. */
 export const NOT_TRACKED = {
@@ -73,6 +80,8 @@ export function ensureStreamTables() {
         )`);
       // Removing a source only hides it, so its counts stay for later analysis
       await query('ALTER TABLE stream_tracker_sources ADD COLUMN IF NOT EXISTS removed_at timestamptz');
+      // Set once the artist's follower profiles have been looked up for this tracker
+      await query('ALTER TABLE stream_trackers ADD COLUMN IF NOT EXISTS followers_started boolean NOT NULL DEFAULT false');
       await query(`
         CREATE TABLE IF NOT EXISTS stream_tracker_campaigns (
           tracker_id text NOT NULL REFERENCES stream_trackers (id) ON DELETE CASCADE,
@@ -169,12 +178,28 @@ const FETCHERS = {
   },
 };
 
-/** Take today's count for every automatic source of one tracker. */
-export async function snapshotTracker(trackerId) {
-  const sources = await query('SELECT * FROM stream_tracker_sources WHERE tracker_id = $1 AND removed_at IS NULL', [trackerId]);
+/**
+ * Take today's count for every automatic source of one tracker (or only `services`).
+ * Follower profiles are read together, so one headless browser serves Instagram and TikTok.
+ */
+export async function snapshotTracker(trackerId, { services } = {}) {
+  const tracker = await queryOne('SELECT * FROM stream_trackers WHERE id = $1', [trackerId]);
+  const sources = (await query('SELECT * FROM stream_tracker_sources WHERE tracker_id = $1 AND removed_at IS NULL', [trackerId]))
+    .filter(s => !services || services.includes(s.service));
   const day = today();
   const results = { counted: 0, errors: 0 };
-  for (const [service, fetcher] of Object.entries(FETCHERS)) {
+  const followerSources = sources.filter(s => isFollowerService(s.service));
+  let followers = {};
+  if (followerSources.length) {
+    try {
+      followers = await readFollowers(followerSources, tracker);
+    } catch (err) {
+      followers = Object.fromEntries(Object.keys(FOLLOWER_SERVICES).map(svc => [svc,
+        Object.fromEntries(followerSources.filter(s => s.service === svc).map(s => [s.external_id, { error: err.message }]))]));
+    }
+  }
+  const fetchers = { ...FETCHERS, ...Object.fromEntries(Object.keys(FOLLOWER_SERVICES).map(svc => [svc, async () => followers[svc] || {}])) };
+  for (const [service, fetcher] of Object.entries(fetchers)) {
     const list = sources.filter(s => s.service === service);
     if (!list.length) continue;
     let counts;
@@ -189,10 +214,10 @@ export async function snapshotTracker(trackerId) {
       if (r.count != null) {
         await query(
           `INSERT INTO stream_counts (tracker_id, service, external_id, day, count, source)
-           VALUES ($1, $2, $3, $4, $5, 'api')
+           VALUES ($1, $2, $3, $4, $5, $6)
            ON CONFLICT (tracker_id, service, external_id, day)
-           DO UPDATE SET count = EXCLUDED.count, source = 'api', recorded_at = now()`,
-          [trackerId, service, s.external_id, day, r.count]);
+           DO UPDATE SET count = EXCLUDED.count, source = EXCLUDED.source, recorded_at = now()`,
+          [trackerId, service, s.external_id, day, r.count, r.source || 'api']);
         results.counted++;
       } else {
         results.errors++;
@@ -209,7 +234,7 @@ export async function snapshotTracker(trackerId) {
 export async function pruneYouTube() {
   if (youtubeApproved()) return 0;
   const rows = await query(
-    `DELETE FROM stream_counts WHERE service = 'youtube' AND day < current_date - $1::int RETURNING 1`,
+    `DELETE FROM stream_counts WHERE service IN ('youtube', 'youtubeChannel') AND day < current_date - $1::int RETURNING 1`,
     [YOUTUBE_RETENTION_DAYS]);
   return rows.length;
 }
@@ -218,9 +243,11 @@ export async function pruneYouTube() {
 export async function snapshotDueTrackers() {
   await ensureStreamTables();
   const pruned = await pruneYouTube();
-  const trackers = await query(`SELECT id FROM stream_trackers WHERE end_date >= current_date - $1::int ORDER BY created_at`, [AFTER_CAMPAIGN_DAYS + 1]);
+  const trackers = await query(`SELECT * FROM stream_trackers WHERE end_date >= current_date - $1::int ORDER BY created_at`, [AFTER_CAMPAIGN_DAYS + 1]);
   let counted = 0, errors = 0;
   for (const t of trackers) {
+    // Trackers from before follower tracking start reading the artist's followers too
+    if (!t.followers_started && t.artist_slug) await addFollowerSources(t).catch(err => console.warn('[stream-counts] followers', err.message));
     const r = await snapshotTracker(t.id);
     counted += r.counted;
     errors += r.errors;
@@ -316,12 +343,15 @@ export async function createTracker(uid, { id, title, artistSlug, artistName, li
     releaseTitle = releaseTitle || link.title;
     releaseArtist = releaseArtist || link.artist_name;
   }
-  if (!all.length) throw bad('Add the release links to track.');
+  // Without release links, only the artist's followers are tracked
+  if (!all.length && !artistSlug) throw bad('Add the release links to track.');
 
   await query(
     `INSERT INTO stream_trackers (id, user_id, title, artist_slug, artist_name, link_slug, start_date, end_date)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-     ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, link_slug = EXCLUDED.link_slug,
+     ON CONFLICT (id) DO UPDATE SET title = COALESCE(EXCLUDED.title, stream_trackers.title),
+       link_slug = COALESCE(EXCLUDED.link_slug, stream_trackers.link_slug),
+       artist_slug = COALESCE(EXCLUDED.artist_slug, stream_trackers.artist_slug),
        start_date = EXCLUDED.start_date, end_date = EXCLUDED.end_date`,
     [id, uid, releaseTitle, artistSlug || null, releaseArtist, linkSlug || null, start, end]);
 
@@ -329,7 +359,7 @@ export async function createTracker(uid, { id, title, artistSlug, artistName, li
   await saveCampaigns(id, campaigns);
   const notes = [];
   const hasYouTube = await queryOne(`SELECT 1 FROM stream_tracker_sources WHERE tracker_id = $1 AND service = 'youtube'`, [id]);
-  if (!hasYouTube) {
+  if (!hasYouTube && all.length) {
     try {
       const url = await findYouTubeVideo(releaseTitle, releaseArtist);
       if (url) {
@@ -340,6 +370,7 @@ export async function createTracker(uid, { id, title, artistSlug, artistName, li
       console.warn('[stream-counts] YouTube search failed', err.message);
     }
   }
+  await addFollowerSources(await queryOne('SELECT * FROM stream_trackers WHERE id = $1', [id]));
   await snapshotTracker(id);
   return { skipped: dedupeSkipped(skipped), notes };
 }
@@ -388,7 +419,7 @@ export function summarize(tracker, sources, counts) {
     const latest = rows[rows.length - 1] || null;
     const during = rows.filter(r => r.day <= end);
     const last = during[during.length - 1] || null;
-    const showGain = s.service !== 'youtube' || youtubeApproved();
+    const showGain = !isYouTube(s.service) || youtubeApproved();
     return {
       service: s.service, externalId: s.external_id, kind: s.kind, url: s.url, label: s.label,
       auto: !!TRACKED[s.service]?.auto, manual: !!TRACKED[s.service]?.manual, lastError: s.last_error || null,
@@ -411,5 +442,11 @@ export async function trackerReport(tracker) {
     trackedUntil: new Date(Date.parse(dayStr(tracker.end_date)) + AFTER_CAMPAIGN_DAYS * 86400000).toISOString().slice(0, 10),
     sources: summarize(tracker, sources, counts),
     youtube: { configured: youtubeConfigured(), approved: youtubeApproved(), retentionDays: youtubeApproved() ? null : YOUTUBE_RETENTION_DAYS },
+    followers: {
+      started: !!tracker.followers_started,
+      // Follower services with no profile to read: the page asks for the link
+      missing: Object.keys(FOLLOWER_SERVICES).filter(svc => !sources.some(s => s.service === svc)),
+      pageReads: { instagram: instagramScrapeEnabled(), tiktok: tiktokScrapeEnabled() },
+    },
   };
 }

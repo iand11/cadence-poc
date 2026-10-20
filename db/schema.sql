@@ -792,7 +792,7 @@ CREATE INDEX IF NOT EXISTS stream_trackers_user_idx ON stream_trackers (user_id)
 
 CREATE TABLE IF NOT EXISTS stream_tracker_sources (
   tracker_id   text NOT NULL REFERENCES stream_trackers (id) ON DELETE CASCADE,
-  service      text NOT NULL,                  -- spotify | youtube
+  service      text NOT NULL,                  -- spotify | youtube | instagram | tiktok | youtubeChannel
   external_id  text NOT NULL,                  -- Spotify track/album id, YouTube video id
   kind         text,                           -- track | album | video
   url          text NOT NULL,
@@ -817,6 +817,12 @@ CREATE TABLE IF NOT EXISTS stream_counts (
 
 -- Removing a source hides it (removed_at); its counts are kept for later analysis
 ALTER TABLE stream_tracker_sources ADD COLUMN IF NOT EXISTS removed_at timestamptz;
+
+-- The artist's followers are tracked on the same tables (api/lib/follower-counts.js):
+-- service instagram | tiktok | youtubeChannel, kind 'profile', external_id = username or
+-- channel reference; stream_counts.source adds page | page_rounded (abbreviated, e.g. 12.5K).
+-- followers_started: the artist's profiles have been looked up for this tracker.
+ALTER TABLE stream_trackers ADD COLUMN IF NOT EXISTS followers_started boolean NOT NULL DEFAULT false;
 
 -- Each tracked campaign's setup (platform, objective, budget, schedule, audience, creative ids)
 CREATE TABLE IF NOT EXISTS stream_tracker_campaigns (
