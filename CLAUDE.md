@@ -124,6 +124,8 @@ official API only returns the signed-in user). Page reads are a plain request, t
 past a login wall (error + manual entry). Instagram's and TikTok's terms ban scraping; Ian accepted the risk 2026-10-20.
 `INSTAGRAM_FOLLOWERS_SCRAPE=0` / `TIKTOK_FOLLOWERS_SCRAPE=0` turn page reads off; `GET /api/streams?probeProfile=<url>`
 checks a reader live. The campaign wizard starts a tracker for every confirmed campaign.
+**Hidden (Ian, 2026-10-20):** users can't see it and nothing is read or looked up unless `FOLLOWER_TRACKING=1`
+(server) and `VITE_FOLLOWER_TRACKING=1` (client); both default off. The code stays.
 For later analysis/model training: counts keep being read 30 days after a campaign ends (gain is still
 campaign-only), removing a source only hides it (`removed_at`), each tracked campaign's setup is kept in
 `stream_tracker_campaigns` (with its Meta campaign id once launched), and Meta reports are copied daily into

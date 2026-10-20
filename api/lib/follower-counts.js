@@ -28,6 +28,9 @@ const INSTAGRAM_WEB = process.env.INSTAGRAM_WEB_URL || 'https://www.instagram.co
 const TIKTOK_WEB = process.env.TIKTOK_WEB_URL || 'https://www.tiktok.com';
 const WAIT_MS = 15_000;
 
+// Follower tracking is hidden from users and nothing is read unless FOLLOWER_TRACKING=1 (Ian, 2026-10-20).
+// The client shows it with VITE_FOLLOWER_TRACKING=1.
+export const followerTrackingEnabled = () => process.env.FOLLOWER_TRACKING === '1';
 export const instagramScrapeEnabled = () => process.env.INSTAGRAM_FOLLOWERS_SCRAPE !== '0';
 export const tiktokScrapeEnabled = () => process.env.TIKTOK_FOLLOWERS_SCRAPE !== '0';
 const businessDiscoveryConfigured = () => !!(process.env.META_PRELUDE_IG_USER_ID && process.env.META_PRELUDE_TOKEN);
@@ -291,6 +294,9 @@ function lazyBrowser() {
 async function instagramFollowers(sources, tracker, browser) {
   const out = {};
   const todo = new Map(sources.map(s => [s.external_id, s]));
+  // Why each official way didn't give a count (shown by the probe)
+  const steps = Object.fromEntries(sources.map(s => [s.external_id, []]));
+  const note = (name, step) => steps[name]?.push(step);
 
   if (tracker?.user_id) {
     try {
@@ -303,10 +309,13 @@ async function instagramFollowers(sources, tracker, browser) {
           try {
             const r = await graph('GET', a.igUserId, conn.token, { fields: 'followers_count' });
             if (toInt(r.followers_count) != null) { out[name] = { count: toInt(r.followers_count), source: 'api' }; todo.delete(name); }
-          } catch { /* fall through to the next way */ }
+          } catch (err) { note(name, `connected account: ${err.message}`); }
         }
       }
     } catch { /* no connection or Meta not configured */ }
+  }
+  for (const name of todo.keys()) {
+    if (!steps[name].length) note(name, tracker ? 'connected account: not one of the IG accounts connected in Ad Accounts' : 'connected account: not checked by the probe');
   }
 
   if (businessDiscoveryConfigured()) {
@@ -316,8 +325,14 @@ async function instagramFollowers(sources, tracker, browser) {
           { fields: `business_discovery.username(${name}){followers_count}` });
         const n = toInt(r.business_discovery?.followers_count);
         if (n != null) { out[name] = { count: n, source: 'api' }; todo.delete(name); }
-      } catch { /* personal account, age-gated, or no access: fall through */ }
+        else note(name, 'business discovery: no followers_count returned');
+      } catch (err) {
+        // A personal (non-professional) account, age-gated, or the token lacks the permissions
+        note(name, `business discovery: ${err.message}${err.meta?.code ? ` (code ${err.meta.code})` : ''}`);
+      }
     }
+  } else {
+    for (const name of todo.keys()) note(name, 'business discovery: not set up (META_PRELUDE_IG_USER_ID + META_PRELUDE_TOKEN)');
   }
 
   for (const [name] of todo) {
@@ -329,7 +344,10 @@ async function instagramFollowers(sources, tracker, browser) {
       label: 'Instagram', url: `${INSTAGRAM_WEB}/${encodeURIComponent(name)}/`, browser,
       parse: (html) => instagramFromHtml(html, name),
     });
-    out[name] = r.error ? r : { count: r.count, source: r.rounded ? 'page_rounded' : 'page' };
+    out[name] = r.error ? { ...r, steps: steps[name] } : { count: r.count, source: r.rounded ? 'page_rounded' : 'page' };
+  }
+  for (const name of todo.keys()) {
+    if (out[name]?.error && !out[name].steps) out[name].steps = steps[name];
   }
   return out;
 }

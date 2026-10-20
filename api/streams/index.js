@@ -23,7 +23,7 @@ import {
 } from '../lib/stream-counts.js';
 import { parseSourceUrl } from '../lib/link-lookup.js';
 import { probeSpotify } from '../lib/spotify-playcount.js';
-import { FOLLOWER_SERVICES, followerServiceOf, addProfile, addFollowerSources, probeProfile } from '../lib/follower-counts.js';
+import { FOLLOWER_SERVICES, followerServiceOf, addProfile, addFollowerSources, probeProfile, followerTrackingEnabled } from '../lib/follower-counts.js';
 
 const bad = (message, status = 400) => Object.assign(new Error(message), { status });
 
@@ -68,7 +68,9 @@ export default async function handler(req, res) {
         return res.status(200).json({ ...(await trackerReport(tracker)), skipped, notes });
       }
       const tracker = await ownedTracker(uid, body.id);
-      if (body.action === 'add' && followerServiceOf(body.url)) {
+      if ((body.action === 'followers' || (body.action === 'add' && followerServiceOf(body.url))) && !followerTrackingEnabled()) {
+        throw bad('Follower tracking is turned off.', 404);
+      } else if (body.action === 'add' && followerServiceOf(body.url)) {
         const service = await addProfile(tracker.id, String(body.url).trim());
         await snapshotTracker(tracker.id, { services: [service] });
       } else if (body.action === 'followers') {

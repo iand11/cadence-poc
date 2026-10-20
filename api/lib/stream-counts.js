@@ -21,7 +21,7 @@ import { query, queryOne } from './db.js';
 import { parseSourceUrl, norm } from './link-lookup.js';
 import { spotifyPlaycounts, spotifyScrapeEnabled } from './spotify-playcount.js';
 import {
-  FOLLOWER_SERVICES, isFollowerService, addFollowerSources, readFollowers,
+  FOLLOWER_SERVICES, isFollowerService, addFollowerSources, readFollowers, followerTrackingEnabled,
   instagramScrapeEnabled, tiktokScrapeEnabled,
 } from './follower-counts.js';
 
@@ -188,7 +188,7 @@ export async function snapshotTracker(trackerId, { services } = {}) {
     .filter(s => !services || services.includes(s.service));
   const day = today();
   const results = { counted: 0, errors: 0 };
-  const followerSources = sources.filter(s => isFollowerService(s.service));
+  const followerSources = followerTrackingEnabled() ? sources.filter(s => isFollowerService(s.service)) : [];
   let followers = {};
   if (followerSources.length) {
     try {
@@ -209,7 +209,7 @@ export async function snapshotTracker(trackerId, { services } = {}) {
       counts = Object.fromEntries(list.map(s => [s.external_id, { error: err.message }]));
     }
     for (const s of list) {
-      if (!TRACKED[service]?.auto) continue;
+      if (!TRACKED[service]?.auto || (isFollowerService(service) && !followerTrackingEnabled())) continue;
       const r = counts[s.external_id] || { error: 'No count returned.' };
       if (r.count != null) {
         await query(
@@ -247,7 +247,7 @@ export async function snapshotDueTrackers() {
   let counted = 0, errors = 0;
   for (const t of trackers) {
     // Trackers from before follower tracking start reading the artist's followers too
-    if (!t.followers_started && t.artist_slug) await addFollowerSources(t).catch(err => console.warn('[stream-counts] followers', err.message));
+    if (followerTrackingEnabled() && !t.followers_started && t.artist_slug) await addFollowerSources(t).catch(err => console.warn('[stream-counts] followers', err.message));
     const r = await snapshotTracker(t.id);
     counted += r.counted;
     errors += r.errors;
@@ -344,7 +344,7 @@ export async function createTracker(uid, { id, title, artistSlug, artistName, li
     releaseArtist = releaseArtist || link.artist_name;
   }
   // Without release links, only the artist's followers are tracked
-  if (!all.length && !artistSlug) throw bad('Add the release links to track.');
+  if (!all.length && !(artistSlug && followerTrackingEnabled())) throw bad('Add the release links to track.');
 
   await query(
     `INSERT INTO stream_trackers (id, user_id, title, artist_slug, artist_name, link_slug, start_date, end_date)
@@ -370,7 +370,7 @@ export async function createTracker(uid, { id, title, artistSlug, artistName, li
       console.warn('[stream-counts] YouTube search failed', err.message);
     }
   }
-  await addFollowerSources(await queryOne('SELECT * FROM stream_trackers WHERE id = $1', [id]));
+  if (followerTrackingEnabled()) await addFollowerSources(await queryOne('SELECT * FROM stream_trackers WHERE id = $1', [id]));
   await snapshotTracker(id);
   return { skipped: dedupeSkipped(skipped), notes };
 }

@@ -10,7 +10,7 @@ import OptimizationRow from '../components/ads/OptimizationRow';
 import MetaCampaignPanel from '../components/ads/MetaCampaignPanel';
 import StreamCountsPanel from '../components/ads/StreamCountsPanel';
 import FollowersPanel from '../components/ads/FollowersPanel';
-import { smartLinkSlug } from '../data/streamCounts';
+import { smartLinkSlug, FOLLOWER_TRACKING } from '../data/streamCounts';
 import { useDirectives } from '../hooks/useDirectives';
 import { useOptimizations } from '../hooks/useOptimizations';
 import { useCampaignReports } from '../hooks/useCampaignReports';
@@ -168,7 +168,7 @@ export default function CampaignDetail() {
       )}
 
       {/* Instagram / TikTok followers and YouTube subscribers, before the campaign and each day of it */}
-      <FollowersPanel directive={directive} updateDirective={updateDirective} />
+      {FOLLOWER_TRACKING && <FollowersPanel directive={directive} updateDirective={updateDirective} />}
 
       {/* Campaign Details */}
       <div className="bg-[#171614] border border-[#2C2B28] rounded p-4">
