@@ -154,6 +154,11 @@ Building happens in `WidgetBuilder` (modal): it shows each step as it runs, a pr
 A saved widget keeps `requests` (first ask + each change) for refresh/edit and a `hidden` flag: removing it from the
 dashboard hides it, and it stays under Available Widgets (toggle back on, or delete there). Dashboard order shares the
 built-in widgets' layout list as `custom:<id>`. Needs `ANTHROPIC_API_KEY`.
+Live widgets: when the request is about followed artists, `render_widget` returns `live` (a query: `artists`,
+`history`, `tracks`, `releases`, `placements` or `posts`, over `"all"` followed artists, `"group:<id>"` or named slugs)
+instead of data. `src/data/liveWidgets.js` (`hydrateSpec`) re-runs it in the browser each time the widget is shown,
+so newly followed artists appear without a model call; live widgets have no Refresh button. Campaigns, smart links
+and catalog widgets stay static snapshots.
 
 ### Artist listener geography is never shown
 

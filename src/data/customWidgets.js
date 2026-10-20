@@ -11,6 +11,7 @@ import { fetchPlacements } from './playlistsRemote';
 import { fetchCampaigns } from './campaignsRemote';
 import { fetchMetaCampaign } from './metaAds';
 import { fetchSmartLinks } from './smartLinks';
+import { cleanLive, hydrateSpec } from './liveWidgets';
 
 export const fetchWidgets = () => request('/api/widgets');
 export const putWidget = (widget) => request('/api/widgets', { method: 'PUT', body: { widget } });
@@ -43,7 +44,7 @@ export function buildWidgetContext(groups) {
   const names = new Map(roster.map(a => [a.slug, a.name]));
   const groupLines = (groups || [])
     .filter(g => g.slugs.length > 0)
-    .map(g => `${g.name}: ${g.slugs.map(s => names.get(s) || s).join(', ')}`);
+    .map(g => `${g.name} (id ${g.id}): ${g.slugs.map(s => names.get(s) || s).join(', ')}`);
   return [
     `FOLLOWED ARTISTS (${roster.length}; slug | name | genre | label | career stage | home country | …). Numbers are rounded; use the tools for exact values.`,
     ...lines,
@@ -228,6 +229,8 @@ function cleanSpec(input) {
   if (!TYPES.has(spec.type)) spec.type = 'text';
   spec.title = String(spec.title || 'Custom widget').slice(0, 80);
   if (spec.subtitle) spec.subtitle = String(spec.subtitle).slice(0, 120);
+  spec.live = cleanLive(spec.live);
+  if (!spec.live || spec.type === 'text') delete spec.live;
   for (const k of ['data', 'items', 'metrics', 'columns', 'series']) {
     if (spec[k] != null && !Array.isArray(spec[k])) delete spec[k];
     if (spec[k]) spec[k] = compact(spec[k].slice(0, k === 'metrics' ? 4 : 50));
@@ -253,6 +256,7 @@ export function createWidgetSession({ groups, base } = {}) {
   const context = buildWidgetContext(groups);
   let messages = [];
   let pendingRender = null; // tool_use id of the last render_widget, answered by the next run
+  let previewNote = '';
   let spec = base?.spec || null;
   const requests = [...(base?.requests || [])];
 
@@ -279,7 +283,7 @@ export function createWidgetSession({ groups, base } = {}) {
       messages.push({
         role: 'user',
         content: [
-          { type: 'tool_result', tool_use_id: pendingRender, content: 'Shown to the user as a preview.' },
+          { type: 'tool_result', tool_use_id: pendingRender, content: previewNote },
           { type: 'text', text: `Change: ${text}` },
         ],
       });
@@ -298,6 +302,13 @@ export function createWidgetSession({ groups, base } = {}) {
         pendingRender = render.id;
         onProgress?.({ kind: 'render' });
         spec = cleanSpec(render.input || {});
+        previewNote = 'Shown to the user as a preview.';
+        if (spec.live) {
+          spec = await hydrateSpec(spec, { groups });
+          // Let a follow-up change see what the live query returned
+          const shown = spec.data || spec.items || spec.metrics || spec.text;
+          previewNote += ` The live query returned: ${JSON.stringify(compact(Array.isArray(shown) ? shown.slice(0, 8) : shown)).slice(0, 4000)}`;
+        }
         return spec;
       }
 
@@ -324,6 +335,8 @@ export function createWidgetSession({ groups, base } = {}) {
 
   return { run, requests: () => [...requests] };
 }
+
+export { hydrateSpec };
 
 /** Rebuild a saved widget from its requests with fresh data. */
 export function rebuildWidgetSpec(widget, { groups } = {}) {
