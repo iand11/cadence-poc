@@ -2,6 +2,9 @@ import { Link } from 'react-router';
 import Markdown from 'react-markdown';
 import { CartesianChart, DonutChart, RadarChartWrapper } from '../ai/ChatChart';
 import { formatNumber, formatCurrency, formatDelta } from '../../utils/formatters';
+import { hydrateSpec } from '../../data/liveWidgets';
+import { useAsync } from '../../hooks/useAsync';
+import { useFollowedArtists } from '../../hooks/useFollowedArtists';
 
 // Renders a custom widget spec built by the model (src/data/customWidgets.js).
 
@@ -147,9 +150,23 @@ export function CustomWidgetView({ spec }) {
   }
 }
 
+// A live widget re-runs its query whenever the followed artists or groups change;
+// the saved spec shows until the first run finishes.
+function useLiveSpec(spec) {
+  const { followedArtists, groups } = useFollowedArtists();
+  const live = !!spec.live;
+  const { data, error } = useAsync(
+    () => (live ? hydrateSpec(spec, { artists: followedArtists, groups }) : spec),
+    [live ? spec.live : null, live ? followedArtists.map(a => a.slug) : null, live ? groups : null],
+  );
+  return { spec: live && data ? data : spec, error: live && error ? error.message : null };
+}
+
 /** The body of a custom widget card on the dashboard. */
 export function CustomWidgetBody({ widget }) {
-  const { spec, refreshing, error } = widget;
+  const { refreshing } = widget;
+  const { spec, error: liveError } = useLiveSpec(widget.spec);
+  const error = widget.error || liveError;
   return (
     <div className="relative">
       <div className={refreshing ? 'opacity-30 pointer-events-none' : ''}>
@@ -160,7 +177,7 @@ export function CustomWidgetBody({ widget }) {
           <div className="w-5 h-5 rounded-full border-2 border-[#2C2B28] border-t-[#DA7756] animate-spin" />
         </div>
       )}
-      {error && <p className="mt-2 text-[10px] text-[#C75F4F]">Couldn't refresh: {error}</p>}
+      {error && <p className="mt-2 text-[10px] text-[#C75F4F]">Couldn't {liveError && !widget.error ? 'load' : 'refresh'}: {error}</p>}
     </div>
   );
 }

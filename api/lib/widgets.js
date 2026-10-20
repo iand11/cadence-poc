@@ -81,6 +81,18 @@ How to work:
 - Use only numbers that come from the context or a tool result. Never estimate, invent or extrapolate data. If the data the user asked for does not exist in these sources, render a short "text" widget saying what is missing and, if one exists, the closest thing you can show.
 - Never show where an artist's listeners are (listener cities or countries). If asked, say in a text widget that listener geography is not shown in Prelude. An artist's own home country/city, smart link visitor counts by country and campaign audience breakdowns are fine.
 
+Live widgets:
+- When the widget shows data about the user's artists that a live query below can produce, set render_widget.live instead of data, items or metrics. A live widget re-runs its query each time the dashboard opens, so it stays current and picks up artists the user follows later. You don't need to fetch the data first; the preview shows what the query returns.
+- live.artists: "all" for the artists the user follows ("my artists", "my roster"), "group:<id>" for one of their groups (ids are in the context), or a list of slugs only when the user names specific artists.
+- live.query:
+  - artists: current stats per artist, highest first. metrics: one to four stat keys. Types: bar, pie, table, list, metric (top artists, or with total: true, the sum across all covered artists).
+  - history: one stat over time (metrics: [key], days 7 to 365). One line per artist, top limit (max 10) artists by that stat, or with combine: true, one line for the total. Types: line, area, bar, table, metric (total now and its change over the window).
+  - tracks: top tracks (sort streams, recent or popularity). releases: albums and singles (sort recent or popularity). placements: playlist placements (status, platform spotify/apple/deezer, editorial; metric shows playlists, reach, editorial playlists, added in 30 days). posts: social posts (platform instagram/tiktok/youtube, sort recent or engagement). Types: table, list, bar; placements also metric.
+  - limit: rows to show (max 30).
+- Stat keys: sp_monthly_listeners, sp_followers, sp_popularity, ins_followers, tiktok_followers, tiktok_likes, ycs_subscribers, ycs_views, twitter_followers, num_sp_playlists, num_sp_editorial_playlists, sp_playlist_total_reach, shazam_count, genius_pageviews, pandora_listeners_28_day.
+- Labels, columns and series come from the query; set only title, subtitle, type and live. Use radar and text only as static widgets.
+- Use static data (no live) for campaigns, smart links, the wider catalog, and anything that needs a calculation the live queries don't do.
+
 Choosing the view:
 - metric: one to four headline numbers.
 - bar: comparing values across artists, tracks, platforms or categories.
@@ -258,6 +270,27 @@ const TOOLS = [{
         description: 'list: items in order.',
       },
       unit: { type: 'string', description: 'Unit for chart values, e.g. "streams" or "USD".' },
+      live: {
+        type: 'object',
+        description: 'A query re-run each time the widget is shown (see Live widgets). Leave out data, items, metrics, columns and series when set.',
+        properties: {
+          query: { type: 'string', enum: ['artists', 'history', 'tracks', 'releases', 'placements', 'posts'] },
+          artists: {
+            anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }],
+            description: '"all", "group:<id>", or artist slugs.',
+          },
+          metrics: { type: 'array', items: { type: 'string' }, description: 'artists/history: stat keys.' },
+          days: { type: 'integer', description: 'history: window in days.' },
+          sort: { type: 'string' },
+          platform: { type: 'string' },
+          status: { type: 'string', enum: ['current', 'past', 'all'] },
+          editorial: { type: 'boolean' },
+          total: { type: 'boolean', description: 'artists + metric: show the sum across all covered artists.' },
+          combine: { type: 'boolean', description: 'history: one total line instead of one per artist.' },
+          limit: { type: 'integer' },
+        },
+        required: ['query', 'artists'],
+      },
       text: { type: 'string', description: 'text: markdown, at most 80 words.' },
     },
     required: ['title', 'type'],

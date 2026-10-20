@@ -990,13 +990,15 @@ export default function Dashboard() {
       <WidgetCard
         id={id}
         title={w.spec.title}
-        subtitle={[w.spec.subtitle, formatAgo(w.updatedAt)].filter(Boolean).join(' · ')}
+        subtitle={[w.spec.subtitle, w.spec.live ? null : formatAgo(w.updatedAt)].filter(Boolean).join(' · ')}
         headerRight={(
           <div className="flex items-center shrink-0">
-            <button onClick={() => refreshWidget(w.id)} disabled={w.refreshing} title="Refresh"
-              className="p-1 text-[#3D3B37] hover:text-[#9B9590] disabled:opacity-40 transition-colors cursor-pointer">
-              <RotateCcw size={11} />
-            </button>
+            {!w.spec.live && (
+              <button onClick={() => refreshWidget(w.id)} disabled={w.refreshing} title="Refresh"
+                className="p-1 text-[#3D3B37] hover:text-[#9B9590] disabled:opacity-40 transition-colors cursor-pointer">
+                <RotateCcw size={11} />
+              </button>
+            )}
             <button onClick={() => setBuilder({ widget: w })} disabled={w.refreshing} title="Edit"
               className="p-1 text-[#3D3B37] hover:text-[#9B9590] disabled:opacity-40 transition-colors cursor-pointer">
               <Pencil size={11} />
