@@ -23,7 +23,18 @@ launched, its budget/status/metrics live on Meta and we read them back. Clearing
 browser loses drafts, never live campaigns — and a "sync from Meta" import makes even
 that recoverable.
 
-### 1. Account connection (Meta OAuth) — built
+### 1. Account connection — built
+
+**Changed 2026-10-14:** partner access is the default while App Review is pending. Facebook
+Login stays in the code behind `META_FACEBOOK_LOGIN=on`. With partner access the user adds
+the artist's Facebook Page (and their ad account, if any) in Ad Accounts; Prelude's business
+requests access, the owner approves on Meta, and Prelude's system user runs every call
+(`api/lib/meta-partner.js`). Case 1, artist has an ad account: ads run and bill there.
+Case 2, no ad account: "Let Prelude run ads" authorizes Prelude's ad account on their
+Instagram account (managed ads, unchanged). Instagram-only artists (no Page) aren't covered;
+partnership ads are the candidate for them.
+
+The rest of this section describes the Facebook Login mode.
 
 **Decided 2026-10-08:** each Prelude user connects their *own* Meta business with
 **Facebook Login for Business**. Ads run in their ad account and Meta bills their card.

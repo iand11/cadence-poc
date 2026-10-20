@@ -538,6 +538,42 @@ CREATE TABLE IF NOT EXISTS meta_managed_campaigns (
 CREATE INDEX IF NOT EXISTS meta_managed_campaigns_review_idx
   ON meta_managed_campaigns (requested_at) WHERE review_status = 'requested';
 
+-- Meta partner access (default; Facebook Login off): Pages and ad accounts artists share with
+-- Prelude's business, each claimed by the Prelude user who added it, and that user's
+-- Instagram → ad account choice. Also created lazily by api/lib/meta-partner.js.
+CREATE TABLE IF NOT EXISTS meta_partner_pages (
+  page_id      text PRIMARY KEY,
+  user_id      text NOT NULL,
+  page_name    text,
+  ig_user_id   text,                    -- the Page's linked Instagram professional account
+  ig_username  text,
+  ig_picture   text,
+  status       text NOT NULL DEFAULT 'pending',   -- pending (request sent) | active (shared)
+  last_error   text,
+  requested_at timestamptz NOT NULL DEFAULT now(),
+  active_at    timestamptz
+);
+CREATE INDEX IF NOT EXISTS meta_partner_pages_user_idx ON meta_partner_pages (user_id);
+
+CREATE TABLE IF NOT EXISTS meta_partner_ad_accounts (
+  ad_account_id  text PRIMARY KEY,      -- act_…
+  user_id        text NOT NULL,
+  name           text,
+  currency       text,
+  account_status integer,               -- Meta's account_status (1 = active)
+  status         text NOT NULL DEFAULT 'pending',
+  last_error     text,
+  requested_at   timestamptz NOT NULL DEFAULT now(),
+  active_at      timestamptz
+);
+CREATE INDEX IF NOT EXISTS meta_partner_ad_accounts_user_idx ON meta_partner_ad_accounts (user_id);
+
+CREATE TABLE IF NOT EXISTS meta_partner_settings (
+  user_id    text PRIMARY KEY,
+  selection  jsonb NOT NULL DEFAULT '{}'::jsonb,  -- { accountMap: { [igUserId]: { adAccountId | managed, … } } }
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
 -- ---------------------------------------------------------------------------
 -- Smart links — Prelude's own landing page per release with a button per
 -- streaming service (api/l.js), and the views/clicks it records (api/go.js).

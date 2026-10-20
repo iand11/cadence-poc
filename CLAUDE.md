@@ -72,8 +72,14 @@ builds, so components need no reshaping. Frontend adapter: `src/data/artistsRemo
 (async drop-ins: `fetchArtists`, `fetchArtist`, `loadArtistDetail`, `fetchContentFeed`).
 Dev middleware for these routes is `dbApiPlugin()` in `vite.config.js`.
 
-Campaigns cover Instagram (Meta), TikTok and YouTube only (`CAMPAIGN_PLATFORMS` in `src/data/directives.js`; saved campaigns on other platforms are hidden). Meta ads (Campaigns): a user connects their own Meta business with Facebook Login for
-Business (`api/connect/meta.js`). The token is stored encrypted in
+Campaigns cover Instagram (Meta), TikTok and YouTube only (`CAMPAIGN_PLATFORMS` in `src/data/directives.js`; saved campaigns on other platforms are hidden). Meta ads (Campaigns): two ways in, chosen by `META_FACEBOOK_LOGIN`. Default (unset) is partner access
+(`api/lib/meta-partner.js`): in Ad Accounts the user adds the artist's Facebook Page (URL or id) and optionally
+their ad account; Prelude's business requests access (`client_pages` / `client_ad_accounts`), the owner approves
+on Meta (or shares with Prelude's business id themselves), and Prelude's system user (`META_PRELUDE_TOKEN`) makes
+every call. No Meta login or App Review. Each Page / ad account belongs to the first Prelude user who adds it
+(`meta_partner_pages`, `meta_partner_ad_accounts`, selection in `meta_partner_settings`); `loadConnection()` returns
+the same `{ token, selection }` shape in both modes. With `META_FACEBOOK_LOGIN=on` a user connects their own Meta
+business with Facebook Login for Business (`api/connect/meta.js`). The token is stored encrypted in
 `ad_platform_connections` and never reaches the client. Each artist's Instagram account is assigned to the ad account its ads run in
 (`selection.accountMap`). `api/campaign/meta-launch.js` turns a Meta directive into a paused
 Campaign → Ad Set → Ad in that ad account: a boost (`creative.postId`, post found by its

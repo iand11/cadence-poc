@@ -43,6 +43,20 @@ export const allowPreludeAds = (igUserId) =>
 
 export const disconnectMeta = () => request('/api/connect/meta', { method: 'DELETE' });
 
+// Partner access (Facebook Login switched off): artists share their assets with Prelude's business.
+
+/** Ask the Page's owner to share it (and its Instagram account) with Prelude. `page`: Page URL or id. */
+export const addMetaPage = (page) =>
+  request('/api/connect/meta', { method: 'POST', body: { action: 'add_page', page } });
+
+/** Ask an ad account's owner to share it with Prelude, so ads can run and bill there. */
+export const addMetaAdAccount = (adAccountId) =>
+  request('/api/connect/meta', { method: 'POST', body: { action: 'add_ad_account', adAccountId } });
+
+/** Forget a shared Page ({ pageId }) or ad account ({ adAccountId }) and withdraw Prelude's access. */
+export const removeMetaAsset = (asset) =>
+  request('/api/connect/meta', { method: 'POST', body: { action: 'remove', ...asset } });
+
 /**
  * Checks a Meta ad can launch (Meta connected, its Instagram account shared and assigned
  * to an ad account, a boosted post eligible / a new ad's image + link present) without
