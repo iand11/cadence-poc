@@ -113,6 +113,17 @@ Spotify plays are read from the public web player page in headless Chromium (`ap
 playwright-core + @sparticuz/chromium on Vercel, `CHROMIUM_PATH` locally; no Spotify credentials;
 `SPOTIFY_PLAYCOUNT_SCRAPE=0` turns it off; Spotify's User Guidelines ban this, Ian accepted the risk
 2026-10-18; `GET /api/streams?probe=<spotify url>` checks it against the live page) and can be entered by hand. Apple Music, Deezer, Amazon, TIDAL have no public count. Never scrape YouTube.
+Follower tracking (every campaign, `FollowersPanel` on the campaign page, `api/lib/follower-counts.js`): the same trackers
+and tables hold the artist's Instagram followers, TikTok followers (`instagram`, `tiktok`) and YouTube subscribers
+(`youtubeChannel`), one count per day before/during/30 days after. Profiles come from `artists.social_urls`
+(instagram/tiktok/youtube), else one the user pasted on an earlier campaign for that artist; a missing one shows an
+"Add … link" prompt. YouTube: Data API `channels.list` (rounded to 3 significant figures; same 30-day / no-gains rule
+as views). Instagram: Graph `followers_count` for an IG account the owner connected, then Business Discovery via
+`META_PRELUDE_IG_USER_ID` + `META_PRELUDE_TOKEN`, then the public profile page. TikTok: public profile page (the
+official API only returns the signed-in user). Page reads are a plain request, then headless Chromium; they never get
+past a login wall (error + manual entry). Instagram's and TikTok's terms ban scraping; Ian accepted the risk 2026-10-20.
+`INSTAGRAM_FOLLOWERS_SCRAPE=0` / `TIKTOK_FOLLOWERS_SCRAPE=0` turn page reads off; `GET /api/streams?probeProfile=<url>`
+checks a reader live. The campaign wizard starts a tracker for every confirmed campaign.
 For later analysis/model training: counts keep being read 30 days after a campaign ends (gain is still
 campaign-only), removing a source only hides it (`removed_at`), each tracked campaign's setup is kept in
 `stream_tracker_campaigns` (with its Meta campaign id once launched), and Meta reports are copied daily into
