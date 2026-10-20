@@ -28,6 +28,9 @@ const INSTAGRAM_WEB = process.env.INSTAGRAM_WEB_URL || 'https://www.instagram.co
 const TIKTOK_WEB = process.env.TIKTOK_WEB_URL || 'https://www.tiktok.com';
 const WAIT_MS = 15_000;
 
+// Follower tracking is hidden from users and nothing is read unless FOLLOWER_TRACKING=1 (Ian, 2026-10-20).
+// The client shows it with VITE_FOLLOWER_TRACKING=1.
+export const followerTrackingEnabled = () => process.env.FOLLOWER_TRACKING === '1';
 export const instagramScrapeEnabled = () => process.env.INSTAGRAM_FOLLOWERS_SCRAPE !== '0';
 export const tiktokScrapeEnabled = () => process.env.TIKTOK_FOLLOWERS_SCRAPE !== '0';
 const businessDiscoveryConfigured = () => !!(process.env.META_PRELUDE_IG_USER_ID && process.env.META_PRELUDE_TOKEN);

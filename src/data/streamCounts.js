@@ -13,6 +13,8 @@ export const SERVICE_INFO = {
   youtubeChannel: { unit: 'Subscribers', perDay: 'subscribers', how: 'Read daily from the YouTube API', label: 'YouTube', icon: 'youtube' },
 };
 export const STREAM_SERVICES = ['spotify', 'youtube'];
+/** Follower tracking is hidden from users unless VITE_FOLLOWER_TRACKING=1 (the server needs FOLLOWER_TRACKING=1). */
+export const FOLLOWER_TRACKING = import.meta.env.VITE_FOLLOWER_TRACKING === '1';
 
 /** { id, title, startDate, endDate, sources: [{ service, externalId, url, auto, baseline, latest, gain, showGain, daily }], youtube } */
 export const fetchStreamTracker = (id) => request(`/api/streams?id=${encodeURIComponent(id)}`);

@@ -10,7 +10,7 @@ import {
 import ChatInterface from '../ai/ChatInterface';
 import GuidedConfirm, { GuidedContentStep } from './GuidedConfirm';
 import { fetchSmartLinks, linkTitle } from '../../data/smartLinks';
-import { createStreamTracker } from '../../data/streamCounts';
+import { createStreamTracker, FOLLOWER_TRACKING } from '../../data/streamCounts';
 import { searchArtists, getArtistAsync } from '../../data/artists';
 import { fetchContentFeed } from '../../data/artistsRemote';
 import { checkMetaLaunch, isMetaDirective } from '../../data/metaAds';
@@ -384,7 +384,7 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, on
       } catch (e) {
         console.warn('[campaigns] stream tracking not started', e.message);
       }
-    } else if (selectedArtist?.slug && plan.schedule?.startDate && plan.schedule?.endDate) {
+    } else if (FOLLOWER_TRACKING && selectedArtist?.slug && plan.schedule?.startDate && plan.schedule?.endDate) {
       // Every campaign tracks the artist's followers from today, so there is a before to compare with
       const id = `trk-${planCampaigns[0].directive.id}`;
       try {
