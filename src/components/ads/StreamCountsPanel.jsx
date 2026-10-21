@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ResponsiveContainer, LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine } from 'recharts';
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine } from 'recharts';
 import { Headphones, TrendingUp, TrendingDown, RefreshCw, Loader2, AlertTriangle, Info, Plus, ChevronDown, Trash2, ExternalLink } from 'lucide-react';
 import DspIcon from './DspIcon';
 import {
@@ -199,25 +199,71 @@ const DAY_MS = 86400000;
 const PHASE_COLOR = { before: '#6B6560', during: '#DA7756', after: '#9B9590' };
 const PHASE_LABEL = { before: 'Before campaign', during: 'During campaign', after: 'After campaign' };
 
-/** Streams per day from consecutive counts (a gap of several days is spread evenly). Followers can drop. */
+/**
+ * Streams per day, one row per calendar day. A change between two counts is spread
+ * evenly over the days between them, so a missed day never counts as zero. A stream count
+ * that hasn't moved means the page hasn't updated yet, so it waits for the next change.
+ * Followers can drop (and stay flat), so their counts are taken as read.
+ */
 function perDay(daily, startDate, canDrop) {
   const out = [];
+  let prev = daily[0];
   for (let i = 1; i < daily.length; i++) {
-    const prev = daily[i - 1], cur = daily[i];
+    const cur = daily[i];
+    if (!canDrop && cur.count === prev.count) continue;
     const days = Math.max(1, Math.round((Date.parse(cur.day) - Date.parse(prev.day)) / DAY_MS));
-    out.push({
-      day: cur.day,
-      streams: canDrop ? Math.round((cur.count - prev.count) / days) : Math.max(0, Math.round((cur.count - prev.count) / days)),
-      phase: cur.afterEnd ? 'after' : cur.day < startDate ? 'before' : 'during',
+    const rate = Math.round((cur.count - prev.count) / days);
+    const streams = canDrop ? rate : Math.max(0, rate);
+    for (let d = days - 1; d >= 0; d--) {
+      const day = new Date(Date.parse(cur.day) - d * DAY_MS).toISOString().slice(0, 10);
+      out.push({ day, streams, phase: cur.afterEnd ? 'after' : day < startDate ? 'before' : 'during' });
+    }
+    prev = cur;
+  }
+  return out;
+}
+
+/**
+ * The total count on each day it was read, one line per phase (the first point of a phase
+ * also joins the line before it). An unchanged stream count is left out so the line runs
+ * straight to the next real change. `pace` is where the total would be at the pre-campaign
+ * daily average, from the last count before the start.
+ */
+function totals(daily, startDate, canDrop, beforeRate) {
+  const out = daily.map((d, i) => ({
+    day: d.day,
+    ts: Date.parse(d.day),
+    total: !canDrop && i > 0 && i < daily.length - 1 && d.count === daily[i - 1].count ? null : d.count,
+    phase: d.afterEnd ? 'after' : d.day < startDate ? 'before' : 'during',
+  }));
+  let last = null;
+  out.forEach(r => {
+    if (r.total == null) return;
+    r[r.phase] = r.total;
+    if (last && last.phase !== r.phase) last[r.phase] = last.total;
+    last = r;
+  });
+  const anchor = [...out].reverse().find(r => r.phase === 'before' && r.total != null);
+  if (anchor && beforeRate != null) {
+    anchor.pace = anchor.total;
+    out.filter(r => r.day > anchor.day).forEach(r => {
+      r.pace = Math.round(anchor.total + beforeRate * ((Date.parse(r.day) - Date.parse(anchor.day)) / DAY_MS));
     });
   }
   return out;
 }
 
+/** Axis labels precise enough that a 9.15M → 9.16M climb doesn't read as 9.2M on every tick. */
+const totalTick = (range) => (v) => {
+  const [div, unit] = v >= 1e9 ? [1e9, 'B'] : v >= 1e6 ? [1e6, 'M'] : v >= 1e3 ? [1e3, 'K'] : [1, ''];
+  const digits = Math.min(3, Math.max(0, Math.ceil(-Math.log10(Math.max(range, 1) / div / 4))));
+  return `${(v / div).toFixed(digits)}${unit}`;
+};
+
 const avg = (rows) => (rows.length ? rows.reduce((t, r) => t + r.streams, 0) / rows.length : null);
 
 /**
- * Streams per day as bars, grey before the campaign and orange during it, with a
+ * The total count as a line, grey before the campaign and orange during it, with a
  * headline saying whether daily streams went up compared with before.
  */
 function StreamLift({ daily, startDate, noun = 'streams', canDrop = false }) {
@@ -229,7 +275,12 @@ function StreamLift({ daily, startDate, noun = 'streams', canDrop = false }) {
   const up = lift != null && lift >= 5, down = lift != null && lift <= -5;
   const color = up ? '#7BAF73' : down ? '#C75F4F' : '#9B9590';
   const Icon = down ? TrendingDown : TrendingUp;
-  const phases = [...new Set(rows.map(r => r.phase))];
+  const points = totals(daily, startDate, canDrop, before);
+  const phases = [...new Set(points.map(r => r.phase))];
+  const hasPace = points.some(r => r.pace != null);
+  const Noun = `${noun[0].toUpperCase()}${noun.slice(1)}`;
+  const known = points.flatMap(r => [r.total, r.pace]).filter(v => v != null);
+  const yTick = totalTick(Math.max(...known) - Math.min(...known));
 
   return (
     <div className="border-t border-[#2C2B28] p-3">
@@ -244,7 +295,7 @@ function StreamLift({ daily, startDate, noun = 'streams', canDrop = false }) {
           </p>
         ) : (
           <p className="text-[11px] text-[#9B9590]">
-            {during != null ? `${formatNumber(Math.round(during))} ${noun} per day during the campaign` : `${noun[0].toUpperCase()}${noun.slice(1)} per day`}
+            {during != null ? `${formatNumber(Math.round(during))} ${noun} per day during the campaign` : `${Noun} per day`}
             {before == null && <span className="text-[#6B6560]"> · no counts from before the campaign to compare</span>}
           </p>
         )}
@@ -258,21 +309,23 @@ function StreamLift({ daily, startDate, noun = 'streams', canDrop = false }) {
       </div>
       <div className="h-32">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={rows} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
+          <LineChart data={points} margin={{ top: 4, right: 20, bottom: 0, left: 0 }}>
             <CartesianGrid vertical={false} {...GRID_STYLE} />
-            <XAxis dataKey="day" tickFormatter={shortDay} tick={AXIS_STYLE} axisLine={false} tickLine={false} />
-            <YAxis tickFormatter={formatNumber} tick={AXIS_STYLE} axisLine={false} tickLine={false} width={40} allowDecimals={false} />
-            {canDrop && <ReferenceLine y={0} stroke="#3D3B37" />}
-            <Tooltip {...TOOLTIP_STYLE} cursor={{ fill: '#F5F0E8', opacity: 0.04 }} labelFormatter={shortDay}
-              formatter={(v, n, item) => [signed(v), `${noun[0].toUpperCase()}${noun.slice(1)} (${PHASE_LABEL[item.payload.phase].toLowerCase()})`]} />
-            {before != null && <ReferenceLine y={Math.round(before)} stroke="#9B9590" strokeDasharray="3 3" />}
-            <Bar dataKey="streams" radius={[4, 4, 0, 0]} maxBarSize={36} isAnimationActive={false}>
-              {rows.map(r => <Cell key={r.day} fill={PHASE_COLOR[r.phase]} />)}
-            </Bar>
-          </BarChart>
+            <XAxis dataKey="ts" type="number" scale="time" domain={['dataMin', 'dataMax']} ticks={points.map(r => r.ts)}
+              tickFormatter={(t) => shortDay(new Date(t).toISOString().slice(0, 10))} tick={AXIS_STYLE} axisLine={false} tickLine={false} />
+            <YAxis tickFormatter={yTick} tick={AXIS_STYLE} axisLine={false} tickLine={false} width={56} domain={['auto', 'auto']} allowDecimals={false} />
+            <Tooltip {...TOOLTIP_STYLE} cursor={{ stroke: '#3D3B37' }} labelFormatter={(t) => shortDay(new Date(t).toISOString().slice(0, 10))}
+              formatter={(v, n) => [full(v), n === 'pace' ? 'At pre-campaign pace' : `Total ${noun}`]} />
+            {hasPace && <Line dataKey="pace" stroke="#9B9590" strokeDasharray="3 3" strokeWidth={1} dot={false} activeDot={false} isAnimationActive={false} />}
+            {phases.map(p => (
+              <Line key={p} dataKey={p} stroke={PHASE_COLOR[p]} strokeWidth={2} connectNulls dot={false}
+                activeDot={false} tooltipType="none" isAnimationActive={false} />
+            ))}
+            <Line dataKey="total" stroke="none" connectNulls dot={false} activeDot={{ r: 3, fill: '#F5F0E8', stroke: 'none' }} isAnimationActive={false} />
+          </LineChart>
         </ResponsiveContainer>
       </div>
-      {before != null && <p className="text-[10px] text-[#6B6560] mt-1">Dashed line: daily average before the campaign.</p>}
+      {hasPace && <p className="text-[10px] text-[#6B6560] mt-1">Dashed line: the total at the pre-campaign daily average.</p>}
     </div>
   );
 }
