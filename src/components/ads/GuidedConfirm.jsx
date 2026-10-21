@@ -8,11 +8,11 @@ import { previewStreamSources } from '../../data/streamCounts';
 import AdImagesField from './AdImagesField';
 import LyricVideoMaker from './LyricVideoMaker';
 import AdVideoField from './AdVideoField';
-import { FileUploadField, MetaRunAsPicker } from './DirectiveBuilder';
+import { FileUploadField, MetaRunAsPicker, SparkCodeField } from './DirectiveBuilder';
 import { createSmartLink, lookupSmartLinks, artistPageSmartLinks, linksList, linksMap, foundSummary, linkTitle, SERVICE_LABELS } from '../../data/smartLinks';
 import ServiceLinksEditor from './ServiceLinksEditor';
 import { PLATFORM_LABELS, OBJECTIVE_LABELS } from '../../data/directives';
-import { postEngagement } from '../../utils/assistedCampaign';
+import { postEngagement, needsDestination } from '../../utils/assistedCampaign';
 import { PLATFORM_COLORS } from '../../constants/colors';
 import { formatNumber, formatDollar } from '../../utils/formatters';
 
@@ -254,11 +254,23 @@ export function GuidedContentStep({ campaign, posts, artist, recommendNew, smart
               );
             })}
           </div>
-          {recommendNew && (
+          {recommendNew && platform !== 'tiktok' && (
             <p className="flex items-start gap-1.5 text-[10px] text-[#9B9590] mt-3">
               <Sparkles size={10} className="mt-0.5 shrink-0 text-[#DA7756]" />
               A boosted post can't link anywhere. A new post can send fans straight to the release on every streaming service.
             </p>
+          )}
+          {platform === 'tiktok' && (
+            <div className="space-y-3 mt-3">
+              <SparkCodeField value={draft.sparkCode} onChange={(sparkCode) => set({ sparkCode })} artist={artist} />
+              <DestinationField
+                artist={artist}
+                smartLinks={smartLinks}
+                destination={destination}
+                onDestination={onDestination}
+                onLinkCreated={onLinkCreated}
+              />
+            </div>
           )}
         </>
       ) : (
@@ -291,6 +303,8 @@ export function GuidedContentStep({ campaign, posts, artist, recommendNew, smart
                 <AdImagesField images={draft.images} onChange={(images) => set({ images })} fallbackImage={artist?.imageUrl} />
               )}
             </>
+          ) : platform === 'tiktok' ? (
+            <AdVideoField value={draft.adVideo} onChange={(adVideo) => set({ adVideo })} artist={artist} />
           ) : (
             <div>
               <FileUploadField
@@ -338,7 +352,7 @@ export function GuidedContentStep({ campaign, posts, artist, recommendNew, smart
 export default function GuidedConfirm({ plan, artist, campaigns, posts, errors, destinationLabel, onEditContent, onEditLink, streamTracking }) {
   const total = campaigns.reduce((sum, c) => sum + (c.directive.budget?.amount || 0), 0);
   const { schedule, audience } = plan;
-  const anyNew = campaigns.some(c => c.mode === 'new');
+  const anyNew = campaigns.some(needsDestination);
 
   return (
     <div className="space-y-3">

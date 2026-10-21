@@ -170,7 +170,7 @@ export default function DirectiveCard({
           {isPaused && (
             <span className="flex items-center gap-1.5 text-[10px] font-mono text-[#D4A574]">
               <Clock size={10} />
-              Created on Meta, paused. Go live from details.
+              Created on {directive.platform === 'tiktok' ? 'TikTok' : 'Meta'}, paused. Go live from details.
             </span>
           )}
           {isFailed && (

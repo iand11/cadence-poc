@@ -12,6 +12,7 @@ import { searchArtists, getArtist, getArtistAsync } from '../../data/artists';
 import { api } from '../../data/api';
 import { checkMetaLaunch, isMetaDirective, ACCOUNT_FIX_CODES } from '../../data/metaAds';
 import { useMetaConnection } from '../../hooks/useMetaConnection';
+import { checkTikTokLaunch, isTikTokDirective, fetchTikTokIdentities, TIKTOK_ACCOUNT_FIX_CODES } from '../../data/tiktokAds';
 import { useAsync } from '../../hooks/useAsync';
 import { fetchSmartLinks } from '../../data/smartLinks';
 
@@ -134,6 +135,56 @@ export function MetaRunAsPicker({ value, onChange, onOpenAccounts }) {
   );
 }
 
+/**
+ * TikTok boost: the artist's permission to promote the post. A Spark Ads code they make in the
+ * TikTok app, or their account being linked to the ad account (then no code is needed).
+ */
+export function SparkCodeField({ value, onChange, artist }) {
+  return (
+    <div>
+      <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">Spark Ads code</label>
+      <input
+        value={value || ''}
+        onChange={e => onChange(e.target.value)}
+        placeholder="#…"
+        className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none font-mono"
+      />
+      <p className="text-[10px] text-[#6B6560] mt-1">
+        {artist?.name || 'The artist'} makes it in the TikTok app: open the post → ⋯ → Ad settings → turn on Ad authorization → Generate code.
+        Not needed if their TikTok account is linked to your ad account.
+      </p>
+    </div>
+  );
+}
+
+/** New TikTok ads run as a TikTok account linked to the ad account. */
+function TikTokIdentityPicker({ value, onChange, onOpenAccounts }) {
+  const { data, error, loading } = useAsync(() => fetchTikTokIdentities(), []);
+  const identities = data?.identities || [];
+  return (
+    <div>
+      <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">Run as (TikTok account)</label>
+      {loading ? (
+        <p className="flex items-center gap-1.5 text-[10px] text-[#6B6560]"><Loader2 size={10} className="animate-spin" /> Loading accounts…</p>
+      ) : error ? (
+        <p className="text-[10px] text-[#D4A574]">
+          {error.message}{' '}
+          {onOpenAccounts && <button onClick={() => onOpenAccounts()} className="text-[#DA7756] hover:underline cursor-pointer">Open Ad Accounts</button>}
+        </p>
+      ) : identities.length === 0 ? (
+        <p className="text-[10px] text-[#D4A574]">
+          No TikTok accounts are linked to the ad account. Link the artist's account in TikTok Ads Manager, or boost one of their posts instead.
+        </p>
+      ) : (
+        <select value={value || ''} onChange={e => onChange(e.target.value || null)} className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] outline-none">
+          {identities.length > 1 && <option value="">Choose an account…</option>}
+          {identities.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+        </select>
+      )}
+    </div>
+  );
+}
+
 /** Pick one of the user's smart links as a Meta ad's destination (tracks streaming clicks). */
 function SmartLinkPicker({ value, onChange, artistSlug }) {
   const { data } = useAsync(() => fetchSmartLinks().catch(() => ({ links: [] })), []);
@@ -240,6 +291,9 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
   // Instagram account a new (non-boost) Meta ad runs as
   const [runAsIgUserId, setRunAsIgUserId] = useState(initialData?.creative?.postId ? null : initialData?.creative?.igUserId || null);
   const [rationale, setRationale] = useState(initialData?.rationale || '');
+  // TikTok: the artist's Spark Ads code for a boost; the account a new video ad runs as
+  const [sparkCode, setSparkCode] = useState(initialData?.creative?.sparkCode || '');
+  const [tiktokIdentityId, setTiktokIdentityId] = useState(initialData?.creative?.identityId || null);
 
   // Generalized content picker state
   const [contentItems, setContentItems] = useState([]);
@@ -309,6 +363,8 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
   const effectiveObjective = objective && objectives.some(o => o.key === objective) ? objective : objectives[0]?.key || '';
   const effectiveCreativeType = creativeType && creativeTypes.includes(creativeType) ? creativeType : creativeTypes[0] || '';
   const metaVideoAd = platform === 'meta' && !postId && effectiveCreativeType === 'video';
+  // A new TikTok ad is always a video (uploaded like a Meta video ad)
+  const tiktokVideoAd = platform === 'tiktok' && !postId;
 
   // Map content-feed API items to normalized shape
   const mapFeedItems = (items) => (items || []).map(item => ({
@@ -403,7 +459,8 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
     setSelectedContentId(item.id);
     setPostId(item.platformId);
     setHeadline(item.title || '');
-    setTrackUrl(item.permalink || '');
+    // A TikTok boost still sends fans somewhere (the smart link); others link to the post
+    if (platform !== 'tiktok') setTrackUrl(item.permalink || '');
     setPostSource(item.sourcePlatform || null);
     setOwnerPlatformId(item.ownerPlatformId || null);
     setCreativeType(item.contentType === 'video' ? 'video' : 'image');
@@ -436,7 +493,7 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
   const previewMedia = postId
     ? (boostThumb ? [{ url: boostThumb, type: 'image' }] : [])
     : platform === 'youtube' && videoPreviewUrl ? [{ url: videoPreviewUrl, type: 'video' }]
-    : metaVideoAd ? (metaVideo ? [{ url: metaVideo.url, type: 'video' }] : [])
+    : metaVideoAd || tiktokVideoAd ? (metaVideo ? [{ url: metaVideo.url, type: 'video' }] : [])
     : images.map(url => ({ url, type: 'image' }));
   const previewIgId = postId ? ownerPlatformId : runAsIgUserId;
   const previewUsername = platform === 'meta'
@@ -492,6 +549,11 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
         imageUrl: (!postId && !metaVideoAd && images[0]) || selectedArtist?.imageUrl || initialData?.artistImage || null,
         ...(metaVideoAd && metaVideo ? { videoUrl: metaVideo.url, videoName: metaVideo.name } : {}),
       };
+      if (platform === 'tiktok') {
+        Object.assign(base.creative, postId
+          ? { type: 'spark', sparkCode: sparkCode.trim() || undefined }
+          : { type: 'video', images: [], identityId: tiktokIdentityId || undefined, ...(metaVideo ? { videoUrl: metaVideo.url, videoName: metaVideo.name } : {}) });
+      }
     }
 
     return base;
@@ -516,6 +578,17 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
         setMetaGate(null);
       } catch (e) {
         setMetaGate({ message: e.message, fixable: ACCOUNT_FIX_CODES.has(e.code) || e.code === 'not_configured' });
+        return;
+      }
+    } else if (isTikTokDirective(d)) {
+      setMetaGate({ checking: true });
+      try {
+        const ready = await checkTikTokLaunch(d);
+        d.advertiserId = ready.advertiserId;
+        d.advertiserName = ready.advertiserName;
+        setMetaGate(null);
+      } catch (e) {
+        setMetaGate({ message: e.message, fixable: TIKTOK_ACCOUNT_FIX_CODES.has(e.code) });
         return;
       }
     }
@@ -876,8 +949,11 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
                       {platform === 'meta' && (
                         <MetaRunAsPicker value={runAsIgUserId} onChange={(v) => { setRunAsIgUserId(v); setMetaGate(null); }} onOpenAccounts={onOpenAccounts} />
                       )}
+                      {platform === 'tiktok' && (
+                        <TikTokIdentityPicker value={tiktokIdentityId} onChange={(v) => { setTiktokIdentityId(v); setMetaGate(null); }} onOpenAccounts={onOpenAccounts} />
+                      )}
                       <div>
-                        <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">Headline</label>
+                        <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">{platform === 'tiktok' ? 'Ad text' : 'Headline'}</label>
                         <input
                           value={headline}
                           onChange={e => setHeadline(e.target.value)}
@@ -885,15 +961,17 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
                           className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none"
                         />
                       </div>
-                      <div>
-                        <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">Description</label>
-                        <input
-                          value={description}
-                          onChange={e => setDescription(e.target.value)}
-                          placeholder={`Discover ${selectedArtist?.name || artistSlug}'s latest music`}
-                          className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none"
-                        />
-                      </div>
+                      {platform !== 'tiktok' && (
+                        <div>
+                          <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">Description</label>
+                          <input
+                            value={description}
+                            onChange={e => setDescription(e.target.value)}
+                            placeholder={`Discover ${selectedArtist?.name || artistSlug}'s latest music`}
+                            className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none"
+                          />
+                        </div>
+                      )}
                       {platform === 'meta' && (
                         <div className="flex gap-1">
                           {[['image', 'Images'], ['video', 'Video']].map(([key, text]) => (
@@ -909,7 +987,7 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
                           ))}
                         </div>
                       )}
-                      {metaVideoAd ? (
+                      {metaVideoAd || tiktokVideoAd ? (
                         <AdVideoField value={metaVideo} onChange={(v) => { setMetaVideo(v); setMetaGate(null); }} artist={selectedArtist} />
                       ) : (
                         <AdImagesField
@@ -928,7 +1006,7 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
                           placeholder="https://open.spotify.com/track/..."
                           className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none font-mono"
                         />
-                        {platform === 'meta' && <SmartLinkPicker value={trackUrl} onChange={setTrackUrl} artistSlug={artistSlug} />}
+                        {(platform === 'meta' || platform === 'tiktok') && <SmartLinkPicker value={trackUrl} onChange={setTrackUrl} artistSlug={artistSlug} />}
                       </div>
                       <div>
                         <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">Call to Action</label>
@@ -1026,6 +1104,24 @@ export default function DirectiveBuilder({ isOpen, onClose, onSave, onSubmit, on
                             <><ChevronDown size={10} /> Load More ({contentTotal - contentItems.length} remaining)</>
                           )}
                         </button>
+                      )}
+
+                      {platform === 'tiktok' && postId && (
+                        <div className="space-y-3 mt-3 bg-[#0D0C0B] border border-[#2C2B28] rounded-lg p-3">
+                          <SparkCodeField value={sparkCode} onChange={(v) => { setSparkCode(v); setMetaGate(null); }} artist={selectedArtist} />
+                          <div>
+                            <label className="text-[9px] font-mono text-[#9B9590] mb-1 block">
+                              <span className="flex items-center gap-1"><Link2 size={9} /> Where the ad sends fans</span>
+                            </label>
+                            <input
+                              value={trackUrl}
+                              onChange={e => { setTrackUrl(e.target.value); setMetaGate(null); }}
+                              placeholder="https://… (a smart link tracks clicks to each streaming service)"
+                              className="w-full bg-[#171614] border border-[#2C2B28] rounded px-3 py-1.5 text-xs text-[#F5F0E8] placeholder-[#6B6560] outline-none font-mono"
+                            />
+                            <SmartLinkPicker value={trackUrl} onChange={(v) => { setTrackUrl(v); setMetaGate(null); }} artistSlug={artistSlug} />
+                          </div>
+                        </div>
                       )}
                     </>
                   ) : (

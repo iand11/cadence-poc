@@ -14,6 +14,7 @@ import { createStreamTracker, FOLLOWER_TRACKING } from '../../data/streamCounts'
 import { searchArtists, getArtistAsync } from '../../data/artists';
 import { fetchContentFeed } from '../../data/artistsRemote';
 import { checkMetaLaunch, isMetaDirective } from '../../data/metaAds';
+import { checkTikTokLaunch, isTikTokDirective } from '../../data/tiktokAds';
 import { useFollowedArtists } from '../../hooks/useFollowedArtists';
 import { generateDirective, PLATFORM_LABELS, OBJECTIVE_LABELS, CAMPAIGN_PLATFORMS, PLATFORM_CONSTRAINTS } from '../../data/directives';
 import { recommendBudgetAllocation } from '../../utils/budgetAllocation';
@@ -340,7 +341,7 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, on
   const streamLinkSlug = trackLinkSlug !== undefined ? trackLinkSlug
     : destinationLink?.slug || (smartLinks || []).find(l => l.artistSlug === selectedArtist?.slug)?.slug || null;
 
-  // Confirm: Meta campaigns are checked against the connected ad account (nothing is
+  // Confirm: Meta and TikTok campaigns are checked against the connected ad account (nothing is
   // created); everything that passes is submitted for approval. If some fail, the
   // user can save those as drafts instead.
   const handleConfirm = async ({ saveFailedAsDrafts = false } = {}) => {
@@ -358,6 +359,16 @@ export default function CampaignWizard({ isOpen, onClose, onSelect, onLaunch, on
           d.igUsername = ok.igUsername;
         } catch (e) {
           errors[c.platform] = e.message || 'Ad account check failed.';
+          ready.push({ ...d, status: 'draft' });
+          continue;
+        }
+      } else if (isTikTokDirective(d)) {
+        try {
+          const ok = await checkTikTokLaunch(d);
+          d.advertiserId = ok.advertiserId;
+          d.advertiserName = ok.advertiserName;
+        } catch (e) {
+          errors[c.platform] = e.message || 'TikTok ad account check failed.';
           ready.push({ ...d, status: 'draft' });
           continue;
         }

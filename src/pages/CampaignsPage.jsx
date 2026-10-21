@@ -11,6 +11,8 @@ import AccountConnector from '../components/ads/AccountConnector';
 import ManagedReviewPanel from '../components/ads/ManagedReviewPanel';
 import { useMetaConnection } from '../hooks/useMetaConnection';
 import { launchMetaCampaign, isMetaDirective, ACCOUNT_FIX_CODES } from '../data/metaAds';
+import { launchTikTokCampaign, isTikTokDirective, TIKTOK_ACCOUNT_FIX_CODES } from '../data/tiktokAds';
+import { useTikTokConnection } from '../hooks/useTikTokConnection';
 import { linkStreamMetaCampaign } from '../data/streamCounts';
 import { useDirectives } from '../hooks/useDirectives';
 import { useCampaignReports } from '../hooks/useCampaignReports';
@@ -77,20 +79,26 @@ export default function CampaignsPage() {
   const [wizardSuggestion, setWizardSuggestion] = useState(null);
 
   const { connection: metaConnection, refresh: refreshMeta } = useMetaConnection();
-  // Back from Meta's login dialog (a full page load): /app/campaigns?meta=connected|error&reason=…
+  const { refresh: refreshTikTok } = useTikTokConnection();
+  // Back from Meta's login dialog or TikTok's authorization (a full page load):
+  // /app/campaigns?meta=connected|error&reason=… or ?tiktok=connected|account|error&reason=…
   const metaResult = new URLSearchParams(location.search).get('meta');
-  const [accountsOpen, setAccountsOpen] = useState(metaResult === 'connected');
+  const tiktokResult = new URLSearchParams(location.search).get('tiktok');
+  const [accountsOpen, setAccountsOpen] = useState(metaResult === 'connected' || tiktokResult === 'connected' || tiktokResult === 'account');
   const [metaNotice, setMetaNotice] = useState(() =>
     metaResult && metaResult !== 'connected'
       ? new URLSearchParams(location.search).get('reason') || 'Meta connection failed.'
-      : null
+      : tiktokResult === 'error'
+        ? new URLSearchParams(location.search).get('reason') || 'TikTok connection failed.'
+        : null
   );
   useEffect(() => {
-    if (!metaResult) return;
+    if (!metaResult && !tiktokResult) return;
     if (metaResult === 'connected') refreshMeta(true);
+    if (tiktokResult) refreshTikTok();
     navigate(location.pathname, { replace: true, state: location.state });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run once per redirect
-  }, [metaResult]);
+  }, [metaResult, tiktokResult]);
 
   // Why Ad Accounts was opened from a blocked boost (shown at the top of the modal)
   const [accountsNotice, setAccountsNotice] = useState(null);
@@ -100,10 +108,11 @@ export default function CampaignsPage() {
   };
 
   // Meta ads (boosts and new ads) run for real in the ad account assigned to the
-  // artist's Instagram; every other platform is still simulated.
+  // artist's Instagram, TikTok ads in the connected TikTok ad account; YouTube is still simulated.
   const handleExecute = async (id) => {
     const d = directives.find(x => x.id === id);
-    if (!isMetaDirective(d)) {
+    const tiktok = isTikTokDirective(d);
+    if (!isMetaDirective(d) && !tiktok) {
       updateDirective(id, { status: 'active' });
       navigate(`/app/campaigns/${id}`);
       return;
@@ -111,14 +120,18 @@ export default function CampaignsPage() {
     const previousStatus = d.status;
     updateDirective(id, { status: 'executing', executionError: null });
     try {
-      const result = await launchMetaCampaign(d);
+      const result = tiktok ? await launchTikTokCampaign(d) : await launchMetaCampaign(d);
       updateDirective(id, {
         ...result,
         status: 'paused',
-        platformStatus: 'PAUSED',
-        metricsSource: 'meta',
+        platformStatus: tiktok ? 'DISABLE' : 'PAUSED',
+        metricsSource: tiktok ? 'tiktok' : 'meta',
         lastSyncedAt: new Date().toISOString(),
       });
+      if (tiktok) {
+        navigate(`/app/campaigns/${id}`);
+        return;
+      }
       // Stream-goal campaigns: save the Meta campaign's daily results with the stream counts
       if (d.streamTrackerId && result.campaignId) {
         linkStreamMetaCampaign(d.streamTrackerId, d.id, result.campaignId)
@@ -126,7 +139,7 @@ export default function CampaignsPage() {
       }
       navigate(`/app/campaigns/${id}`);
     } catch (e) {
-      if (ACCOUNT_FIX_CODES.has(e.code) || e.code === 'not_configured') {
+      if (ACCOUNT_FIX_CODES.has(e.code) || e.code === 'not_configured' || (tiktok && TIKTOK_ACCOUNT_FIX_CODES.has(e.code))) {
         // Nothing was created; fix the accounts and execute again
         updateDirective(id, { status: previousStatus });
         openAccounts(e.message);

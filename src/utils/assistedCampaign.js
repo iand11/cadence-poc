@@ -126,6 +126,7 @@ export function objectiveFor(platform, goal) {
 }
 
 const DAY = 86400000;
+export const TIKTOK_MIN_DAILY = 20;
 const iso = (d) => d.toISOString().split('T')[0];
 
 export function scheduleFor(answers, now = new Date()) {
@@ -180,17 +181,30 @@ export function boostCreative(post, platform, goal) {
 
 /** Empty "new post" fields for a campaign; filled in on the confirm screen. */
 export function newPostDraft(artist) {
-  return { headline: artist?.name ? `New music from ${artist.name}` : '', images: [], runAsIgUserId: null, videoFile: null, metaMedia: 'images', metaVideo: null };
+  return {
+    headline: artist?.name ? `New music from ${artist.name}` : '', images: [], runAsIgUserId: null, videoFile: null,
+    metaMedia: 'images', metaVideo: null,
+    // TikTok: the uploaded video for a new ad; the artist's Spark Ads code for a boost
+    adVideo: null, sparkCode: '',
+  };
 }
+
+/** TikTok ads always send fans somewhere (traffic campaigns), boosts included. */
+export const needsDestination = (c) => c.mode === 'new' || c.platform === 'tiktok';
 
 /** What still blocks a campaign from being confirmed, or null. */
 export function campaignIssue(c, destination) {
-  if (c.mode !== 'new') return null;
+  if (c.mode !== 'new') {
+    if (needsDestination(c) && !destination) return 'Add where the ad sends fans (a smart link).';
+    return null;
+  }
   if (c.platform === 'meta') {
     if (!c.draft.runAsIgUserId) return 'Choose the Instagram account the ad runs as.';
     if (c.draft.metaMedia === 'video') {
       if (!c.draft.metaVideo?.url) return 'Add a video.';
     } else if (!c.draft.images.length) return 'Add at least one image.';
+  } else if (c.platform === 'tiktok') {
+    if (!c.draft.adVideo?.url) return 'Add a video.';
   } else if (!c.draft.videoFile) {
     return 'Add a video.';
   }
@@ -209,8 +223,19 @@ function readAsDataUrl(file) {
 
 /** The directive to save for a confirmed campaign: boosts as planned, new posts built from their fields. */
 export async function finalizeCampaign(c, destination, artist) {
-  if (c.mode !== 'new') return c.directive;
-  const { headline, images, runAsIgUserId, videoFile, metaMedia, metaVideo } = c.draft;
+  if (c.mode !== 'new') {
+    if (c.platform !== 'tiktok') return c.directive;
+    const sparkCode = c.draft.sparkCode?.trim();
+    return { ...c.directive, creative: { ...c.directive.creative, trackUrl: destination, ...(sparkCode ? { sparkCode } : {}) } };
+  }
+  const { headline, images, runAsIgUserId, videoFile, metaMedia, metaVideo, adVideo } = c.draft;
+  if (c.platform === 'tiktok') {
+    const callToAction = c.directive.creative?.callToAction || 'Listen Now';
+    return {
+      ...c.directive,
+      creative: { type: 'video', headline, description: '', callToAction, trackUrl: destination, postId: null, videoUrl: adVideo.url, videoName: adVideo.name },
+    };
+  }
   const callToAction = c.directive.creative?.callToAction || 'Learn More';
   const metaIsVideo = metaMedia === 'video';
   const creative = c.platform === 'meta'
@@ -237,7 +262,7 @@ export async function finalizeCampaign(c, destination, artist) {
  *   platform with no posts to boost starts as a new post the user fills in.
  * - The remaining platforms are split with the same objective + audience-size
  *   weighting the manual allocator recommends.
- * - TikTok is left out when its share falls under TikTok's $500 campaign minimum.
+ * - TikTok is left out when its share falls under TikTok's campaign minimum.
  * - Schedule, audience and objective come straight from the answers.
  */
 export function generateAssistedPlan(artist, answers, posts = {}, now = new Date()) {
@@ -252,12 +277,16 @@ export function generateAssistedPlan(artist, answers, posts = {}, now = new Date
     notes.push(`No ${noPosts.map(p => PLATFORM_LABELS[p]).join(' or ')} posts to boost, so ${noPosts.length > 1 ? 'those are' : 'that one is'} set up as a new post.`);
   }
 
+  const schedule = scheduleFor(answers, now);
+  const days = Math.max(1, Math.round((new Date(schedule.endDate) - new Date(schedule.startDate)) / DAY));
+
   const metrics = artistMetrics(artist);
   let allocation = recommendBudgetAllocation(metrics, goal, budget, platforms);
-  const tiktokMin = PLATFORM_CONSTRAINTS.tiktok.minBudget;
+  // TikTok: over $50 a campaign, and an ad group's lifetime budget needs $20 for each day it runs
+  const tiktokMin = Math.max(PLATFORM_CONSTRAINTS.tiktok.minBudget, TIKTOK_MIN_DAILY * days);
   const tiktok = allocation.allocations.find(a => a.platform === 'tiktok');
   if (tiktok && tiktok.amount < tiktokMin && platforms.length > 1) {
-    notes.push(`TikTok left out: its share ($${tiktok.amount}) is under TikTok's $${tiktokMin} minimum.`);
+    notes.push(`TikTok left out: its share ($${tiktok.amount}) is under TikTok's $${tiktokMin} minimum ($${TIKTOK_MIN_DAILY} a day for ${days} days).`);
     platforms = platforms.filter(p => p !== 'tiktok');
     allocation = recommendBudgetAllocation(metrics, goal, budget, platforms);
   }
@@ -269,8 +298,6 @@ export function generateAssistedPlan(artist, answers, posts = {}, now = new Date
     interests: [],
     lookalike: goal !== 'awareness',
   };
-  const schedule = scheduleFor(answers, now);
-  const days = Math.max(1, Math.round((new Date(schedule.endDate) - new Date(schedule.startDate)) / DAY));
   const goalLabel = ASSISTED_QUESTIONS[0].options.find(o => o.value === goal)?.label || OBJECTIVE_LABELS[goal];
 
   const campaigns = allocation.allocations.map(alloc => {

@@ -206,8 +206,9 @@ Verification** — typically 2–6 weeks. Start immediately, in parallel with de
 3. Client onboarding before approval: add the client's ad account user as an app
    tester (works for early clients; not scalable, but fine for v1).
 
-TikTok Marketing API has its own developer approval and a **$500 minimum campaign
-budget** — that's why it's phase 5, not phase 1.
+TikTok Marketing API has its own developer approval (submitted 2026-10-21). Budget floors
+(TikTok help center): campaign over $50, ad group over $20/day, lifetime budget at least
+$20 × days. Built 2026-10-21 (mock-tested only): see "TikTok ads" in CLAUDE.md.
 
 ## Phases
 
@@ -220,7 +221,7 @@ budget** — that's why it's phase 5, not phase 1.
 | 3b | Prelude per-boost fee + subscription billing (Stripe). Prepay for managed ads done; fee on own-account ads and subscription left | 2 |
 | 6 | Prelude-managed ads (agency access + Prelude's ad account) for artists without an ad account. **Code done for new posts** (Stripe prepay or admin review; see CLAUDE.md); boosts not managed | 2 |
 | 4 | Image-upload creative (new assets, not just boosts) | 2 |
-| 5 | TikTok: connect + execute + metrics (Spark Ads mirror the boost-post model) | TikTok approval |
+| 5 | TikTok: connect + execute + metrics (Spark Ads mirror the boost-post model) — built, pending real-API test | TikTok approval |
 
 Client-demoable milestone is end of phase 3: connect a real ad account, launch a real
 (paused) campaign from the wizard, go live, watch real numbers in the dashboard.

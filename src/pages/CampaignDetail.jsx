@@ -8,6 +8,7 @@ import {
 import ChatInterface from '../components/ai/ChatInterface';
 import OptimizationRow from '../components/ads/OptimizationRow';
 import MetaCampaignPanel from '../components/ads/MetaCampaignPanel';
+import TikTokCampaignPanel from '../components/ads/TikTokCampaignPanel';
 import StreamCountsPanel from '../components/ads/StreamCountsPanel';
 import FollowersPanel from '../components/ads/FollowersPanel';
 import { smartLinkSlug, FOLLOWER_TRACKING } from '../data/streamCounts';
@@ -160,6 +161,9 @@ export default function CampaignDetail() {
       {/* Results summary first; details expand underneath */}
       {directive.platformCampaignId && directive.platform === 'meta' && (
         <MetaCampaignPanel directive={directive} updateDirective={updateDirective} />
+      )}
+      {directive.platformCampaignId && directive.platform === 'tiktok' && (
+        <TikTokCampaignPanel directive={directive} updateDirective={updateDirective} />
       )}
 
       {/* Streams per service, before the campaign and each day of it */}

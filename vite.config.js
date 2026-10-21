@@ -379,7 +379,7 @@ function dbApiPlugin() {
       mountPublic('/l', 'l.js', ['slug', 'view'], 1);
       mountPublic('/go', 'go.js', ['slug', 'service']);
       // Meta ads: account connection + boost execution; smart links API
-      for (const route of ['connect/meta', 'campaign/meta-launch', 'campaign/meta-campaign', 'links', 'spotify-fan', 'ad-images', 'ad-videos', 'stripe/webhook', 'streams', 'campaigns', 'widgets']) {
+      for (const route of ['connect/meta', 'campaign/meta-launch', 'campaign/meta-campaign', 'connect/tiktok-account', 'connect/tiktok', 'campaign/tiktok-launch', 'campaign/tiktok-campaign', 'links', 'spotify-fan', 'ad-images', 'ad-videos', 'stripe/webhook', 'streams', 'campaigns', 'widgets']) {
         server.middlewares.use(`/api/${route}`, async (req, res) => {
           shim(res);
           const handler = (await import(
