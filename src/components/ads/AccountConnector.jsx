@@ -5,9 +5,14 @@ import { PLATFORM_LABELS, PLATFORM_CONSTRAINTS } from '../../data/directives';
 import { PLATFORM_COLORS } from '../../constants/colors';
 import { useMetaConnection } from '../../hooks/useMetaConnection';
 import { startMetaConnect, assignMetaAdAccount, allowPreludeAds, disconnectMeta } from '../../data/metaAds';
+import { useTikTokConnection } from '../../hooks/useTikTokConnection';
+import {
+  startTikTokConnect, startTikTokAccountConnect, setDefaultTikTokAdvertiser, disconnectTikTok, disconnectTikTokAccount,
+} from '../../data/tiktokAds';
+import { formatNumber } from '../../utils/formatters';
 
-// Meta is real; the rest are still simulated in the demo.
-const SIMULATED_KEYS = ['tiktok', 'youtube'];
+// Meta and TikTok are real; YouTube is still simulated.
+const SIMULATED_KEYS = ['youtube'];
 
 const PLATFORM_ICON_COLORS = {
   spotify: PLATFORM_COLORS.spotify,
@@ -281,6 +286,162 @@ function MetaAccountCard() {
   );
 }
 
+/**
+ * TikTok: the ad accounts campaigns run (and bill) in, and the artists' own TikTok accounts
+ * (signed in by the artist, so Prelude can read their profile and posts).
+ */
+function TikTokAccountCard() {
+  const { loading, connection, error, refresh } = useTikTokConnection();
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState(null);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  const run = async (fn) => {
+    setBusy(true);
+    setActionError(null);
+    try {
+      await fn();
+    } catch (e) {
+      setActionError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const connected = !!connection?.connected;
+  const advertisers = connection?.advertisers || [];
+  const accounts = connection?.accounts || [];
+
+  return (
+    <div className="p-3 rounded border border-[#2C2B28] bg-[#0D0C0B] space-y-3">
+      <div className="flex items-center gap-3">
+        <PlatformIcon platform="tiktok" />
+        <div className="flex-1 min-w-0">
+          <p className="text-xs text-[#F5F0E8] font-medium">{PLATFORM_LABELS.tiktok}</p>
+          <p className="text-[9px] text-[#6B6560] line-clamp-1">
+            Boost artists' posts (Spark Ads) and run new video ads. TikTok bills the ad account for its spend.
+          </p>
+        </div>
+        {loading ? (
+          <Loader2 size={12} className="text-[#6B6560] animate-spin shrink-0" />
+        ) : connected ? (
+          <span className="flex items-center gap-1 text-[10px] text-[#7BAF73] shrink-0">
+            <CheckCircle size={11} />
+            Connected
+          </span>
+        ) : (
+          <button
+            onClick={() => run(startTikTokConnect)}
+            disabled={busy || connection?.configured === false}
+            className="flex items-center gap-1 text-[10px] font-medium text-[#0D0C0B] bg-[#DA7756] hover:bg-[#DA7756]/90 disabled:opacity-40 rounded px-2.5 py-1 shrink-0 cursor-pointer"
+          >
+            <Link2 size={10} />
+            Connect
+          </button>
+        )}
+      </div>
+
+      {connection?.configured === false && (
+        <p className="text-[9px] font-mono text-[#D4A574]">
+          TikTok isn't configured on the server yet (TIKTOK_APP_ID, TIKTOK_APP_SECRET).
+        </p>
+      )}
+
+      {connected && (
+        <div>
+          {advertisers.length === 0 ? (
+            <p className="text-[10px] text-[#D4A574]">No ad accounts in this connection. Use "Add or change ad accounts" and include one.</p>
+          ) : (
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-[#9B9590] w-32 shrink-0">Campaigns run in</span>
+              <select
+                value={connection.defaultAdvertiserId || ''}
+                disabled={busy}
+                onChange={e => run(async () => { await setDefaultTikTokAdvertiser(e.target.value); await refresh(); })}
+                className={`flex-1 min-w-0 bg-[#171614] border rounded px-2 py-1 text-[10px] ${
+                  connection.defaultAdvertiserId ? 'border-[#2C2B28] text-[#F5F0E8]' : 'border-[#D4A574]/40 text-[#D4A574]'
+                }`}
+              >
+                {!connection.defaultAdvertiserId && <option value="">Choose an ad account</option>}
+                {advertisers.map(a => (
+                  <option key={a.id} value={a.id}>{a.name}{a.currency ? ` (${a.currency})` : ''}</option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+      )}
+
+      {connection && (
+        <div>
+          <p className="text-[9px] font-mono text-[#6B6560] mb-1.5">Artists' TikTok accounts</p>
+          {accounts.length === 0 ? (
+            <p className="text-[10px] text-[#9B9590]">
+              None yet. An artist signs in with TikTok so Prelude can see their profile and posts.
+            </p>
+          ) : (
+            <div className="space-y-1">
+              {accounts.map(a => (
+                <div key={a.openId} className="flex items-center gap-2">
+                  {a.imageUrl ? <img src={a.imageUrl} alt="" className="w-4 h-4 rounded-full shrink-0" /> : <AtSign size={10} className="text-[#6B6560] shrink-0" />}
+                  <span className="text-[10px] text-[#F5F0E8] truncate">{a.username ? `@${a.username}` : a.displayName || 'TikTok account'}</span>
+                  {a.followers != null && <span className="text-[9px] font-mono text-[#6B6560]">{formatNumber(a.followers)} followers</span>}
+                  {a.expired && <span className="text-[9px] text-[#D4A574]">needs to sign in again</span>}
+                  <button
+                    onClick={() => run(async () => { await disconnectTikTokAccount(a.openId); await refresh(); })}
+                    disabled={busy}
+                    className="text-[10px] font-mono text-[#6B6560] hover:text-[#C75F4F] cursor-pointer ml-auto shrink-0"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          {connection.accountAuthAvailable ? (
+            <button
+              onClick={() => run(startTikTokAccountConnect)}
+              disabled={busy}
+              className="mt-1.5 text-[10px] text-[#DA7756] hover:underline cursor-pointer"
+            >
+              Sign in with an artist's TikTok account
+            </button>
+          ) : connection.configured !== false && (
+            <p className="text-[9px] font-mono text-[#6B6560] mt-1">Artist sign-in isn't set up on the server yet (TIKTOK_ACCOUNT_AUTH_URL).</p>
+          )}
+        </div>
+      )}
+
+      {connected && (
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => run(startTikTokConnect)}
+            disabled={busy}
+            className="text-[10px] font-mono text-[#9B9590] hover:text-[#F5F0E8] cursor-pointer"
+          >
+            Add or change ad accounts
+          </button>
+          <button
+            onClick={() => run(async () => { await disconnectTikTok(); await refresh(); })}
+            disabled={busy}
+            className="text-[10px] font-mono text-[#6B6560] hover:text-[#C75F4F] cursor-pointer ml-auto"
+          >
+            Disconnect
+          </button>
+        </div>
+      )}
+
+      {(actionError || error) && (
+        <p className="flex items-start gap-1 text-[10px] text-[#C75F4F]">
+          <AlertTriangle size={10} className="mt-0.5 shrink-0" />
+          {actionError || error.message}
+        </p>
+      )}
+    </div>
+  );
+}
+
 /** `notice`: why the modal was opened (e.g. a boost that can't launch yet). */
 export default function AccountConnector({ isOpen, onClose, notice }) {
   if (!isOpen) return null;
@@ -314,6 +475,7 @@ export default function AccountConnector({ isOpen, onClose, notice }) {
             </div>
           )}
           <MetaAccountCard />
+          <TikTokAccountCard />
 
           {SIMULATED_KEYS.map(platform => (
             <div key={platform} className="flex items-center gap-3 p-3 rounded border border-[#2C2B28] bg-[#0D0C0B] opacity-70">

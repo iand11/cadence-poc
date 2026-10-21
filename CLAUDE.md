@@ -103,6 +103,24 @@ Env: `META_PRELUDE_AD_ACCOUNT_ID`, `META_PRELUDE_BUSINESS_ID`, `META_PRELUDE_TOK
 `STRIPE_WEBHOOK_SECRET`. Details in
 docs/CAMPAIGN_PLAN.md.
 
+TikTok ads (Campaigns, mock-tested only until TikTok approves the app): a user connects their TikTok ad
+accounts through TikTok's advertiser authorization (`api/connect/tiktok.js`, callback = the app's advertiser
+redirect URL; token encrypted in `ad_platform_connections`, platform `tiktok`, default ad account in `selection`).
+Artists sign in with TikTok account holder authorization (`api/connect/tiktok-account.js`, platform
+`tiktok_account`; 24h token auto-refreshed with the 1-year refresh token) so Prelude can read their profile and
+posts. `api/campaign/tiktok-launch.js` creates a DISABLED Smart+ campaign → ad group → ad (only `/smart_plus/*`;
+TikTok blocks the legacy manual-flow creates for non-Search campaigns from 2027-01-01): a Spark Ad boosts an
+existing post as the artist, via the artist's Spark Ads code (`creative.sparkCode`, `tt_video/info` + `authorize`)
+or a TikTok account linked to the ad account (`identity/get`); a new video ad uploads `creative.videoUrl`
+(`/api/ad-videos`) and runs as a linked identity. `check: true` validates only. Traffic objective, link clicks,
+destination = smart link with `?c=<directive id>`. `api/campaign/tiktok-campaign.js` reads status + lifetime/daily
+report and goes live / pauses (`TikTokCampaignPanel`). Client: `src/data/tiktokAds.js`, `useTikTokConnection`,
+`TikTokAccountCard` in `AccountConnector`. Budget floors: campaign over $50, ad group over $20/day, lifetime ≥ $20 ×
+days. Env: `TIKTOK_APP_ID`, `TIKTOK_APP_SECRET`, `TIKTOK_ACCOUNT_AUTH_URL` (the app's account holder authorization
+URL from the developer portal), optional `TIKTOK_REDIRECT_URI` / `TIKTOK_ACCOUNT_REDIRECT_URI`, `TIKTOK_API_URL`
+(sandbox or a mock). Not built: TikTok Pixel / Events API on smart links, `/business/post/authorize/`, TikTok
+report snapshots, ad-account time zones (schedules are sent in UTC).
+
 Stream tracking (stream-goal campaigns): confirming a "Drive streams" guided campaign creates a
 `stream_trackers` row from the release's smart link (`api/lib/stream-counts.js`, API `api/streams/index.js`,
 client `src/data/streamCounts.js`, UI `StreamCountsPanel` on the campaign page + the confirm step). One

@@ -165,7 +165,7 @@ export async function getUid(req) {
 // Created lazily too (mirrors db/schema.sql) so a database that hasn't had
 // `npm run db:schema` re-run since this table was added still works.
 let tableReady;
-function ensureTable() {
+export function ensureTable() {
   if (!tableReady) {
     tableReady = query(`
       CREATE TABLE IF NOT EXISTS ad_platform_connections (

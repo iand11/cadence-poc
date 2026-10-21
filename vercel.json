@@ -39,6 +39,9 @@
     "api/campaign/meta-launch.js": {
       "maxDuration": 60
     },
+    "api/campaign/tiktok-launch.js": {
+      "maxDuration": 60
+    },
     "api/cron/refresh-facets.js": {
       "maxDuration": 60
     },
