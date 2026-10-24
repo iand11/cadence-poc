@@ -79,14 +79,22 @@ try {
 
   if (APPLY && missing.length) {
     console.log('\n== Building missing indexes (CONCURRENTLY) ==');
-    for (const [table, name, def, state] of missing) {
-      if (state.startsWith('INVALID')) await q(`DROP INDEX CONCURRENTLY IF EXISTS ${name}`);
-      const t = Date.now();
-      process.stdout.write(`  ${name} … `);
-      await q(`CREATE INDEX CONCURRENTLY IF NOT EXISTS ${name} ON ${table} ${def}`);
-      console.log(`${((Date.now() - t) / 1000).toFixed(1)}s`);
+    // One session with no statement timeout: big-table builds outlast the role's default
+    // (Supabase cancels at a few minutes, leaving an INVALID index that the next run rebuilds)
+    const client = await pool.connect();
+    try {
+      await client.query('SET statement_timeout = 0');
+      for (const [table, name, def, state] of missing) {
+        if (state.startsWith('INVALID')) await client.query(`DROP INDEX CONCURRENTLY IF EXISTS ${name}`);
+        const t = Date.now();
+        process.stdout.write(`  ${name} … `);
+        await client.query(`CREATE INDEX CONCURRENTLY IF NOT EXISTS ${name} ON ${table} ${def}`);
+        console.log(`${((Date.now() - t) / 1000).toFixed(1)}s`);
+      }
+      await client.query('ANALYZE artists, artist_stats_current, playlists, playlist_entries');
+    } finally {
+      client.release();
     }
-    await q('ANALYZE artists, artist_stats_current, playlists, playlist_entries');
   } else if (missing.length) {
     console.log('\n  → re-run with --apply-indexes to build the missing indexes without blocking writes');
   }
