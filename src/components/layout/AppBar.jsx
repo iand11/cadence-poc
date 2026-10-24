@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router';
-import { Search, FileText, LayoutDashboard, Music, Star, ListMusic, Users, ChevronDown, Sheet, ListChecks, Megaphone, Link2, LogOut } from 'lucide-react';
+import { Search, FileText, LayoutDashboard, Music, Star, ListMusic, Users, ChevronDown, Sheet, ListChecks, Megaphone, Link2, LogOut, Activity } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { searchArtists } from '../../data/artists';
@@ -7,6 +7,7 @@ import { formatNumber } from '../../utils/formatters';
 import { useFavorites } from '../../hooks/useFavorites';
 import { useAuth } from '../../hooks/useAuth';
 import NotificationBell from '../notifications/NotificationBell';
+import { useIsAdmin } from '../../hooks/useIsAdmin';
 
 const LIST_ITEMS = [
   { path: '/app/tracks', label: 'Tracks', icon: Music, match: '/app/track' },
@@ -25,6 +26,7 @@ export default function AppBar() {
 
   const { toggleFavorite, isFavorite } = useFavorites();
   const { user, signOut } = useAuth();
+  const isAdmin = useIsAdmin(user);
   const [searchResults, setSearchResults] = useState([]);
 
   // Debounced server-side search across the full catalog
@@ -251,6 +253,18 @@ export default function AppBar() {
 
             {/* Notifications + User + Sign out */}
             <div className="flex items-center gap-2 pl-2 ml-1 border-l border-[#2C2B28]">
+              {isAdmin && (
+                <Link
+                  to="/app/admin/data"
+                  title="Data health"
+                  aria-label="Data health"
+                  className={`p-1.5 rounded transition-colors ${
+                    location.pathname.startsWith('/app/admin') ? 'text-[#F5F0E8] bg-[#171614]' : 'text-[#9B9590] hover:text-[#F5F0E8]'
+                  }`}
+                >
+                  <Activity size={14} />
+                </Link>
+              )}
               {user && <NotificationBell />}
               {user && (
                 <Link

@@ -7,6 +7,7 @@ import { saveReportSnapshot, trackedMetaCampaigns } from '../lib/campaign-snapsh
 import { loadCampaign } from '../campaign/meta-campaign.js';
 import { campaignReport } from '../lib/meta-insights.js';
 import { metaConfigured } from '../lib/meta.js';
+import { trackRun } from '../lib/job-runs.js';
 
 /** Save today's report for every Meta campaign linked to a stream tracker. */
 export async function snapshotMetaReports() {
@@ -32,8 +33,8 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   try {
-    const streams = await snapshotDueTrackers();
-    return res.status(200).json({ ...streams, metaReports: await snapshotMetaReports() });
+    return res.status(200).json(await trackRun('stream-counts', async () =>
+      ({ ...(await snapshotDueTrackers()), metaReports: await snapshotMetaReports() })));
   } catch (err) {
     console.error('[stream-counts] snapshot failed', err.message);
     return res.status(500).json({ error: err.message });

@@ -32,6 +32,7 @@ import CampaignsPage from './pages/CampaignsPage';
 import CampaignDetail from './pages/CampaignDetail';
 import LinksPage from './pages/LinksPage';
 import AccountSettings from './pages/AccountSettings';
+import AdminDataPage from './pages/AdminDataPage';
 import { PrivacyPolicy, DataDeletion } from './pages/LegalPages';
 
 createRoot(document.getElementById('root')).render(
@@ -71,6 +72,7 @@ createRoot(document.getElementById('root')).render(
           <Route path="reports" element={<ReportsList />} />
           <Route path="reports/:id" element={<ReportCenter />} />
           <Route path="account" element={<AccountSettings />} />
+          <Route path="admin/data" element={<AdminDataPage />} />
         </Route>
         </Route>
       </Routes>

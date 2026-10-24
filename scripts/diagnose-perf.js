@@ -36,6 +36,13 @@ const INDEXES = [
   ['playlists', 'playlists_name_trgm_idx', 'USING gin (name gin_trgm_ops)'],
   ['playlists', 'playlists_active_platform_type_idx', '(platform, type) WHERE active'],
   ['playlist_snapshots', 'playlist_snapshots_playlist_day_idx', '(playlist_id, captured_on)'],
+  // admin data health page (api/lib/data-health.js)
+  ['artist_stats_current', 'stats_current_as_of_idx', '(as_of)'],
+  ['artists', 'artists_created_idx', '(created_at)'],
+  ['social_posts', 'social_posts_fetched_idx', '(fetched_at)'],
+  ['smart_link_events', 'smart_link_events_created_idx', '(created_at)'],
+  ['playlists', 'playlists_active_crawled_idx', '(platform, last_crawled_at) WHERE active'],
+  ['playlist_entries', 'playlist_entries_first_seen_at_idx', '(first_seen_at)'],
 ];
 const TABLES = ['artists', 'artist_stats_current', 'playlists', 'playlist_entries', 'playlist_snapshots', 'tracked_artists'];
 
@@ -72,14 +79,22 @@ try {
 
   if (APPLY && missing.length) {
     console.log('\n== Building missing indexes (CONCURRENTLY) ==');
-    for (const [table, name, def, state] of missing) {
-      if (state.startsWith('INVALID')) await q(`DROP INDEX CONCURRENTLY IF EXISTS ${name}`);
-      const t = Date.now();
-      process.stdout.write(`  ${name} … `);
-      await q(`CREATE INDEX CONCURRENTLY IF NOT EXISTS ${name} ON ${table} ${def}`);
-      console.log(`${((Date.now() - t) / 1000).toFixed(1)}s`);
+    // One session with no statement timeout: big-table builds outlast the role's default
+    // (Supabase cancels at a few minutes, leaving an INVALID index that the next run rebuilds)
+    const client = await pool.connect();
+    try {
+      await client.query('SET statement_timeout = 0');
+      for (const [table, name, def, state] of missing) {
+        if (state.startsWith('INVALID')) await client.query(`DROP INDEX CONCURRENTLY IF EXISTS ${name}`);
+        const t = Date.now();
+        process.stdout.write(`  ${name} … `);
+        await client.query(`CREATE INDEX CONCURRENTLY IF NOT EXISTS ${name} ON ${table} ${def}`);
+        console.log(`${((Date.now() - t) / 1000).toFixed(1)}s`);
+      }
+      await client.query('ANALYZE artists, artist_stats_current, playlists, playlist_entries');
+    } finally {
+      client.release();
     }
-    await q('ANALYZE artists, artist_stats_current, playlists, playlist_entries');
   } else if (missing.length) {
     console.log('\n  → re-run with --apply-indexes to build the missing indexes without blocking writes');
   }
