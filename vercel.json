@@ -36,7 +36,7 @@
     },
     {
       "path": "/api/cron/data-health",
-      "schedule": "30 9 * * *"
+      "schedule": "10 * * * *"
     }
   ],
   "functions": {
@@ -60,7 +60,7 @@
       "maxDuration": 60
     },
     "api/cron/data-health.js": {
-      "maxDuration": 120
+      "maxDuration": 300
     },
     "api/admin/health.js": {
       "maxDuration": 120

@@ -5,10 +5,15 @@
 // comes back null if it's cancelled (usually a missing index — see INDEXES below and
 // `npm run db:diagnose -- --apply-indexes`), so one slow part never blanks the page.
 // One summary per day is kept in data_health_snapshots for the trend chart.
+// The full report is built by the hourly cron (/api/cron/data-health) with long query timeouts
+// and stored in catalog_facets ('data_health'); the page reads that stored copy, so a slow
+// count on the big tables never holds up or blanks the page.
 import { query, queryWithTimeout } from './db.js';
 import { ensureJobRunsTable } from './job-runs.js';
 
-const TIMEOUT_MS = 8_000;
+// Per-query statement timeouts: the cron can wait; a Refresh click from the page can't
+export const CRON_TIMEOUT_MS = 60_000;
+export const PAGE_TIMEOUT_MS = 15_000;
 const CONCURRENCY = 3;
 export const ARTIST_STALE_DAYS = 7;
 export const PLAYLIST_STALE_DAYS = 3;
@@ -49,9 +54,10 @@ const n = (v) => (v == null ? null : Number(v));
 const day = (d) => (d instanceof Date ? d.toISOString().slice(0, 10) : String(d).slice(0, 10));
 
 /** Collect everything the page shows. `timedOut` lists the parts that were cancelled. */
-export async function collectHealth() {
+export async function collectHealth({ timeoutMs = CRON_TIMEOUT_MS } = {}) {
   await Promise.all([ensureJobRunsTable(), ensureSnapshotsTable()]);
   const timedOut = [];
+  const timings = {};
   // At most CONCURRENCY queries at once: the pool has 5 connections and gives up on a
   // checkout after 5 s, so firing every query together would fail the queued ones.
   const slots = [];
@@ -60,7 +66,10 @@ export async function collectHealth() {
   const release = () => { const next = slots.shift(); if (next) next(); else active--; };
   // rows, or null when the query timed out / its table doesn't exist yet
   const run = (name, sql, params) => acquire()
-    .then(() => queryWithTimeout(sql, params, TIMEOUT_MS))
+    .then(() => {
+      const t = Date.now();
+      return queryWithTimeout(sql, params, timeoutMs).finally(() => { timings[name] = Date.now() - t; });
+    })
     .finally(release)
     .then((rows) => { if (rows === null) timedOut.push(name); return rows; })
     .catch((err) => {
@@ -132,7 +141,7 @@ export async function collectHealth() {
     one('playlist changes', `SELECT count(*)::int AS d1 FROM playlists WHERE active AND last_changed_at >= now() - interval '1 day'`),
     one('playlist entries', `SELECT count(*) FILTER (WHERE first_seen_at >= now() - interval '1 day')::int AS d1, count(*)::int AS d7
                              FROM playlist_entries WHERE first_seen_at >= now() - interval '7 days'`),
-    run('stored rollups', `SELECT key, refreshed_at, data->'rows' AS rows FROM catalog_facets`),
+    run('stored rollups', `SELECT key, refreshed_at, data->'rows' AS rows FROM catalog_facets WHERE key <> 'data_health'`),
 
     // Jobs
     run('jobs', `SELECT DISTINCT ON (job) job, started_at, finished_at, ok, result, error
@@ -216,7 +225,8 @@ export async function collectHealth() {
   const health = {
     generatedAt: new Date().toISOString(),
     thresholds: { artistStaleDays: ARTIST_STALE_DAYS, playlistStaleDays: PLAYLIST_STALE_DAYS },
-    timedOut, missingIndexes,
+    timedOut, missingIndexes, timeoutMs,
+    slowest: Object.entries(timings).sort((x, y) => y[1] - x[1]).slice(0, 6).map(([name, ms]) => ({ name, ms })),
     artists: {
       total: artistTotals?.artists ?? null,
       withStats: stats,
@@ -300,7 +310,10 @@ export function alertsFor(h) {
     if (ageHours(r.refreshedAt) > 48 && r.key === 'artists') add('warn', 'Rollups', 'Artist facets > 2d old');
   }
 
+  const followerServices = ['instagram', 'tiktok', 'youtubeChannel'];
   for (const s of h.streams.services || []) {
+    // With follower tracking off nothing reads those sources, so their old errors aren't news
+    if (!h.streams.followerTracking && followerServices.includes(s.service)) continue;
     if (s.failing) add('warn', 'Streams', `${s.service}: ${s.failing}/${s.sources} failing`);
   }
   if (h.streams.trackers?.overdue) add('warn', 'Streams', `${h.streams.trackers.overdue} campaign${h.streams.trackers.overdue > 1 ? 's' : ''} not counted today`);
@@ -343,19 +356,46 @@ export async function loadHistory(days = 60) {
   return rows.map((r) => ({ day: day(r.day), ...r.data }));
 }
 
-// One collection at a time, reused for a few minutes (the page polls; the queries aren't free)
-let last = null;
-export function getHealth({ fresh = false, ttlMs = 5 * 60_000 } = {}) {
-  if (!fresh && last && Date.now() - last.at < ttlMs) return last.promise;
-  if (last?.pending) return last.promise;
-  const entry = { at: Date.now(), pending: true };
-  entry.promise = (async () => {
-    const health = await collectHealth();
-    await saveSnapshot(health).catch((err) => console.warn('[data-health] snapshot not saved', err.message));
-    health.history = await loadHistory().catch(() => []);
-    return health;
-  })().finally(() => { entry.pending = false; });
-  entry.promise.catch(() => { if (last === entry) last = null; });
-  last = entry;
-  return entry.promise;
+const REPORT_KEY = 'data_health';
+
+async function storeReport(h) {
+  await query(
+    `INSERT INTO catalog_facets (key, data, refreshed_at) VALUES ($1, $2, now())
+     ON CONFLICT (key) DO UPDATE SET data = EXCLUDED.data, refreshed_at = now()`,
+    [REPORT_KEY, JSON.stringify(h)]);
+}
+
+async function storedReport() {
+  const rows = await query('SELECT data FROM catalog_facets WHERE key = $1', [REPORT_KEY]).catch(() => []);
+  return rows[0]?.data || null;
+}
+
+/** Build a new report, store it, and save the day's summary. */
+export async function buildHealth({ timeoutMs = CRON_TIMEOUT_MS } = {}) {
+  const health = await collectHealth({ timeoutMs });
+  // A partial report (some parts timed out) never replaces a complete stored one
+  const stored = health.timedOut.length ? await storedReport() : null;
+  if (!stored || stored.timedOut?.length) {
+    await Promise.all([
+      saveSnapshot(health).catch((err) => console.warn('[data-health] snapshot not saved', err.message)),
+      storeReport(health).catch((err) => console.warn('[data-health] report not stored', err.message)),
+    ]);
+  }
+  return health;
+}
+
+// One rebuild at a time per instance
+let building = null;
+
+/**
+ * The page's report: the stored one (cron-built), or a new one when asked (fresh) or none
+ * is stored yet. History is always read live (one small table).
+ */
+export async function getHealth({ fresh = false } = {}) {
+  let health = fresh ? null : await storedReport();
+  if (!health) {
+    building ||= buildHealth({ timeoutMs: PAGE_TIMEOUT_MS }).finally(() => { building = null; });
+    health = await building;
+  }
+  return { ...health, history: await loadHistory().catch(() => []) };
 }

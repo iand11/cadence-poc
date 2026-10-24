@@ -179,10 +179,12 @@ Prelude admins only (`PRELUDE_ADMIN_UIDS`; AppBar Activity icon via `GET /api/ad
 → `api/lib/data-health.js`: artist stats freshness (`artist_stats_current.as_of`), followed-artist staleness, refresh queue,
 requests, playlist crawl freshness per platform (`playlists.last_crawled_at`), entries found, rollups, jobs, stream/follower
 counts, Meta report copies, fan sync, smart link clicks, connections, table sizes, plus alerts. Every query is an index range,
-small table or pg_class estimate, run with an 8 s timeout (a cancelled one just blanks its part); results reused 5 min.
-Needs the indexes in its `INDEXES` list (also in `npm run db:diagnose -- --apply-indexes`). Crons and their npm scripts log
-runs to `job_runs` (`trackRun` in `api/lib/job-runs.js`); daily cron `/api/cron/data-health` saves a summary to
-`data_health_snapshots` for the trend chart.
+small table or pg_class estimate. The report is built by the hourly cron `/api/cron/data-health` (60 s per query) or
+`npm run db:data-health` (no timeout) and stored in `catalog_facets` (`data_health`); the page reads that copy. Refresh
+rebuilds with 15 s per query (a timed-out part blanks; a partial report never replaces a complete stored one). Needs
+the indexes in its `INDEXES` list (also in `npm run db:diagnose -- --apply-indexes`). Crons and their npm scripts log
+runs to `job_runs` (`trackRun` in `api/lib/job-runs.js`); each build saves the day's summary to `data_health_snapshots`
+for the trend chart.
 
 ### Artist listener geography is never shown
 
