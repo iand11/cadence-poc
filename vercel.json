@@ -33,6 +33,10 @@
     {
       "path": "/api/cron/stream-counts",
       "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/cron/data-health",
+      "schedule": "30 9 * * *"
     }
   ],
   "functions": {
@@ -54,6 +58,12 @@
     },
     "api/widgets/index.js": {
       "maxDuration": 60
+    },
+    "api/cron/data-health.js": {
+      "maxDuration": 120
+    },
+    "api/admin/health.js": {
+      "maxDuration": 120
     }
   }
 }

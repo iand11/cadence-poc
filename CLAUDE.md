@@ -173,6 +173,17 @@ instead of data. `src/data/liveWidgets.js` (`hydrateSpec`) re-runs it in the bro
 so newly followed artists appear without a model call; live widgets have no Refresh button. Campaigns, smart links
 and catalog widgets stay static snapshots.
 
+### Admin data health (`/app/admin/data`)
+
+Prelude admins only (`PRELUDE_ADMIN_UIDS`; AppBar Activity icon via `GET /api/admin/health?check=1`). `api/admin/health.js`
+→ `api/lib/data-health.js`: artist stats freshness (`artist_stats_current.as_of`), followed-artist staleness, refresh queue,
+requests, playlist crawl freshness per platform (`playlists.last_crawled_at`), entries found, rollups, jobs, stream/follower
+counts, Meta report copies, fan sync, smart link clicks, connections, table sizes, plus alerts. Every query is an index range,
+small table or pg_class estimate, run with an 8 s timeout (a cancelled one just blanks its part); results reused 5 min.
+Needs the indexes in its `INDEXES` list (also in `npm run db:diagnose -- --apply-indexes`). Crons and their npm scripts log
+runs to `job_runs` (`trackRun` in `api/lib/job-runs.js`); daily cron `/api/cron/data-health` saves a summary to
+`data_health_snapshots` for the trend chart.
+
 ### Artist listener geography is never shown
 
 Artist listener geography (`sp_where_people_listen`: listener cities/countries) stays in the DB

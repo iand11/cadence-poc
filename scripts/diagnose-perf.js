@@ -36,6 +36,13 @@ const INDEXES = [
   ['playlists', 'playlists_name_trgm_idx', 'USING gin (name gin_trgm_ops)'],
   ['playlists', 'playlists_active_platform_type_idx', '(platform, type) WHERE active'],
   ['playlist_snapshots', 'playlist_snapshots_playlist_day_idx', '(playlist_id, captured_on)'],
+  // admin data health page (api/lib/data-health.js)
+  ['artist_stats_current', 'stats_current_as_of_idx', '(as_of)'],
+  ['artists', 'artists_created_idx', '(created_at)'],
+  ['social_posts', 'social_posts_fetched_idx', '(fetched_at)'],
+  ['smart_link_events', 'smart_link_events_created_idx', '(created_at)'],
+  ['playlists', 'playlists_active_crawled_idx', '(platform, last_crawled_at) WHERE active'],
+  ['playlist_entries', 'playlist_entries_first_seen_at_idx', '(first_seen_at)'],
 ];
 const TABLES = ['artists', 'artist_stats_current', 'playlists', 'playlist_entries', 'playlist_snapshots', 'tracked_artists'];
 

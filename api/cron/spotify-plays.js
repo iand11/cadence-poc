@@ -3,6 +3,7 @@
 // CRON_SECRET is set, anything else is refused. Also runnable as
 // `npm run spotify:sync` (scripts/sync-spotify-plays.js).
 import { syncDueListeners } from '../lib/spotify-sync.js';
+import { trackRun } from '../lib/job-runs.js';
 
 export default async function handler(req, res) {
   const secret = process.env.CRON_SECRET;
@@ -13,7 +14,7 @@ export default async function handler(req, res) {
     return res.status(200).json({ skipped: 'Spotify is not configured' });
   }
   try {
-    return res.status(200).json(await syncDueListeners());
+    return res.status(200).json(await trackRun('spotify-plays', () => syncDueListeners()));
   } catch (err) {
     console.error('[spotify-plays] sync failed', err.message);
     return res.status(500).json({ error: err.message });

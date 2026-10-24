@@ -7,8 +7,12 @@ import { pool } from './lib/db.js'; // loads .env
 
 const { snapshotDueTrackers } = await import('../api/lib/stream-counts.js');
 const { snapshotMetaReports } = await import('../api/cron/stream-counts.js');
-const r = await snapshotDueTrackers();
-const m = await snapshotMetaReports();
+const { trackRun } = await import('../api/lib/job-runs.js');
+const { r, m } = await trackRun('stream-counts', async () => {
+  const r = await snapshotDueTrackers();
+  const m = await snapshotMetaReports();
+  return { r, m };
+});
 console.log(`Counted ${r.counted} source(s) across ${r.trackers} campaign(s), ${r.errors} error(s); removed ${r.prunedYouTube} YouTube count(s) older than 30 days.`);
 console.log(m.skipped ? `Meta reports: ${m.skipped}.` : `Saved ${m.saved} Meta report(s), ${m.errors} error(s).`);
 await pool.end();

@@ -103,6 +103,9 @@ CREATE INDEX IF NOT EXISTS stats_current_followers_page_idx
   ON artist_stats_current (sp_followers DESC, artist_id ASC) WHERE sp_followers IS NOT NULL;
 CREATE INDEX IF NOT EXISTS stats_current_score_page_idx
   ON artist_stats_current (score DESC, artist_id ASC) WHERE score IS NOT NULL;
+-- Freshness counts on the admin data health page (api/lib/data-health.js)
+CREATE INDEX IF NOT EXISTS stats_current_as_of_idx ON artist_stats_current (as_of);
+CREATE INDEX IF NOT EXISTS artists_created_idx ON artists (created_at);
 
 -- ---------------------------------------------------------------------------
 -- Albums (shared across artists via artist_albums)
@@ -219,6 +222,7 @@ CREATE INDEX IF NOT EXISTS social_posts_artist_idx
   ON social_posts (artist_id, platform, published_at DESC);
 CREATE INDEX IF NOT EXISTS social_posts_published_idx
   ON social_posts (published_at DESC);
+CREATE INDEX IF NOT EXISTS social_posts_fetched_idx ON social_posts (fetched_at);
 
 -- ---------------------------------------------------------------------------
 -- Tracked artists — first-class rows for who tracks what.
@@ -574,6 +578,7 @@ CREATE TABLE IF NOT EXISTS smart_link_events (
 );
 CREATE INDEX IF NOT EXISTS smart_link_events_slug_idx ON smart_link_events (slug, created_at);
 CREATE INDEX IF NOT EXISTS smart_link_events_campaign_idx ON smart_link_events (campaign) WHERE campaign IS NOT NULL;
+CREATE INDEX IF NOT EXISTS smart_link_events_created_idx ON smart_link_events (created_at);
 
 -- Visitor detail per event (api/lib/visitor.js). Headers and URL on every event;
 -- visitor_id, _fbp/_fbc and the browser's own signals (client) only where tracking is
@@ -719,6 +724,9 @@ BEGIN
       ON playlist_entries (playlist_id, removed_at) WHERE removed_at IS NOT NULL;
     CREATE INDEX IF NOT EXISTS playlist_entries_track_idx
       ON playlist_entries (track_id);
+    -- entries found per day (admin data health page)
+    CREATE INDEX IF NOT EXISTS playlist_entries_first_seen_at_idx
+      ON playlist_entries (first_seen_at);
   END IF;
   IF to_regclass('public.playlists') IS NOT NULL THEN
     CREATE INDEX IF NOT EXISTS playlists_active_followers_idx
@@ -732,6 +740,9 @@ BEGIN
       ON playlists USING gin (name gin_trgm_ops);
     CREATE INDEX IF NOT EXISTS playlists_active_platform_type_idx
       ON playlists (platform, type) WHERE active;
+    -- crawl freshness per platform (admin data health page)
+    CREATE INDEX IF NOT EXISTS playlists_active_crawled_idx
+      ON playlists (platform, last_crawled_at) WHERE active;
   END IF;
   IF to_regclass('public.playlist_snapshots') IS NOT NULL THEN
     CREATE INDEX IF NOT EXISTS playlist_snapshots_playlist_day_idx
@@ -846,4 +857,24 @@ CREATE TABLE IF NOT EXISTS campaign_report_snapshots (
   report       jsonb NOT NULL,
   recorded_at  timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (campaign_id, day)
+);
+
+-- Run log for scheduled and CLI jobs (api/lib/job-runs.js): crons and their npm script
+-- equivalents record each run; the admin data health page shows the last runs per job.
+CREATE TABLE IF NOT EXISTS job_runs (
+  id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  job         text NOT NULL,
+  started_at  timestamptz NOT NULL DEFAULT now(),
+  finished_at timestamptz,
+  ok          boolean,
+  result      jsonb,
+  error       text
+);
+CREATE INDEX IF NOT EXISTS job_runs_job_idx ON job_runs (job, started_at DESC);
+
+-- One headline summary per day for the admin data health trend (api/lib/data-health.js)
+CREATE TABLE IF NOT EXISTS data_health_snapshots (
+  day         date PRIMARY KEY,
+  data        jsonb NOT NULL,
+  recorded_at timestamptz NOT NULL DEFAULT now()
 );

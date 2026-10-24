@@ -6,7 +6,8 @@ import { pool } from './lib/db.js';
 try {
   const { refreshFacets } = await import('../api/lib/facets.js');
   const t = Date.now();
-  const { stats } = await refreshFacets();
+  const { trackRun } = await import('../api/lib/job-runs.js');
+  const { stats } = await trackRun('refresh-facets', refreshFacets);
   console.log(`Facets refreshed in ${((Date.now() - t) / 1000).toFixed(1)}s:`, stats);
 } catch (err) {
   // Without this the process.exit below would swallow the error.
